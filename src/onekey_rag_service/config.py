@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     inline_citations_enabled: bool = Field(default=True, alias="INLINE_CITATIONS_ENABLED")
     answer_append_sources: bool = Field(default=False, alias="ANSWER_APPEND_SOURCES")
 
+    # ========== Widget（前端 iframe）==========
+    # 为空表示不额外下发 frame-ancestors 限制；生产建议配置为："'self' https://developer.onekey.so"
+    widget_frame_ancestors: str = Field(default="", alias="WIDGET_FRAME_ANCESTORS")
+
     def chat_model_map(self) -> dict[str, str]:
         if not self.chat_model_map_json:
             return {}

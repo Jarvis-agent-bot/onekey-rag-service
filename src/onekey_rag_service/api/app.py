@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import uuid
+from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from onekey_rag_service.config import Settings, get_settings
@@ -36,6 +38,20 @@ from onekey_rag_service.schemas import (
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="OneKey RAG Service", version="0.1.0")
+
+# 前端 Widget（/widget/widget.js + /widget/）
+_WIDGET_DIR = Path(__file__).resolve().parents[1] / "static" / "widget"
+app.mount("/widget", StaticFiles(directory=str(_WIDGET_DIR), html=True, check_dir=False), name="widget")
+
+
+@app.middleware("http")
+async def _widget_headers(request: Request, call_next):
+    resp = await call_next(request)
+    if request.url.path.startswith("/widget"):
+        settings: Settings = getattr(request.app.state, "settings", get_settings())
+        if settings.widget_frame_ancestors:
+            resp.headers["Content-Security-Policy"] = f"frame-ancestors {settings.widget_frame_ancestors}"
+    return resp
 
 
 @app.exception_handler(HTTPException)

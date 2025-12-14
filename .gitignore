@@ -11,9 +11,13 @@ venv/
 dist/
 build/
 
+node_modules/
+.vite/
+
 .env
 .env.*
 !.env.example
 
 data/
 *.log
+*.pid

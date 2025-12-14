@@ -79,10 +79,47 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
 ### 3.2 组件建议（MVP）
 - `rag-api`：FastAPI（SSE）+ LangChain v1.1.0
 - `postgres`：PostgreSQL + `pgvector`
+- `widget`：前端对话组件（对标 Inkeep），以静态资源形式由 `rag-api` 同域提供 `/widget/*`（loader + iframe）
 - （可选）`redis`：队列/缓存（若引入 Celery/RQ）
 - （可选）`worker`：执行 crawl/index 异步任务
 
+### 3.3 前端接入（对标 Inkeep：一行 script + 弹窗 + iframe）
+
+**目标形态**
+- 文档站（`https://developer.onekey.so/`）只需要引入一行 `<script src=".../widget/widget.js"></script>`。
+- loader 脚本自动注入右下角按钮与居中弹窗（Modal）；弹窗内使用 iframe 加载完整 UI（静态资源）。
+- iframe 与 API **同域**，在 iframe 内通过相对路径调用 `/v1/chat/completions`，避免 CORS 复杂度。
+
+**同域对外暴露**
+- loader：`GET /widget/widget.js`
+- iframe 页面：`GET /widget/`
+- 对话接口：`POST /v1/chat/completions`（OpenAI 兼容，支持流式 SSE + sources 事件）
+
+**安全建议**
+- 后端建议通过 CSP `frame-ancestors` 限制允许嵌入 `iframe` 的父页面来源（仅允许 `https://developer.onekey.so`），避免被第三方站点恶意嵌入。
+
 ---
+
+## 9. 部署与启动（当前实现）
+
+### 9.1 docker-compose（本地一键启动）
+
+当前仓库内提供 `docker-compose.yml`，默认启动：
+- `postgres`：pgvector/pg16
+- `api`：FastAPI + LangChain + crawler/index/rag + 静态 Widget（/widget）
+
+启动步骤（详见 `README.md`）：
+1) `cp .env.example .env` 并填写 `CHAT_API_KEY` 等配置  
+2) `docker compose up -d --build`  
+3) 初始化数据：`POST /admin/crawl` + `POST /admin/index`  
+4) 前端接入：在文档站引入 `https://你的-rag-域名/widget/widget.js`
+
+### 9.2 前端工程（同仓库，构建到后端静态目录）
+
+前端源码位于 `frontend/`，在构建 `api` 镜像时会：
+- 执行 `npm install && npm run build`
+- 将 `frontend/dist` 拷贝到后端静态目录 `src/onekey_rag_service/static/widget`
+- 由后端同域提供 `/widget/*`
 
 ## 4. 数据流与链路（端到端）
 

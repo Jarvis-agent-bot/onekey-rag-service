@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OneKey RAG Widget Host（本地测试页）</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        margin: 24px;
+        color: #0f172a;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      .box {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        background: #f8fafc;
+        max-width: 860px;
+      }
+      .muted {
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>OneKey RAG Widget Host（本地测试页）</h1>
+    <div class="box">
+      <p>前置条件：后端已启动并能访问 <code>http://localhost:8000</code>。</p>
+      <p class="muted">
+        你应该会在右下角看到 “Ask AI” 按钮。点击后打开抽屉，即可测试 Widget 的对话、流式输出与引用展示。
+      </p>
+      <p class="muted">
+        如果你设置了 <code>WIDGET_FRAME_ANCESTORS</code>，需要把本页 origin 也加入允许列表（例如
+        <code>"'self' https://developer.onekey.so http://localhost:9000"</code>），否则 iframe 可能被浏览器拦截。
+      </p>
+    </div>
+
+    <script
+      src="http://localhost:8000/widget/widget.js"
+      data-model="onekey-docs"
+      data-title="OneKey 文档助手"
+      data-button-label="Ask AI"
+      data-modal-width="860px"
+      data-modal-height="72vh"
+    ></script>
+  </body>
+</html>

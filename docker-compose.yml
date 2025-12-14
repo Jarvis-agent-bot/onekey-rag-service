@@ -63,6 +63,9 @@ services:
       INLINE_CITATIONS_ENABLED: ${INLINE_CITATIONS_ENABLED:-true}
       ANSWER_APPEND_SOURCES: ${ANSWER_APPEND_SOURCES:-false}
 
+      # Widget（iframe）安全：CSP frame-ancestors（为空表示不设置）
+      WIDGET_FRAME_ANCESTORS: ${WIDGET_FRAME_ANCESTORS:-}
+
       # 检索（默认 hybrid：BM25+向量）
       RETRIEVAL_MODE: ${RETRIEVAL_MODE:-hybrid}
       BM25_FTS_CONFIG: ${BM25_FTS_CONFIG:-simple}

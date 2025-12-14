@@ -66,6 +66,29 @@
    - 模型列表：`GET http://localhost:8000/v1/models`
    - 反馈：`POST http://localhost:8000/v1/feedback`
    - 健康检查：`GET http://localhost:8000/healthz`
+   - 前端 Widget（用于“一行 script”接入）：`GET http://localhost:8000/widget/widget.js`（iframe 页面为 `GET http://localhost:8000/widget/`）
+
+## 前端 Widget（一行 script 接入）
+
+本服务会同域提供：
+- Loader 脚本：`/widget/widget.js`
+- iframe 页面：`/widget/`
+
+在 `https://developer.onekey.so/` 的站点代码中加入（示例）：
+```html
+<script
+  src="https://你的-rag-域名/widget/widget.js"
+  data-model="onekey-docs"
+  data-title="OneKey 文档助手"
+></script>
+```
+
+本地快速测试（模拟文档站引入一行 script）：
+- 启动本地静态页：`python -m http.server 9000 --bind 127.0.0.1 --directory examples`
+- 打开测试页：`http://127.0.0.1:9000/widget-host.html`
+
+生产建议在 `.env` 配置 `WIDGET_FRAME_ANCESTORS` 限制可嵌入来源，例如：
+- `WIDGET_FRAME_ANCESTORS="'self' https://developer.onekey.so"`（建议用双引号包住，内部保留 `'self'`）
 
 ## 配置说明（MVP）
 

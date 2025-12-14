@@ -14,7 +14,7 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为降
 
 ### 0.2 目标与边界
 **目标（MVP 必达）**
-1. 在 `developer.onekey.so` 全站提供统一 AI 对话入口（浮层/抽屉）。
+1. 在 `developer.onekey.so` 全站提供统一 AI 对话入口（浮层/弹窗）。
 2. 支持多轮对话（把历史 `messages` 传给后端）。
 3. 支持流式输出（POST SSE），并在结束前接收 `sources` 事件。
 4. 支持 inline citation（如 `[1] [2]`）与 sources 面板联动展示。
@@ -25,9 +25,10 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为降
 - 多版本文档切换（当前只有一个版本）
 - 后台运营管理 UI（数据先上报即可）
 
-### 0.3 关键假设/待确认
-1. 文档站点前端技术栈（Docusaurus / Next.js / 纯静态）待确认，以决定“脚本嵌入”还是“源码集成”。
-2. 后端服务部署域名与 CORS 白名单待确认（至少包含 `https://developer.onekey.so` 与预发布域名）。
+### 0.3 关键假设/约束（已确定）
+1. **集成方式**：采用“一行 script 注入”对标 Inkeep：文档站仅引入 `widget.js`，由 loader 自动注入右下角按钮 + 居中弹窗（Modal），弹窗内加载 iframe（iframe 承载完整 UI）。
+2. **同域策略**：Widget iframe 与 RAG API 同域部署，iframe 内以相对路径调用 `/v1/chat/completions`，避免 CORS 复杂度；文档站只负责加载 `widget.js`。
+3. **嵌入安全**：后端通过 CSP `frame-ancestors` 控制允许嵌入的父页面来源（建议仅允许 `https://developer.onekey.so`）。
 
 ---
 
@@ -52,18 +53,18 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为降
 
 ## 2. 产品功能需求
 
-### 2.1 入口与布局（推荐：右下角按钮 + 右侧抽屉）
+### 2.1 入口与布局（推荐：右下角按钮 + 居中弹窗）
 **入口**
 - 右下角悬浮按钮（“Ask AI”/“文档助手”）
 - 可配置：是否在移动端展示、最小化样式、悬浮层级（z-index）
 
-**抽屉（Drawer）**
-- 桌面：右侧抽屉宽 420–520px（可拖拽改变宽度，后续）
-- 移动端：全屏覆盖（顶部返回/关闭）
-- 保留滚动位置，不影响页面主体滚动
+**弹窗（Modal）**
+- 桌面：居中弹窗，推荐宽 760–920px，高 60–75vh（可配置）
+- 移动端：近似全屏（保留少量边距或全屏覆盖）
+- 有遮罩（overlay），点击遮罩或按 ESC 可关闭
 
 **会话保留**
-- 关闭抽屉不清空会话；提供“一键清空”
+- 关闭弹窗不清空会话；提供“一键清空”
 - localStorage 持久化（可配置关闭）
 
 ### 2.2 对话（Chat Thread）
@@ -262,23 +263,48 @@ data: [DONE]
 
 ## 5. 前端技术实现建议
 
-### 5.1 集成方式（两种方案）
-**方案 A：脚本嵌入（适合 GitHub Pages 静态站）**
-- 构建一个独立 widget bundle（IIFE/UMD/ESM）
-- 文档站通过 `<script>` 注入并在 `window` 提供配置（base_url、默认 model、主题）
+### 5.1 集成方式（确定：一行 script + iframe）
 
-**方案 B：源码集成（适合 Next.js/Docusaurus 可控构建）**
-- 以 React 组件形式集成到站点 Layout
-- 复用站点的主题、i18n、路由能力
+后端同域提供：
+- Loader：`GET /widget/widget.js`
+- iframe：`GET /widget/`
 
-推荐：优先方案 B（更易与站点风格统一）；若站点构建不可控再用方案 A。
+文档站只需引入一行（示例）：
+```html
+<script
+  src="https://你的-rag-域名/widget/widget.js"
+  data-model="onekey-docs"
+  data-title="OneKey 文档助手"
+></script>
+```
+
+可选配置（两种方式二选一）：
+1) `data-*` 属性（推荐，简单直观）：
+- `data-model`：默认模型 id（对应 `GET /v1/models` 的 `id`）
+- `data-title`：iframe 标题/头部标题
+- `data-button-label`：右下角按钮文案（默认 `Ask AI`）
+- `data-width`：弹窗宽度（历史兼容字段，默认 `860px`）
+- `data-modal-width`：弹窗宽度（推荐）
+- `data-modal-height`：弹窗高度（默认 `72vh`）
+- `data-modal-max-height`：弹窗最大高度（默认 `820px`）
+- `data-z-index`：层级（默认 `2147483647`）
+- `data-api-base`：API Base（可选；为空表示 iframe 内使用同域相对路径）
+- `data-widget-base-url`：iframe URL（可选；默认从 `widget.js` 的目录推导）
+
+2) 全局变量（适合集中管理）：
+```js
+window.OneKeyRAGWidgetConfig = {
+  model: "onekey-docs",
+  title: "OneKey 文档助手"
+}
+```
 
 ### 5.2 模块划分（建议）
 - `api/`：models、chat、feedback
 - `streaming/`：SSE over POST（含 abort、重试、解析）
 - `store/`：会话状态（messages、sources、selectedModel、streaming 状态）
 - `components/`：
-  - `ChatLauncher`、`ChatDrawer`
+  - `ChatLauncher`、`ChatModal`
   - `MessageList`、`MessageItem`
   - `Composer`
   - `SourcesPanel`、`CitationPill`
@@ -317,7 +343,7 @@ data: [DONE]
 ## 7. 测试与验收
 
 ### 7.1 MVP 自测清单
-- 抽屉打开/关闭、移动端适配、ESC 关闭
+- 弹窗打开/关闭、移动端适配、ESC 关闭
 - 非流式：能显示答案、能显示 sources
 - 流式：逐字显示；收到 sources 事件；最后 `[DONE]`
 - inline citation：点击 `[n]` 可定位到 sources
