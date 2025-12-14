@@ -104,7 +104,7 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
 ### 4.2 在线链路：Query → 检索 →（重排）→ 生成 → 引用输出
 1. API 接收 `messages`（含历史）
 2. Query 预处理（可选）：
-   - 多轮压缩/问题改写（将会话上下文折叠成单轮 query）
+   - 多轮压缩/问题改写（将会话上下文折叠成单轮 query，用于检索）
    - 关键词提取（用于日志与运营）
 3. Retriever：向量召回 topK（如 30）
 4. （可选）Reranker：对 topK 重排，选 topN（如 8）
@@ -339,6 +339,7 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
   "usage": { "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0 },
   "sources": [
     {
+      "ref": 1,
       "url": "https://developer.onekey.so/xxx",
       "title": "（页面标题）",
       "section_path": "Getting Started > Auth",
@@ -359,7 +360,7 @@ data: {"id":"chatcmpl_xxx","object":"chat.completion.chunk","choices":[{"index":
 
 data: {"id":"chatcmpl_xxx","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"第二段"},"finish_reason":null}]}
 
-data: {"id":"chatcmpl_xxx","object":"chat.completion.sources","sources":[{"url":"https://developer.onekey.so/xxx","title":"...","section_path":"...","snippet":"..."}]}
+data: {"id":"chatcmpl_xxx","object":"chat.completion.sources","sources":[{"ref":1,"url":"https://developer.onekey.so/xxx","title":"...","section_path":"...","snippet":"..."}]}
 
 data: [DONE]
 ```
@@ -368,6 +369,10 @@ data: [DONE]
 - `temperature`、`top_p`、`max_tokens`：透传给 ChatModel
 - `metadata`：用于 trace（如 `conversation_id`）
 - `debug`：返回检索命中与分数（仅内部或受控开启）
+
+#### 引用输出约定（Inline citation，推荐）
+- 回答正文使用 `[1]`、`[2]` 形式标注引用编号（更像 Inkeep）
+- `sources[].ref` 与正文引用编号对齐，便于前端实现“点击引用弹出预览/跳转”
 
 ---
 
@@ -449,10 +454,11 @@ data: [DONE]
 
 ### 8.2 Rerank（可选但建议）
 - 作用：显著提升引用相关性（对标 Inkeep 关键项之一）
-- MVP 可先不做，或作为可开关能力引入（以便先跑通链路）
+- 建议方案：本地 **cross-encoder reranker**（例如 `BAAI/bge-reranker-large`），作为可开关能力引入，默认用于对话检索结果重排
 
 ### 8.3 ChatModel（可外部 API）
 - 关键要求：统一适配层（provider 可替换）、可观测、失败降级
+- 实现建议：使用 LangChain 官方推荐的 `from langchain.chat_models import init_chat_model` 初始化 ChatModel，并通过 `base_url` 适配 OpenAI-Compatible（DeepSeek/Together/vLLM/自建网关等）
 - 备注：后续可切本地 LLM（取决于成本与性能）
 
 ---
@@ -465,9 +471,14 @@ data: [DONE]
 
 ### 9.2 环境变量建议
 - `DATABASE_URL`：Postgres 连接串
-- `EMBEDDING_MODEL`：embedding 模型名/路径
-- `CHAT_PROVIDER`：openai/anthropic/xxx
-- `CHAT_API_KEY`：外部模型 key（如使用外部）
+- `EMBEDDINGS_PROVIDER`：fake / ollama / sentence_transformers / openai_compatible
+- `PGVECTOR_EMBEDDING_DIM`：向量维度（必须与 Embedding 输出一致）
+- `CHAT_PROVIDER`：默认 `langchain`（通过 `init_chat_model`）
+- `CHAT_MODEL_PROVIDER`：默认 `openai`（配合 `CHAT_BASE_URL` 适配 OpenAI-Compatible）
+- `CHAT_BASE_URL` / `CHAT_API_KEY` / `CHAT_MODEL`：上游模型配置
+- `CHAT_DEFAULT_TEMPERATURE` / `CHAT_DEFAULT_TOP_P` / `CHAT_DEFAULT_MAX_TOKENS`：默认生成参数
+- `RETRIEVAL_MODE`：`hybrid`（BM25/FTS+向量）或 `vector`
+- `AUTO_CREATE_INDEXES` / `PGVECTOR_INDEX_TYPE`：启动时自动建索引策略
 - `CRAWL_RATE_LIMIT`：抓取速率
 
 ---
@@ -496,3 +507,12 @@ data: [DONE]
 5. 引入 rerank（提升引用质量）
 6. 反馈闭环与基础报表
 
+---
+
+## 12. TODO（对标 Inkeep 的关键增强）
+
+1. **Hybrid 检索（BM25 + 向量）**（已完成）：提升对代码/术语/精确匹配问题的召回稳定性（如 API 名、参数名、错误码）。
+2. **pgvector 向量索引（HNSW / IVFFLAT）**（已完成）：根据数据规模与延迟目标，启用合适索引并提供建索引脚本与参数化配置。
+3. **Query Rewrite / 多轮记忆压缩**（已完成）：将多轮对话压缩成单轮可检索 query，减少“越聊越偏”与 token 成本。
+4. **真实上游流式（透传）**（已完成）：SSE 改为对上游模型的真正流式输出透传，并在末尾追加 sources 事件。
+5. **可观测与评测闭环**（待办）：完善 trace（检索命中、rerank 分数、引用 URLs、耗时、token）、离线评测集与回归（答案/引用相关性）。

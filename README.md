@@ -3,4 +3,135 @@
 本仓库用于构建 OneKey 开发者文档的 RAG（Retrieval-Augmented Generation）对话服务，目标对标 Inkeep 的“文档对话 + 可追溯引用”体验。
 
 - 需求与技术方案文档：`docs/onekey-rag-service-spec.md`
+- 前端接入需求与开发规格：`docs/onekey-rag-frontend-spec.md`
 
+## 快速开始（本地 Docker）
+
+1. 准备环境变量：
+   - `cp .env.example .env`
+   - 填写 `.env` 中的 `CHAT_API_KEY`（上游 OpenAI 兼容模型的 Key）
+   - 如使用 DeepSeek：配置 `CHAT_BASE_URL`、`CHAT_MODEL`，并保持 `CHAT_MODEL_PROVIDER=openai`
+   - 推荐 Embedding（无需 Ollama）：
+     - `EMBEDDINGS_PROVIDER=sentence_transformers`
+     - `SENTENCE_TRANSFORMERS_MODEL=sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
+     - `PGVECTOR_EMBEDDING_DIM=768`
+
+2. 启动服务：
+   - `docker compose up -d --build`
+   - API 默认地址：`http://localhost:8000`
+   - 健康检查：`GET http://localhost:8000/healthz`
+
+3. 初始化数据：抓取 + 建索引（首次建议 `full`，后续可用 `incremental`）
+   - 抓取文档（sitemap 优先，失败自动降级为 seed_urls）：
+     - `POST http://localhost:8000/admin/crawl`
+     - 示例（全站建议把 `max_pages` 调大，例如 5000 或更高）：
+       ```bash
+       curl -s http://localhost:8000/admin/crawl \
+         -H 'content-type: application/json' \
+         -d '{"mode":"full","sitemap_url":"https://developer.onekey.so/sitemap.xml","seed_urls":["https://developer.onekey.so/"],"max_pages":5000}'
+       ```
+     - 轮询任务状态：
+       ```bash
+       curl -s http://localhost:8000/admin/crawl/<job_id>
+       ```
+   - 建索引（chunk + embedding + pgvector 入库）：
+     - `POST http://localhost:8000/admin/index`
+     - 示例：
+       ```bash
+       curl -s http://localhost:8000/admin/index \
+         -H 'content-type: application/json' \
+         -d '{"mode":"full"}'
+       ```
+     - 轮询任务状态：
+       ```bash
+       curl -s http://localhost:8000/admin/index/<job_id>
+       ```
+
+4. 对话（OpenAI 兼容）：
+   - `POST http://localhost:8000/v1/chat/completions`
+   - 非流式示例：
+     ```bash
+     curl -s http://localhost:8000/v1/chat/completions \
+       -H 'content-type: application/json' \
+       -d '{"model":"onekey-docs","messages":[{"role":"user","content":"如何在项目里集成 OneKey Connect？"}],"stream":false}'
+     ```
+   - 流式（SSE）示例（会在结束前追加 `chat.completion.sources` 事件，最后 `data: [DONE]`）：
+     ```bash
+     curl -N http://localhost:8000/v1/chat/completions \
+       -H 'content-type: application/json' \
+       -d '{"model":"onekey-docs","messages":[{"role":"user","content":"WebUSB 权限需要注意什么？"}],"stream":true}'
+     ```
+
+5. 常用接口一览：
+   - 模型列表：`GET http://localhost:8000/v1/models`
+   - 反馈：`POST http://localhost:8000/v1/feedback`
+   - 健康检查：`GET http://localhost:8000/healthz`
+
+## 配置说明（MVP）
+
+- 向量库：`pgvector`（Postgres 容器：`pgvector/pgvector:pg16`）
+- 对外接口：OpenAI 兼容（`/v1/chat/completions`），额外返回 `sources`
+- Embedding：
+  - 默认：`EMBEDDINGS_PROVIDER=fake`（仅用于链路跑通，不适合生产检索效果）
+  - 推荐（本地 CPU，无需 Ollama）：`EMBEDDINGS_PROVIDER=sentence_transformers` 并配置 `SENTENCE_TRANSFORMERS_MODEL`
+  - 可选（本地 Ollama）：`EMBEDDINGS_PROVIDER=ollama` 并配置 `OLLAMA_BASE_URL`、`OLLAMA_EMBEDDING_MODEL`
+
+### 生成参数（默认值来自 env）
+
+当客户端请求未显式传入时，服务会使用：
+- `CHAT_DEFAULT_TEMPERATURE`
+- `CHAT_DEFAULT_TOP_P`
+- `CHAT_DEFAULT_MAX_TOKENS`
+
+### 多 ChatModel（可选）
+
+本服务通过 LangChain `init_chat_model` 初始化 ChatModel，并使用 OpenAI provider 的 `base_url` 适配 OpenAI-Compatible（DeepSeek 也属于该类），因此：
+- 仅切换单一上游模型：改 `.env` 的 `CHAT_BASE_URL` + `CHAT_MODEL` 即可
+- 同时暴露多个 `model` 给客户端选择：配置 `CHAT_MODEL_MAP_JSON`（请求的 `model` -> 上游模型名）
+
+### 多轮对话（Query rewrite / 记忆压缩）
+
+服务会基于 `messages` 的多轮历史，自动：
+- 改写出“用于检索的独立 query”（降低多轮追问导致的召回偏移）
+- 生成对话摘要（压缩记忆），用于回答时补充上下文
+
+相关配置：`QUERY_REWRITE_ENABLED`、`MEMORY_SUMMARY_ENABLED`、`CONVERSATION_*`
+
+### Inline citation（更像 Inkeep）
+
+- 默认开启 `INLINE_CITATIONS_ENABLED=true`：回答正文会生成类似 `[1][2]` 的引用编号，并在 `sources[]` 中返回对应 `ref/url/snippet`。
+- 若你的客户端只展示 `content`，可设置 `ANSWER_APPEND_SOURCES=true` 在正文末尾追加“参考”列表。
+
+### 检索策略（Hybrid 默认开启）
+
+- 默认：`RETRIEVAL_MODE=hybrid`（BM25/FTS + 向量），对代码/术语/精确匹配的召回更稳
+- 启动时自动建索引：`AUTO_CREATE_INDEXES=true`（可通过 `PGVECTOR_INDEX_TYPE` 选择 `hnsw/ivfflat/none`）
+
+### 使用本地 sentence-transformers Embeddings（推荐）
+
+前提：无（不需要运行 Ollama）。
+
+推荐使用 `sentence-transformers` 在本地 CPU 上跑 embedding（首次会自动下载模型到 HuggingFace 缓存）。
+
+- `.env` 建议：
+  - `EMBEDDINGS_PROVIDER=sentence_transformers`
+  - `SENTENCE_TRANSFORMERS_MODEL=sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
+  - `PGVECTOR_EMBEDDING_DIM=768`（需与你的 embedding 模型输出维度一致）
+
+可选：如果你不希望容器内联网下载模型，把模型文件预下载后挂载到容器并设置 `SENTENCE_TRANSFORMERS_MODEL=/models/...`。
+
+### 使用 bge-reranker 做重排（推荐）
+
+对标 Inkeep 的引用质量，建议开启本地 cross-encoder 重排（bge-reranker）。
+
+- `.env` 示例：
+  - `RERANK_PROVIDER=bge_reranker`
+  - `BGE_RERANKER_MODEL=BAAI/bge-reranker-large`
+  - `RERANK_DEVICE=cpu`
+
+## TODO（对标 Inkeep 的产品化差距）
+
+- 持久化任务队列/Worker：替换当前 FastAPI `BackgroundTasks`，支持任务持久化、并发控制、可重试、断点续跑、定时调度。
+- 可观测与评测回归：完善 trace（检索命中、rerank 分数、引用 ref/url、耗时、token），建设离线评测集与自动回归（答案/引用相关性）。
+- 容量与并发治理：限流、缓存（query/result/embedding）、熔断与失败降级策略细化、慢查询与超时保护。
+- 抽取与引用对齐：更精细的正文抽取与去噪、段落级定位（anchor）、引用高亮/预览、snippet 更准确、去重合并策略。

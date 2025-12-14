@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: onekey_rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d onekey_rag"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/onekey_rag}
+      PGVECTOR_EMBEDDING_DIM: ${PGVECTOR_EMBEDDING_DIM:-768}
+
+      CRAWL_BASE_URL: ${CRAWL_BASE_URL:-https://developer.onekey.so/}
+      CRAWL_SITEMAP_URL: ${CRAWL_SITEMAP_URL:-https://developer.onekey.so/sitemap.xml}
+      CRAWL_MAX_PAGES: ${CRAWL_MAX_PAGES:-2000}
+
+      # Embeddings（默认 fake 仅跑通链路；推荐改成 sentence_transformers）
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fake}
+      SENTENCE_TRANSFORMERS_MODEL: ${SENTENCE_TRANSFORMERS_MODEL:-}
+      # Docker 容器访问宿主机 Ollama：Mac/Windows 用 host.docker.internal；Linux 需额外配置 host-gateway
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+
+      # Rerank（可选）
+      RERANK_PROVIDER: ${RERANK_PROVIDER:-none}
+      BGE_RERANKER_MODEL: ${BGE_RERANKER_MODEL:-BAAI/bge-reranker-large}
+      RERANK_DEVICE: ${RERANK_DEVICE:-cpu}
+      RERANK_BATCH_SIZE: ${RERANK_BATCH_SIZE:-16}
+      RERANK_MAX_CANDIDATES: ${RERANK_MAX_CANDIDATES:-30}
+      RERANK_MAX_CHARS: ${RERANK_MAX_CHARS:-1200}
+
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-langchain}
+      CHAT_MODEL_PROVIDER: ${CHAT_MODEL_PROVIDER:-openai}
+      CHAT_BASE_URL: ${CHAT_BASE_URL:-https://api.openai.com/v1}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+      CHAT_TIMEOUT_S: ${CHAT_TIMEOUT_S:-60}
+      CHAT_MAX_RETRIES: ${CHAT_MAX_RETRIES:-2}
+
+      # 多轮对话：Query rewrite / 记忆压缩
+      QUERY_REWRITE_ENABLED: ${QUERY_REWRITE_ENABLED:-true}
+      MEMORY_SUMMARY_ENABLED: ${MEMORY_SUMMARY_ENABLED:-true}
+      CONVERSATION_COMPACTION_MAX_TOKENS: ${CONVERSATION_COMPACTION_MAX_TOKENS:-384}
+      CONVERSATION_HISTORY_MAX_MESSAGES: ${CONVERSATION_HISTORY_MAX_MESSAGES:-12}
+      CONVERSATION_HISTORY_MAX_CHARS: ${CONVERSATION_HISTORY_MAX_CHARS:-6000}
+
+      # 引用格式：inline citation + sources(ref)
+      INLINE_CITATIONS_ENABLED: ${INLINE_CITATIONS_ENABLED:-true}
+      ANSWER_APPEND_SOURCES: ${ANSWER_APPEND_SOURCES:-false}
+
+      # 检索（默认 hybrid：BM25+向量）
+      RETRIEVAL_MODE: ${RETRIEVAL_MODE:-hybrid}
+      BM25_FTS_CONFIG: ${BM25_FTS_CONFIG:-simple}
+      HYBRID_VECTOR_K: ${HYBRID_VECTOR_K:-30}
+      HYBRID_BM25_K: ${HYBRID_BM25_K:-30}
+      HYBRID_VECTOR_WEIGHT: ${HYBRID_VECTOR_WEIGHT:-0.7}
+      HYBRID_BM25_WEIGHT: ${HYBRID_BM25_WEIGHT:-0.3}
+
+      # 索引（MVP 默认自动创建）
+      AUTO_CREATE_INDEXES: ${AUTO_CREATE_INDEXES:-true}
+      PGVECTOR_INDEX_TYPE: ${PGVECTOR_INDEX_TYPE:-hnsw}
+      PGVECTOR_HNSW_M: ${PGVECTOR_HNSW_M:-16}
+      PGVECTOR_HNSW_EF_CONSTRUCTION: ${PGVECTOR_HNSW_EF_CONSTRUCTION:-64}
+      PGVECTOR_IVFFLAT_LISTS: ${PGVECTOR_IVFFLAT_LISTS:-100}
+      # CHAT_API_KEY: 请放到 .env 文件里（不要提交到仓库）
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # 缓存 HuggingFace 模型下载（sentence-transformers/transformers）
+      - hf_cache:/root/.cache/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  hf_cache:
