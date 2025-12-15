@@ -69,6 +69,10 @@ class Job(Base):
 
 class Feedback(Base):
     __tablename__ = "feedback"
+    __table_args__ = (
+        # 企业级约束：同一 conversation/message 只保留一条反馈，避免重复插入
+        UniqueConstraint("conversation_id", "message_id", name="uix_feedback_conversation_message"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     conversation_id: Mapped[str] = mapped_column(String(128), default="", nullable=False, index=True)

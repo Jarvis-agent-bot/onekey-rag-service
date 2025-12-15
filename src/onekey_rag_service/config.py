@@ -24,7 +24,8 @@ class Settings(BaseSettings):
 
     rag_top_k: int = Field(default=30, alias="RAG_TOP_K")
     rag_top_n: int = Field(default=8, alias="RAG_TOP_N")
-    rag_max_sources: int = Field(default=8, alias="RAG_MAX_SOURCES")
+    # 返回 sources 时的最大条数；默认改为 3，避免前端展示过多引用
+    rag_max_sources: int = Field(default=3, alias="RAG_MAX_SOURCES")
     rag_context_max_chars: int = Field(default=12_000, alias="RAG_CONTEXT_MAX_CHARS")
     rag_snippet_max_chars: int = Field(default=360, alias="RAG_SNIPPET_MAX_CHARS")
     rag_prepare_timeout_s: float = Field(default=25.0, alias="RAG_PREPARE_TIMEOUT_S")

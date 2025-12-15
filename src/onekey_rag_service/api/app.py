@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import logging
 import uuid
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from onekey_rag_service.config import Settings, get_settings
@@ -493,15 +495,31 @@ async def openai_chat_completions(
 
 @app.post("/v1/feedback", response_model=FeedbackResponse)
 def feedback(req: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackResponse:
-    fb = Feedback(
-        conversation_id=req.conversation_id,
-        message_id=req.message_id,
-        rating=req.rating,
-        reason=req.reason or "",
-        comment=req.comment or "",
-        sources={"urls": req.sources or []},
-    )
-    db.add(fb)
+    # 企业级防重：同一 conversation/message 只保留一条记录，后写覆盖前写
+    exists = db.execute(
+        select(Feedback).where(
+            Feedback.conversation_id == req.conversation_id,
+            Feedback.message_id == req.message_id,
+        )
+    ).scalar_one_or_none()
+
+    if exists:
+        exists.rating = req.rating
+        exists.reason = req.reason or ""
+        exists.comment = req.comment or ""
+        exists.sources = {"urls": req.sources or []}
+        exists.created_at = dt.datetime.utcnow()
+    else:
+        fb = Feedback(
+            conversation_id=req.conversation_id,
+            message_id=req.message_id,
+            rating=req.rating,
+            reason=req.reason or "",
+            comment=req.comment or "",
+            sources={"urls": req.sources or []},
+        )
+        db.add(fb)
+
     db.commit()
     return FeedbackResponse()
 

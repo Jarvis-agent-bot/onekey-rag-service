@@ -34,6 +34,7 @@ type ChatMessage = {
   sources?: SourceItem[];
   status?: "streaming" | "done" | "error" | "aborted";
   errorText?: string;
+  feedback?: "up" | "down";
 };
 
 function nowMs() {
@@ -87,7 +88,12 @@ function shouldCollapseSingleLineCodeFence(lang: string, line: string) {
   const l = (lang || "").trim().toLowerCase();
   if (["bash", "sh", "zsh", "shell", "powershell", "ps1"].includes(l)) return false;
 
-  const s = (line || "").trim();
+  let s = (line || "").trim();
+  // 去掉零宽字符（部分模型会输出）
+  s = s.replace(/[\u200b\u200c\u200d\uFEFF]/g, "");
+  // 兼容：代码块里又包了一层 `inline code`
+  const m = s.match(/^`([^`]+)`$/);
+  if (m) s = m[1];
   if (!s) return false;
   if (s.length > 64) return false;
   if (s.startsWith("$")) return false;
@@ -97,7 +103,7 @@ function shouldCollapseSingleLineCodeFence(lang: string, line: string) {
   // 单个标识符/字段名：不包含空白，且基本由常见标识符字符构成
   if (/[\t ]/.test(s)) return false;
   if (/^[\[{]/.test(s)) return false; // json/object/array 仍保持 code block
-  if (!/^[A-Za-z0-9_.$:@/\\\-='\"()[\]<>]+$/.test(s)) return false;
+  if (!/^[A-Za-z0-9_.$:@/\\\-='\"()[\]<>:,;!?]+$/.test(s)) return false;
   return true;
 }
 
@@ -106,17 +112,20 @@ function normalizeMarkdownForDisplay(text: string) {
   // 把“仅 1 行的代码块”中类似 device_id/connectId 这类标识符，收敛为 inline code
   const collapsed = t
     .replace(/```([a-zA-Z0-9_-]+)?\n([\s\S]*?)\n```/g, (all, lang, body) => {
-      const code = String(body || "").replace(/\n+$/, "");
-      const lines = code.split("\n");
+      const code = String(body || "").replace(/^\n+/, "").replace(/\n+$/, "");
+      const lines = code
+        .split("\n")
+        .map((l) => l.trimEnd())
+        .filter((l) => l.trim() !== "");
       if (lines.length !== 1) return all;
-      const single = lines[0];
+      const single = String(lines[0] || "").replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
       if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
       const escaped = single.replace(/`/g, "\\`");
       return `\`${escaped}\``;
     })
     // 兼容：```identifier``` / ```lang identifier``` 这种同一行 fenced code
     .replace(/```([a-zA-Z0-9_-]+)?[ \t]+([^`\n]+?)```/g, (all, lang, code) => {
-      const single = String(code || "").trim();
+      const single = String(code || "").replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
       if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
       const escaped = single.replace(/`/g, "\\`");
       return `\`${escaped}\``;
@@ -303,6 +312,7 @@ export default function App() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [copiedCodeKey, setCopiedCodeKey] = useState<string | null>(null);
   const [highlightedSourceId, setHighlightedSourceId] = useState<string | null>(null);
+  const [feedbackSendingId, setFeedbackSendingId] = useState<string | null>(null);
 
   const conversationIdRef = useRef<string>(
     localStorage.getItem("onekey_rag_widget_conversation_id") || safeRandomId("conv")
@@ -390,19 +400,31 @@ export default function App() {
 
   async function sendFeedback(msg: ChatMessage, rating: "up" | "down") {
     if (!msg.completionId) return;
+    if (msg.feedback === rating) return; // 已选同一评价，不再重复提交
     const urls = (msg.sources || []).map((s) => s.url).filter(Boolean);
-    await fetchJson(apiFeedbackUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: conversationIdRef.current,
-        message_id: msg.completionId,
-        rating,
-        reason: "",
-        comment: "",
-        sources: urls,
-      }),
-    });
+    setFeedbackSendingId(msg.localId);
+    try {
+      await fetchJson(apiFeedbackUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationIdRef.current,
+          message_id: msg.completionId,
+          rating,
+          reason: "",
+          comment: "",
+          sources: urls,
+        }),
+      });
+      setMessages((prev) =>
+        prev.map((m) => (m.localId === msg.localId ? { ...m, feedback: rating } : m))
+      );
+    } catch (e) {
+      // 失败时不抛出，避免打断会话；可在此处按需显示提示
+      console.error("sendFeedback failed", e);
+    } finally {
+      setFeedbackSendingId((cur) => (cur === msg.localId ? null : cur));
+    }
   }
 
   async function onClear() {
@@ -581,19 +603,26 @@ export default function App() {
     label,
     disabled,
     onClick,
+    active,
     children,
   }: {
     label: string;
     disabled?: boolean;
     onClick?: () => void;
+    active?: boolean;
     children: ReactNode;
   }) {
     return (
       <button
         type="button"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        className={[
+          "inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-slate-200",
+          active ? "border-blue-400/60 bg-blue-500/15 text-blue-100" : "border-white/10 hover:bg-white/10",
+          disabled ? "cursor-not-allowed opacity-40" : "",
+        ].join(" ")}
         aria-label={label}
         title={label}
+        aria-pressed={active ? "true" : "false"}
         disabled={disabled}
         onClick={onClick}
       >
@@ -613,8 +642,20 @@ export default function App() {
   }) {
     const match = /language-(\w+)/.exec(className || "");
     const lang = (match?.[1] || "").toLowerCase();
-    const codeText = String(children ?? "").replace(/\n$/, "");
+    const raw = String(children ?? "").replace(/\r\n/g, "\n");
+    const codeText = raw.replace(/\n+$/, "");
+    const singleCandidate = codeText.replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
     const copyKey = `${lang}:${codeText.slice(0, 48)}`;
+
+    // 兜底：有些模型会把单个标识符（connectId/device_id）用 fenced code block 输出。
+    // 即使后端 prompt 已提示，也可能偶发；这里把“单行、短、像标识符”的代码块渲染成 inline code。
+    if (!inline && !singleCandidate.includes("\n") && shouldCollapseSingleLineCodeFence(lang, singleCandidate)) {
+      return (
+        <code className="whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">
+          {singleCandidate}
+        </code>
+      );
+    }
 
     if (inline) {
       return (
@@ -738,7 +779,8 @@ export default function App() {
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
-                            pre: ({ children }) => <div className="not-prose">{children}</div>,
+                            // 让 CodeBlock 自己决定是块级还是内联，避免“被收敛为 inline code 的短标识符”仍然被外层 pre/div 拉成块级
+                            pre: ({ children }) => <>{children}</>,
                             a: ({ href, children, ...rest }) => {
                               const hrefStr = typeof href === "string" ? href : "";
                               const maybeCitation = hrefStr.startsWith("#cite-") ? renderCitationLink(hrefStr, children, m) : null;
@@ -767,72 +809,78 @@ export default function App() {
                       </div>
                     )}
 
-                      {m.role === "assistant" && m.status === "streaming" && !m.content ? (
-                        <div className="mt-2 text-xs text-slate-400">正在生成…</div>
-                      ) : null}
+                    {m.role === "assistant" && m.status === "streaming" && !m.content ? (
+                      <div className="mt-2 text-xs text-slate-400">正在生成…</div>
+                    ) : null}
 
-                      {m.role === "assistant" && m.status === "error" ? (
-                        <div className="mt-2 text-xs text-red-200">生成失败：{m.errorText}</div>
-                      ) : null}
+                    {m.role === "assistant" && m.status === "error" ? (
+                      <div className="mt-2 text-xs text-red-200">生成失败：{m.errorText}</div>
+                    ) : null}
 
-                      {m.role === "assistant" && m.sources && m.sources.length > 0 ? (
-                        <div className="mt-4">
-                          <div className="text-xs font-semibold text-slate-300">Sources</div>
-                          <div className="mt-2 grid gap-2">
-                            {m.sources.map((s, idx) => {
-                              const ref = getSourceRef(s, idx);
-                              const id = getSourceCardId(m.localId, ref);
-                              const { host, path } = parseUrl(s.url);
-                              const label = (s.title || s.section_path || path || s.url || "").trim();
-                              return (
-                                <a
-                                  key={id}
-                                  id={id}
-                                  href={s.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={[
-                                    "group flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10",
-                                    highlightedSourceId === id ? "ring-2 ring-blue-500/40" : "",
-                                  ].join(" ")}
-                                >
-                                  <div className="flex min-w-0 items-center gap-3">
-                                    <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-[11px] font-semibold text-slate-100">
-                                      {ref}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <div className="truncate text-xs font-medium text-slate-100">{label}</div>
-                                      <div className="truncate text-[11px] text-slate-400">{host ? `${host}${path}` : path}</div>
-                                    </div>
+                    {m.role === "assistant" && m.sources && m.sources.length > 0 ? (
+                      <div className="mt-4">
+                        <div className="text-xs font-semibold text-slate-300">Sources</div>
+                        <div className="mt-2 grid gap-2">
+                          {m.sources.map((s, idx) => {
+                            const ref = getSourceRef(s, idx);
+                            const id = getSourceCardId(m.localId, ref);
+                            const { host, path } = parseUrl(s.url);
+                            const label = (s.title || s.section_path || path || s.url || "").trim();
+                            return (
+                              <a
+                                key={id}
+                                id={id}
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={[
+                                  "group flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 hover:bg-white/10",
+                                  highlightedSourceId === id ? "ring-2 ring-blue-500/40" : "",
+                                ].join(" ")}
+                              >
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-[11px] font-semibold text-slate-100">
+                                    {ref}
                                   </div>
-                                  <ExternalLink size={14} className="shrink-0 text-slate-400 group-hover:text-slate-200" />
-                                </a>
-                              );
-                            })}
-                          </div>
+                                  <div className="min-w-0">
+                                    <div className="truncate text-xs font-medium text-slate-100">{label}</div>
+                                    <div className="truncate text-[11px] text-slate-400">{host ? `${host}${path}` : path}</div>
+                                  </div>
+                                </div>
+                                <ExternalLink size={14} className="shrink-0 text-slate-400 group-hover:text-slate-200" />
+                              </a>
+                            );
+                          })}
                         </div>
-                      ) : null}
+                      </div>
+                    ) : null}
 
-                      {m.role === "assistant" && m.status === "done" ? (
-                        <div className="mt-3 flex items-center justify-end gap-2">
-                          <IconButton
-                            label={copiedMessageId === m.localId ? "已复制" : "复制"}
-                            onClick={() => copyMessage(m).catch(() => {})}
-                          >
-                            {copiedMessageId === m.localId ? <Check size={16} /> : <Copy size={16} />}
-                          </IconButton>
-                          <IconButton label="有帮助" disabled={!m.completionId} onClick={() => sendFeedback(m, "up").catch(() => {})}>
-                            <ThumbsUp size={16} />
-                          </IconButton>
-                          <IconButton
-                            label="没帮助"
-                            disabled={!m.completionId}
-                            onClick={() => sendFeedback(m, "down").catch(() => {})}
-                          >
-                            <ThumbsDown size={16} />
-                          </IconButton>
-                        </div>
-                      ) : null}
+                    {m.role === "assistant" && m.status === "done" ? (
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <IconButton
+                          label={copiedMessageId === m.localId ? "已复制" : "复制"}
+                          onClick={() => copyMessage(m).catch(() => { })}
+                        >
+                          {copiedMessageId === m.localId ? <Check size={16} /> : <Copy size={16} />}
+                        </IconButton>
+                        <IconButton
+                          label="有帮助"
+                          disabled={!m.completionId || feedbackSendingId === m.localId}
+                          active={m.feedback === "up"}
+                          onClick={() => sendFeedback(m, "up").catch(() => { })}
+                        >
+                          <ThumbsUp size={16} fill={m.feedback === "up" ? "currentColor" : "none"} />
+                        </IconButton>
+                        <IconButton
+                          label="没帮助"
+                          disabled={!m.completionId || feedbackSendingId === m.localId}
+                          active={m.feedback === "down"}
+                          onClick={() => sendFeedback(m, "down").catch(() => { })}
+                        >
+                          <ThumbsDown size={16} fill={m.feedback === "down" ? "currentColor" : "none"} />
+                        </IconButton>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -854,7 +902,7 @@ export default function App() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  onSend().catch(() => {});
+                  onSend().catch(() => { });
                 }
               }}
             />
@@ -864,7 +912,7 @@ export default function App() {
               aria-label="发送"
               title="发送"
               disabled={isStreaming || !input.trim()}
-              onClick={() => onSend().catch(() => {})}
+              onClick={() => onSend().catch(() => { })}
             >
               <SendHorizonal size={18} />
             </button>
@@ -888,7 +936,7 @@ export default function App() {
             <button
               type="button"
               className="text-slate-300 hover:text-white disabled:opacity-40"
-              onClick={() => onClear().catch(() => {})}
+              onClick={() => onClear().catch(() => { })}
               disabled={messages.length === 0}
             >
               Clear

@@ -44,7 +44,7 @@
   var style = document.createElement("style");
   var modalWidth = dataset.modalWidth || globalConfig.modalWidth || width || "760px";
   var modalHeight = dataset.modalHeight || globalConfig.modalHeight || "72vh";
-  var modalMaxHeight = dataset.modalMaxHeight || globalConfig.modalMaxHeight || "880px";
+  var modalMaxHeight = dataset.modalMaxHeight || globalConfig.modalMaxHeight || "960px";
   var modalMaxWidth = dataset.modalMaxWidth || globalConfig.modalMaxWidth || "920px";
 
   style.textContent =
@@ -108,7 +108,8 @@
   var iframe = document.createElement("iframe");
   iframe.id = "onekey-rag-widget-iframe";
   iframe.title = title;
-  iframe.loading = "lazy";
+  // 需要在“未打开”状态也能提前加载，避免首次打开卡顿
+  iframe.loading = "eager";
   iframe.referrerPolicy = "strict-origin-when-cross-origin";
 
   modal.appendChild(iframe);
@@ -119,6 +120,7 @@
 
   var opened = false;
   var iframeLoaded = false;
+  var iframeLoadBound = false;
 
   function buildIframeSrc() {
     var url = new URL(widgetBaseUrl);
@@ -142,24 +144,42 @@
     );
   }
 
+  function ensureIframeLoading() {
+    if (iframeLoaded) return;
+    if (!iframeLoadBound) {
+      iframeLoadBound = true;
+      iframe.addEventListener("load", function () {
+        iframeLoaded = true;
+        sendContext();
+      });
+    }
+    if (!iframe.src) {
+      iframe.src = buildIframeSrc();
+    }
+  }
+
+  // 预加载：让 iframe 在页面空闲期就开始加载，避免首次打开“卡一下”
+  function schedulePreload() {
+    try {
+      // 预加载应尽可能提前触发：iframe 首次加载与 JS 解析是“卡顿”主要来源
+      ensureIframeLoading();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // 立即触发一次预加载（脚本通常在 body 末尾加载，此时 body 已就绪）
+  schedulePreload();
+  // 兜底：若脚本较早执行，等 DOM 就绪后再触发一次
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", schedulePreload, { once: true });
+
   function open() {
     if (opened) return;
     opened = true;
     overlay.setAttribute("data-open", "true");
     modal.setAttribute("data-open", "true");
-    if (!iframeLoaded) {
-      iframe.src = buildIframeSrc();
-      iframe.addEventListener(
-        "load",
-        function () {
-          iframeLoaded = true;
-          sendContext();
-        },
-        { once: true }
-      );
-    } else {
-      sendContext();
-    }
+    ensureIframeLoading();
+    sendContext();
   }
 
   function close() {
