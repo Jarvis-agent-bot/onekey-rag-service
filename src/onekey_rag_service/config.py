@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     rag_max_sources: int = Field(default=8, alias="RAG_MAX_SOURCES")
     rag_context_max_chars: int = Field(default=12_000, alias="RAG_CONTEXT_MAX_CHARS")
     rag_snippet_max_chars: int = Field(default=360, alias="RAG_SNIPPET_MAX_CHARS")
+    rag_prepare_timeout_s: float = Field(default=25.0, alias="RAG_PREPARE_TIMEOUT_S")
+    rag_total_timeout_s: float = Field(default=120.0, alias="RAG_TOTAL_TIMEOUT_S")
+    max_concurrent_chat_requests: int = Field(default=12, alias="MAX_CONCURRENT_CHAT_REQUESTS")
+
+    # Query embedding 缓存（提高 QPS/降低 CPU；多实例下为“每实例缓存”）
+    query_embed_cache_size: int = Field(default=512, alias="QUERY_EMBED_CACHE_SIZE")
+    query_embed_cache_ttl_s: float = Field(default=600.0, alias="QUERY_EMBED_CACHE_TTL_S")
 
     # 检索策略：vector / hybrid（BM25+向量）
     retrieval_mode: str = Field(default="hybrid", alias="RETRIEVAL_MODE")
@@ -83,6 +90,11 @@ class Settings(BaseSettings):
     # ========== 引用格式 ==========
     inline_citations_enabled: bool = Field(default=True, alias="INLINE_CITATIONS_ENABLED")
     answer_append_sources: bool = Field(default=False, alias="ANSWER_APPEND_SOURCES")
+
+    # ========== 任务队列（抓取/索引）==========
+    # background：FastAPI BackgroundTasks（MVP，进程内，不可恢复，可能影响对话延迟）
+    # worker：使用 jobs 表做持久化队列，由独立 Worker 消费（推荐）
+    jobs_backend: str = Field(default="worker", alias="JOBS_BACKEND")
 
     # ========== Widget（前端 iframe）==========
     # 为空表示不额外下发 frame-ancestors 限制；生产建议配置为："'self' https://developer.onekey.so"

@@ -20,6 +20,7 @@
    - `docker compose up -d --build`
    - API 默认地址：`http://localhost:8000`
    - 健康检查：`GET http://localhost:8000/healthz`
+   - 后台任务：默认启用 `worker`（见 `JOBS_BACKEND`），抓取/索引会入队由 Worker 消费
 
 3. 初始化数据：抓取 + 建索引（首次建议 `full`，后续可用 `incremental`）
    - 抓取文档（sitemap 优先，失败自动降级为 seed_urls）：
@@ -46,6 +47,7 @@
        ```bash
        curl -s http://localhost:8000/admin/index/<job_id>
        ```
+   - 说明：当 `JOBS_BACKEND=worker` 时，任务会先进入 `queued`，随后由 Worker 拉起为 `running` 并最终 `succeeded/failed`
 
 4. 对话（OpenAI 兼容）：
    - `POST http://localhost:8000/v1/chat/completions`
@@ -79,7 +81,6 @@
 <script
   src="https://你的-rag-域名/widget/widget.js"
   data-model="onekey-docs"
-  data-title="OneKey 文档助手"
 ></script>
 ```
 
@@ -154,7 +155,7 @@
 
 ## TODO（对标 Inkeep 的产品化差距）
 
-- 持久化任务队列/Worker：替换当前 FastAPI `BackgroundTasks`，支持任务持久化、并发控制、可重试、断点续跑、定时调度。
-- 可观测与评测回归：完善 trace（检索命中、rerank 分数、引用 ref/url、耗时、token），建设离线评测集与自动回归（答案/引用相关性）。
-- 容量与并发治理：限流、缓存（query/result/embedding）、熔断与失败降级策略细化、慢查询与超时保护。
-- 抽取与引用对齐：更精细的正文抽取与去噪、段落级定位（anchor）、引用高亮/预览、snippet 更准确、去重合并策略。
+- 持久化任务队列/Worker（已实现 MVP）：`jobs` 表持久化队列 + `worker` 容器消费 + 重试（attempts）+ 超时重入队；后续补齐：心跳/断点续跑的细粒度进度、定时调度、并发配额与优先级队列。
+- 可观测与评测回归（进行中）：已支持 `debug=true` 返回检索信息与 `timings_ms`；后续补齐：结构化 trace/metrics、离线评测集与自动回归（答案/引用相关性）。
+- 容量与并发治理（进行中）：已支持并发上限 `MAX_CONCURRENT_CHAT_REQUESTS`、RAG 超时 `RAG_*_TIMEOUT_S`、query embedding 缓存；后续补齐：限流、结果缓存、熔断/降级与慢查询保护。
+- 抽取与引用对齐（进行中）：已支持 inline citation + sources(ref/url)；并尝试基于标题生成 anchor（`url#anchor`）；后续补齐：段落级定位/高亮、snippet 更准确、去重合并策略。

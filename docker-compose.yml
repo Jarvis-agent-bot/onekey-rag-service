@@ -25,6 +25,7 @@ services:
 
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/onekey_rag}
       PGVECTOR_EMBEDDING_DIM: ${PGVECTOR_EMBEDDING_DIM:-768}
+      JOBS_BACKEND: ${JOBS_BACKEND:-worker}
 
       CRAWL_BASE_URL: ${CRAWL_BASE_URL:-https://developer.onekey.so/}
       CRAWL_SITEMAP_URL: ${CRAWL_SITEMAP_URL:-https://developer.onekey.so/sitemap.xml}
@@ -62,6 +63,8 @@ services:
       # 引用格式：inline citation + sources(ref)
       INLINE_CITATIONS_ENABLED: ${INLINE_CITATIONS_ENABLED:-true}
       ANSWER_APPEND_SOURCES: ${ANSWER_APPEND_SOURCES:-false}
+      RAG_PREPARE_TIMEOUT_S: ${RAG_PREPARE_TIMEOUT_S:-25}
+      RAG_TOTAL_TIMEOUT_S: ${RAG_TOTAL_TIMEOUT_S:-120}
 
       # Widget（iframe）安全：CSP frame-ancestors（为空表示不设置）
       WIDGET_FRAME_ANCESTORS: ${WIDGET_FRAME_ANCESTORS:-}
@@ -87,6 +90,59 @@ services:
       - "8000:8000"
     volumes:
       # 缓存 HuggingFace 模型下载（sentence-transformers/transformers）
+      - hf_cache:/root/.cache/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "onekey_rag_service.worker"]
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/onekey_rag}
+      PGVECTOR_EMBEDDING_DIM: ${PGVECTOR_EMBEDDING_DIM:-768}
+      JOBS_BACKEND: ${JOBS_BACKEND:-worker}
+
+      CRAWL_BASE_URL: ${CRAWL_BASE_URL:-https://developer.onekey.so/}
+      CRAWL_SITEMAP_URL: ${CRAWL_SITEMAP_URL:-https://developer.onekey.so/sitemap.xml}
+      CRAWL_MAX_PAGES: ${CRAWL_MAX_PAGES:-2000}
+
+      # Embeddings（默认 fake 仅跑通链路；推荐改成 sentence_transformers）
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fake}
+      SENTENCE_TRANSFORMERS_MODEL: ${SENTENCE_TRANSFORMERS_MODEL:-}
+      # Docker 容器访问宿主机 Ollama：Mac/Windows 用 host.docker.internal；Linux 需额外配置 host-gateway
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+
+      # Rerank（可选）
+      RERANK_PROVIDER: ${RERANK_PROVIDER:-none}
+      BGE_RERANKER_MODEL: ${BGE_RERANKER_MODEL:-BAAI/bge-reranker-large}
+      RERANK_DEVICE: ${RERANK_DEVICE:-cpu}
+      RERANK_BATCH_SIZE: ${RERANK_BATCH_SIZE:-16}
+      RERANK_MAX_CANDIDATES: ${RERANK_MAX_CANDIDATES:-30}
+      RERANK_MAX_CHARS: ${RERANK_MAX_CHARS:-1200}
+
+      # 索引（MVP 默认自动创建）
+      AUTO_CREATE_INDEXES: ${AUTO_CREATE_INDEXES:-true}
+      PGVECTOR_INDEX_TYPE: ${PGVECTOR_INDEX_TYPE:-hnsw}
+      PGVECTOR_HNSW_M: ${PGVECTOR_HNSW_M:-16}
+      PGVECTOR_HNSW_EF_CONSTRUCTION: ${PGVECTOR_HNSW_EF_CONSTRUCTION:-64}
+      PGVECTOR_IVFFLAT_LISTS: ${PGVECTOR_IVFFLAT_LISTS:-100}
+
+      # Worker 参数
+      WORKER_POLL_INTERVAL_S: ${WORKER_POLL_INTERVAL_S:-1}
+      WORKER_STALE_AFTER_S: ${WORKER_STALE_AFTER_S:-3600}
+      WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
+    env_file:
+      - .env
+    volumes:
       - hf_cache:/root/.cache/huggingface
     extra_hosts:
       - "host.docker.internal:host-gateway"

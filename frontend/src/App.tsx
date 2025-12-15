@@ -3,13 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   Check,
   Copy,
   ExternalLink,
   SendHorizonal,
-  Sparkles,
   ThumbsDown,
   ThumbsUp,
   User,
@@ -81,6 +80,86 @@ function linkCitationsForMarkdown(text: string) {
     }
     out.push(segs.join("`"));
   }
+  return out.join("\n");
+}
+
+function shouldCollapseSingleLineCodeFence(lang: string, line: string) {
+  const l = (lang || "").trim().toLowerCase();
+  if (["bash", "sh", "zsh", "shell", "powershell", "ps1"].includes(l)) return false;
+
+  const s = (line || "").trim();
+  if (!s) return false;
+  if (s.length > 64) return false;
+  if (s.startsWith("$")) return false;
+  if (/^https?:\/\//i.test(s)) return false;
+  if (/^(npm|pnpm|yarn|npx|curl|wget|docker|kubectl|python|pip|node|git)\b/i.test(s)) return false;
+
+  // 单个标识符/字段名：不包含空白，且基本由常见标识符字符构成
+  if (/[\t ]/.test(s)) return false;
+  if (/^[\[{]/.test(s)) return false; // json/object/array 仍保持 code block
+  if (!/^[A-Za-z0-9_.$:@/\\\-='\"()[\]<>]+$/.test(s)) return false;
+  return true;
+}
+
+function normalizeMarkdownForDisplay(text: string) {
+  const t = (text || "").replace(/\r\n/g, "\n");
+  // 把“仅 1 行的代码块”中类似 device_id/connectId 这类标识符，收敛为 inline code
+  const collapsed = t
+    .replace(/```([a-zA-Z0-9_-]+)?\n([\s\S]*?)\n```/g, (all, lang, body) => {
+      const code = String(body || "").replace(/\n+$/, "");
+      const lines = code.split("\n");
+      if (lines.length !== 1) return all;
+      const single = lines[0];
+      if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
+      const escaped = single.replace(/`/g, "\\`");
+      return `\`${escaped}\``;
+    })
+    // 兼容：```identifier``` / ```lang identifier``` 这种同一行 fenced code
+    .replace(/```([a-zA-Z0-9_-]+)?[ \t]+([^`\n]+?)```/g, (all, lang, code) => {
+      const single = String(code || "").trim();
+      if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
+      const escaped = single.replace(/`/g, "\\`");
+      return `\`${escaped}\``;
+    });
+
+  // 兼容：单行缩进 code block（4 空格/Tab），仅在“独立段落”里才收敛为 inline code
+  const lines = collapsed.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const isIndented = line.startsWith("    ") || line.startsWith("\t");
+    if (!isIndented) {
+      out.push(line);
+      continue;
+    }
+
+    const start = i;
+    const block: string[] = [];
+    while (i < lines.length && (lines[i].startsWith("    ") || lines[i].startsWith("\t"))) {
+      const l = lines[i];
+      block.push(l.startsWith("\t") ? l.slice(1) : l.slice(4));
+      i += 1;
+    }
+    const end = i;
+    i = end - 1;
+
+    const prevLine = start === 0 ? "" : lines[start - 1];
+    const nextLine = end >= lines.length ? "" : lines[end];
+    const isStandalone = (start === 0 || prevLine.trim() === "") && (end >= lines.length || nextLine.trim() === "");
+
+    if (block.length === 1 && isStandalone) {
+      const single = block[0].trim();
+      if (shouldCollapseSingleLineCodeFence("", single)) {
+        const escaped = single.replace(/`/g, "\\`");
+        out.push(`\`${escaped}\``);
+        continue;
+      }
+    }
+
+    // 不满足收敛条件：原样保留
+    for (let j = start; j < end; j += 1) out.push(lines[j]);
+  }
+
   return out.join("\n");
 }
 
@@ -208,6 +287,13 @@ export default function App() {
   const parentOrigin = sp.get("parent_origin") || "";
   const apiBase = sp.get("api_base") || "";
   const contactUrl = sp.get("contact_url") || "https://onekey.so";
+  const oneKeyLogoUrl = useMemo(() => {
+    try {
+      return new URL("onekey.png", window.location.href).toString();
+    } catch {
+      return "onekey.png";
+    }
+  }, []);
 
   const [pageUrl, setPageUrl] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -224,6 +310,7 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const autoScrollRef = useRef<boolean>(true);
 
   const apiChatUrl = joinUrl(apiBase, "/v1/chat/completions");
   const apiFeedbackUrl = joinUrl(apiBase, "/v1/feedback");
@@ -263,8 +350,16 @@ export default function App() {
 
   useEffect(() => {
     // 自动滚动到底部
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    const el = scrollRef.current;
+    if (!el) return;
+    if (!autoScrollRef.current) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: isStreaming ? "auto" : "smooth" });
+  }, [messages, isStreaming]);
+
+  function isAtBottom(el: HTMLDivElement) {
+    const threshold = 48; // px
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  }
 
   useEffect(() => {
     // 自动调整输入框高度（上限）
@@ -318,6 +413,7 @@ export default function App() {
     setCopiedMessageId(null);
     setCopiedCodeKey(null);
     setHighlightedSourceId(null);
+    autoScrollRef.current = true;
   }
 
   async function copyMessage(msg: ChatMessage) {
@@ -334,6 +430,7 @@ export default function App() {
 
     setErrorBanner("");
     setInput("");
+    autoScrollRef.current = true;
 
     const userMsg: ChatMessage = { localId: safeRandomId("m"), role: "user", content: trimmed, createdAt: nowMs() };
     const assistantLocalId = safeRandomId("m");
@@ -474,8 +571,8 @@ export default function App() {
       );
     }
     return (
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-rose-500">
-        <Sparkles size={16} className="text-white" />
+      <div className="h-8 w-8 overflow-hidden rounded-xl">
+        <img src={oneKeyLogoUrl} alt="OneKey" className="h-8 w-8" />
       </div>
     );
   }
@@ -521,21 +618,19 @@ export default function App() {
 
     if (inline) {
       return (
-        <code className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">
+        <code className="whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">
           {children}
         </code>
       );
     }
 
     return (
-      <div className="my-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-          <div className="rounded-md bg-white/5 px-2 py-0.5 font-mono text-[11px] uppercase text-slate-300">
-            {lang || "text"}
-          </div>
+      <div className="not-prose my-3 overflow-hidden rounded-xl border border-white/10 bg-[#282c34]">
+        <div className="flex items-center justify-between bg-[#21252b] px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-white/55">{lang || "text"}</div>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
             aria-label="复制代码"
             title="复制代码"
             onClick={() => {
@@ -546,16 +641,18 @@ export default function App() {
               });
             }}
           >
-            {copiedCodeKey === copyKey ? <Check size={16} /> : <Copy size={16} />}
+            {copiedCodeKey === copyKey ? <Check size={14} /> : <Copy size={14} />}
           </button>
         </div>
         <SyntaxHighlighter
           language={lang}
-          style={vscDarkPlus}
+          PreTag="div"
+          style={atomDark}
+          wrapLongLines
           customStyle={{
             margin: 0,
             background: "transparent",
-            padding: "14px 14px",
+            padding: "12px 14px",
             fontSize: "12px",
             lineHeight: "1.6",
           }}
@@ -573,8 +670,8 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col bg-transparent text-slate-100">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+    <div className="relative flex h-screen w-full flex-col bg-[#1f232a] text-slate-100">
+      <div className="flex items-center justify-between px-5 pb-3 pt-4">
         <div className="text-sm font-semibold text-white">Ask AI</div>
         <button
           type="button"
@@ -587,7 +684,15 @@ export default function App() {
         </button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-x-hidden overflow-y-auto px-5 py-5"
+        onScroll={() => {
+          const el = scrollRef.current;
+          if (!el) return;
+          autoScrollRef.current = isAtBottom(el);
+        }}
+      >
         {errorBanner ? (
           <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
             {errorBanner}
@@ -620,7 +725,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-white/10">
+          <div className="divide-y divide-white/5">
             {messages.map((m) => (
               <div key={m.localId} className="py-5">
                 <div className="flex gap-3">
@@ -629,10 +734,11 @@ export default function App() {
                     {m.role === "user" ? (
                       <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{m.content}</div>
                     ) : (
-                      <div className="prose prose-invert max-w-none text-sm prose-a:font-medium prose-a:text-blue-300 hover:prose-a:text-blue-200">
+                      <div className="prose prose-invert max-w-none break-words overflow-x-hidden text-sm prose-a:font-medium prose-a:text-blue-300 hover:prose-a:text-blue-200">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
+                            pre: ({ children }) => <div className="not-prose">{children}</div>,
                             a: ({ href, children, ...rest }) => {
                               const hrefStr = typeof href === "string" ? href : "";
                               const maybeCitation = hrefStr.startsWith("#cite-") ? renderCitationLink(hrefStr, children, m) : null;
@@ -656,7 +762,7 @@ export default function App() {
                             ),
                           }}
                         >
-                          {linkCitationsForMarkdown(m.content)}
+                          {linkCitationsForMarkdown(normalizeMarkdownForDisplay(m.content))}
                         </ReactMarkdown>
                       </div>
                     )}
@@ -735,7 +841,7 @@ export default function App() {
         )}
       </div>
 
-      <div className="border-t border-white/10 px-5 py-4">
+      <div className="px-5 pb-5 pt-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
           <div className="flex items-end gap-2">
             <textarea
@@ -768,7 +874,13 @@ export default function App() {
         <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span>Powered by</span>
-            <a className="font-semibold text-slate-200 hover:text-white" href="https://onekey.so" target="_blank" rel="noreferrer">
+            <a
+              className="flex items-center gap-1 font-semibold text-slate-200 hover:text-white"
+              href="https://onekey.so"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img src={oneKeyLogoUrl} alt="OneKey" className="h-3.5 w-3.5" />
               OneKey
             </a>
           </div>

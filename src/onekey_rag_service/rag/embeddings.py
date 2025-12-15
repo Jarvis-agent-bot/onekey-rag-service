@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import collections
 import hashlib
 import math
+import threading
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -15,6 +18,43 @@ class EmbeddingsProvider:
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
+
+
+@dataclass(frozen=True)
+class CachedEmbeddingsProvider(EmbeddingsProvider):
+    inner: EmbeddingsProvider
+    max_size: int = 512
+    ttl_s: float = 600.0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_cache", collections.OrderedDict())
+        object.__setattr__(self, "_lock", threading.Lock())
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.inner.embed_documents(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        if self.max_size <= 0:
+            return self.inner.embed_query(text)
+
+        key = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        now = time.time()
+        with self._lock:
+            item = self._cache.get(key)
+            if item:
+                ts, vec = item
+                if self.ttl_s <= 0 or (now - ts) <= self.ttl_s:
+                    self._cache.move_to_end(key)
+                    return vec
+                self._cache.pop(key, None)
+
+        vec = self.inner.embed_query(text)
+        with self._lock:
+            self._cache[key] = (now, vec)
+            self._cache.move_to_end(key)
+            while len(self._cache) > self.max_size:
+                self._cache.popitem(last=False)
+        return vec
 
 
 @dataclass(frozen=True)
@@ -115,29 +155,39 @@ def build_embeddings_provider(settings: Settings) -> tuple[EmbeddingsProvider, s
     provider = settings.embeddings_provider.lower()
 
     if provider == "fake":
-        return FakeEmbeddings(dim=settings.pgvector_embedding_dim), f"fake:{settings.pgvector_embedding_dim}"
+        base: EmbeddingsProvider = FakeEmbeddings(dim=settings.pgvector_embedding_dim)
+        name = f"fake:{settings.pgvector_embedding_dim}"
+        return _wrap_with_cache(base, name, settings=settings)
 
     if provider == "sentence_transformers":
         if not settings.sentence_transformers_model:
             raise RuntimeError("EMBEDDINGS_PROVIDER=sentence_transformers 需要配置 SENTENCE_TRANSFORMERS_MODEL")
-        return SentenceTransformersEmbeddings(settings.sentence_transformers_model), settings.sentence_transformers_model
+        base = SentenceTransformersEmbeddings(settings.sentence_transformers_model)
+        return _wrap_with_cache(base, settings.sentence_transformers_model, settings=settings)
 
     if provider == "ollama":
-        return (
-            OllamaEmbeddings(base_url=str(settings.ollama_base_url), model=settings.ollama_embedding_model),
-            f"ollama:{settings.ollama_embedding_model}",
-        )
+        base = OllamaEmbeddings(base_url=str(settings.ollama_base_url), model=settings.ollama_embedding_model)
+        return _wrap_with_cache(base, f"ollama:{settings.ollama_embedding_model}", settings=settings)
 
     if provider == "openai_compatible":
         if not settings.chat_api_key:
             raise RuntimeError("EMBEDDINGS_PROVIDER=openai_compatible 需要配置 CHAT_API_KEY（或另行扩展 embedding key）")
-        return (
-            OpenAICompatibleEmbeddings(
-                base_url=str(settings.chat_base_url),
-                api_key=settings.chat_api_key,
-                model="text-embedding-3-small",
-            ),
-            "openai_compatible:text-embedding-3-small",
+        base = OpenAICompatibleEmbeddings(
+            base_url=str(settings.chat_base_url),
+            api_key=settings.chat_api_key,
+            model="text-embedding-3-small",
         )
+        return _wrap_with_cache(base, "openai_compatible:text-embedding-3-small", settings=settings)
 
     raise RuntimeError(f"未知 EMBEDDINGS_PROVIDER: {settings.embeddings_provider}")
+
+
+def _wrap_with_cache(base: EmbeddingsProvider, name: str, *, settings: Settings) -> tuple[EmbeddingsProvider, str]:
+    if settings.query_embed_cache_size <= 0:
+        return base, name
+    cached = CachedEmbeddingsProvider(
+        inner=base,
+        max_size=settings.query_embed_cache_size,
+        ttl_s=settings.query_embed_cache_ttl_s,
+    )
+    return cached, name

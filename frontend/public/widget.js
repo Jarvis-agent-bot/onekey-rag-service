@@ -24,6 +24,8 @@
   var dataset = script.dataset || {};
 
   var widgetBaseUrl = dataset.widgetBaseUrl || globalConfig.widgetBaseUrl || defaultWidgetBaseUrl;
+  // 约定：widgetBaseUrl 指向 /widget/ 目录（末尾应带 /），否则相对资源解析会出错
+  if (widgetBaseUrl && widgetBaseUrl.charAt(widgetBaseUrl.length - 1) !== "/") widgetBaseUrl = widgetBaseUrl + "/";
   var widgetOrigin = new URL(widgetBaseUrl).origin;
   var apiBase = dataset.apiBase || globalConfig.apiBase || ""; // 为空表示 iframe 内走同域相对路径
 
@@ -40,27 +42,32 @@
   if (document.getElementById(containerId)) return;
 
   var style = document.createElement("style");
-  var modalWidth = dataset.modalWidth || globalConfig.modalWidth || width || "860px";
+  var modalWidth = dataset.modalWidth || globalConfig.modalWidth || width || "760px";
   var modalHeight = dataset.modalHeight || globalConfig.modalHeight || "72vh";
-  var modalMaxHeight = dataset.modalMaxHeight || globalConfig.modalMaxHeight || "820px";
+  var modalMaxHeight = dataset.modalMaxHeight || globalConfig.modalMaxHeight || "880px";
+  var modalMaxWidth = dataset.modalMaxWidth || globalConfig.modalMaxWidth || "920px";
 
   style.textContent =
     "#onekey-rag-widget-button{position:fixed;right:20px;bottom:20px;z-index:" +
     zIndex +
-    ";display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;box-shadow:0 14px 40px rgba(0,0,0,.28);cursor:pointer;font:800 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}" +
+    ";display:flex;align-items:center;justify-content:center;gap:10px;height:44px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(31,35,42,.92);backdrop-filter:blur(10px);color:#fff;box-shadow:0 14px 40px rgba(0,0,0,.28);cursor:pointer;font:700 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}" +
+    "#onekey-rag-widget-button img{width:18px;height:18px;border-radius:7px;display:block;}" +
+    "#onekey-rag-widget-button span{display:block;white-space:nowrap;}" +
     "#onekey-rag-widget-button:hover{box-shadow:0 18px 46px rgba(0,0,0,.34)}" +
     "#onekey-rag-widget-overlay{position:fixed;inset:0;z-index:" +
     zIndex +
-    ";background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .18s ease;}" +
+    ";background:rgba(0,0,0,.62);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .18s ease;}" +
     "#onekey-rag-widget-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.98);z-index:" +
     (zIndex + 1) +
     ";width:" +
     modalWidth +
-    ";max-width:calc(100vw - 32px);height:" +
+    ";max-width:min(calc(100vw - 32px)," +
+    modalMaxWidth +
+    ");height:" +
     modalHeight +
     ";max-height:" +
     modalMaxHeight +
-    ";background:rgba(17,24,39,.96);border:1px solid rgba(255,255,255,.12);border-radius:16px;box-shadow:0 26px 80px rgba(0,0,0,.52);opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;overflow:hidden;}" +
+    ";background:rgba(31,35,42,.98);border:1px solid rgba(255,255,255,.10);border-radius:14px;box-shadow:0 26px 80px rgba(0,0,0,.58);opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;overflow:hidden;}" +
     "#onekey-rag-widget-overlay[data-open='true']{opacity:1;pointer-events:auto}" +
     "#onekey-rag-widget-modal[data-open='true']{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}" +
     "#onekey-rag-widget-iframe{border:0;width:100%;height:100%;background:transparent;}" +
@@ -75,7 +82,18 @@
   button.type = "button";
   button.setAttribute("aria-label", buttonLabel || "打开文档助手");
   button.title = buttonLabel || "Ask AI";
-  button.textContent = "AI";
+  try {
+    var logoUrl = new URL("onekey.png", widgetBaseUrl).href;
+    var img = document.createElement("img");
+    img.src = logoUrl;
+    img.alt = "OneKey";
+    var labelSpan = document.createElement("span");
+    labelSpan.textContent = buttonLabel || "Ask AI";
+    button.appendChild(img);
+    button.appendChild(labelSpan);
+  } catch (e) {
+    button.textContent = buttonLabel || "Ask AI";
+  }
 
   var overlay = document.createElement("div");
   overlay.id = "onekey-rag-widget-overlay";

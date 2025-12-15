@@ -39,15 +39,12 @@ class LangChainInitChatProvider(ChatProvider):
                 "未安装 LangChain 或缺少对应的 provider 依赖；请检查 requirements.txt（例如需要 langchain-openai）"
             ) from e
 
-        model_kwargs: dict[str, Any] = {}
-        if top_p is not None:
-            model_kwargs["top_p"] = top_p
-
         base_url = _normalize_openai_compatible_base_url(self.base_url)
 
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": temperature,
+            "top_p": top_p,
             "timeout": self.timeout_s,
             "max_tokens": max_tokens,
             "max_retries": self.max_retries,
@@ -57,8 +54,6 @@ class LangChainInitChatProvider(ChatProvider):
 
         if self.model_provider:
             kwargs["model_provider"] = self.model_provider
-        if model_kwargs:
-            kwargs["model_kwargs"] = model_kwargs
 
         # init_chat_model 会把 kwargs 透传给具体 provider 的 ChatModel 实现
         return init_chat_model(**{k: v for k, v in kwargs.items() if v is not None})

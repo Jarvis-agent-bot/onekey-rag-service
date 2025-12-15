@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -130,6 +131,7 @@ def _startup() -> None:
     app.state.chat = build_chat_provider(settings)
     app.state.reranker = build_reranker(settings)
     app.state.chat_model_map = settings.chat_model_map()
+    app.state.chat_semaphore = asyncio.Semaphore(max(1, int(settings.max_concurrent_chat_requests or 1)))
 
     logger.info("启动完成 env=%s", settings.app_env)
 
@@ -168,13 +170,17 @@ async def admin_crawl(
     background: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> AdminJobResponse:
+    settings: Settings = app.state.settings
+    jobs_backend = (settings.jobs_backend or "worker").lower()
     job_id = f"crawl_{uuid.uuid4().hex[:12]}"
-    job = Job(id=job_id, type="crawl", status="running", payload=req.model_dump(), progress={})
+    job = Job(id=job_id, type="crawl", status=("queued" if jobs_backend == "worker" else "running"), payload=req.model_dump(), progress={})
     db.add(job)
     db.commit()
 
+    if jobs_backend == "worker":
+        return AdminJobResponse(job_id=job_id)
+
     async def _run() -> None:
-        settings: Settings = app.state.settings
         session_factory = app.state.SessionLocal
         with session_factory() as session:
             job_row = session.get(Job, job_id)
@@ -218,16 +224,20 @@ def admin_index(
     background: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> AdminJobResponse:
+    settings: Settings = app.state.settings
+    jobs_backend = (settings.jobs_backend or "worker").lower()
     job_id = f"index_{uuid.uuid4().hex[:12]}"
-    job = Job(id=job_id, type="index", status="running", payload=req.model_dump(), progress={})
+    job = Job(id=job_id, type="index", status=("queued" if jobs_backend == "worker" else "running"), payload=req.model_dump(), progress={})
     db.add(job)
     db.commit()
+
+    if jobs_backend == "worker":
+        return AdminJobResponse(job_id=job_id)
 
     def _run() -> None:
         session_factory = app.state.SessionLocal
         embeddings = app.state.embeddings
         embedding_model_name = app.state.embedding_model_name
-        settings: Settings = app.state.settings
         with session_factory() as session:
             job_row = session.get(Job, job_id)
             if not job_row:
@@ -295,22 +305,34 @@ async def openai_chat_completions(
 
     chat_id = f"chatcmpl_{uuid.uuid4().hex}"
     created = now_unix()
+    sem = getattr(app.state, "chat_semaphore", None)
 
     if not req.stream:
-        rag = await answer_with_rag(
-            db,
-            settings=settings,
-            embeddings=embeddings,
-            chat=chat,
-            reranker=reranker,
-            chat_model=upstream_model,
-            request_messages=request_messages,
-            question=question,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            debug=req.debug,
-        )
+        if sem:
+            await sem.acquire()
+        try:
+            rag = await asyncio.wait_for(
+                answer_with_rag(
+                    db,
+                    settings=settings,
+                    embeddings=embeddings,
+                    chat=chat,
+                    reranker=reranker,
+                    chat_model=upstream_model,
+                    request_messages=request_messages,
+                    question=question,
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                    debug=req.debug,
+                ),
+                timeout=settings.rag_total_timeout_s,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="请求超时，请稍后重试或缩短问题/上下文")
+        finally:
+            if sem:
+                sem.release()
 
         resp = OpenAIChatCompletionsResponse(
             id=chat_id,
@@ -329,70 +351,32 @@ async def openai_chat_completions(
         )
         return JSONResponse(resp.model_dump())
 
-    prepared = await prepare_rag(
-        db,
-        settings=settings,
-        embeddings=embeddings,
-        chat=chat,
-        reranker=reranker,
-        chat_model=upstream_model,
-        request_messages=request_messages,
-        question=question,
-        debug=req.debug,
-    )
-
-    # 可选：把 sources 以“参考/来源”形式附在最终文本里（便于只认 content 的客户端）
-    sources_tail = ""
-    if prepared.sources and settings.answer_append_sources:
-        if settings.inline_citations_enabled:
-            lines = ["\n\n参考："]
-            for i, s in enumerate(prepared.sources, start=1):
-                ref = int(s.get("ref") or i)
-                title = (s.get("title") or "").strip()
-                url = (s.get("url") or "").strip()
-                if title:
-                    lines.append(f"[{ref}] {title} - {url}")
-                else:
-                    lines.append(f"[{ref}] {url}")
-            sources_tail = "\n".join(lines).rstrip()
-        else:
-            sources_tail = "\n\n来源：\n" + "\n".join([f"- {s['url']}" for s in prepared.sources if s.get("url")])
-
-    no_chat_text = ""
-    if (not chat) and prepared.direct_answer is None and prepared.sources:
-        no_chat_text = (
-            "当前服务未配置上游 ChatModel（CHAT_API_KEY），因此无法生成高质量自然语言回答。\n\n"
-            "下面是检索到的相关文档片段（请优先查看来源链接）：\n"
-            + "\n".join([f"- {s.get('title') or s.get('url')}（{s.get('url')}）" for s in prepared.sources[:5]])
-        )
-
     async def event_stream():
+        if sem:
+            await sem.acquire()
+        try:
         # 首包声明 assistant 角色（部分 OpenAI 客户端依赖）
-        yield f"data: {json_dumps({'id': chat_id,'object':'chat.completion.chunk','created': created,'model': req.model,'choices':[{'index':0,'delta':{'role':'assistant'},'finish_reason':None}]})}\n\n"
+            yield f"data: {json_dumps({'id': chat_id,'object':'chat.completion.chunk','created': created,'model': req.model,'choices':[{'index':0,'delta':{'role':'assistant'},'finish_reason':None}]})}\n\n"
 
-        if prepared.direct_answer is not None or not prepared.messages or not chat:
-            base_text = prepared.direct_answer or no_chat_text or ""
-            tail = sources_tail if (prepared.direct_answer is not None) else ""
-            for part in _chunk_text(base_text + tail, chunk_size=60):
-                data = {
-                    "id": chat_id,
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": req.model,
-                    "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}],
-                }
-                yield f"data: {json_dumps(data)}\n\n"
-        else:
+            prepared = None
             try:
-                async for part in chat.stream(
-                    model=upstream_model,
-                    messages=prepared.messages,
-                    temperature=temperature,
-                    top_p=top_p,
-                    max_tokens=max_tokens,
-                ):
-                    if not part:
-                        continue
+                prepared = await asyncio.wait_for(
+                    prepare_rag(
+                        db,
+                        settings=settings,
+                        embeddings=embeddings,
+                        chat=chat,
+                        reranker=reranker,
+                        chat_model=upstream_model,
+                        request_messages=request_messages,
+                        question=question,
+                        debug=req.debug,
+                    ),
+                    timeout=settings.rag_prepare_timeout_s,
+                )
+            except asyncio.TimeoutError:
+                err_text = "\n\n[错误] 检索/上下文准备超时：请缩短问题或稍后重试"
+                for part in _chunk_text(err_text, chunk_size=80):
                     data = {
                         "id": chat_id,
                         "object": "chat.completion.chunk",
@@ -401,19 +385,8 @@ async def openai_chat_completions(
                         "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}],
                     }
                     yield f"data: {json_dumps(data)}\n\n"
-
-                if sources_tail:
-                    data = {
-                        "id": chat_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": req.model,
-                        "choices": [{"index": 0, "delta": {"content": sources_tail}, "finish_reason": None}],
-                    }
-                    yield f"data: {json_dumps(data)}\n\n"
             except Exception as e:
-                # 流式过程中无法再改 HTTP 状态码，采用“内容内报错 + 结束事件”兜底
-                err_text = f"\n\n[错误] 上游模型流式输出失败：{str(e)}"
+                err_text = f"\n\n[错误] 检索/上下文准备失败：{str(e)}"
                 for part in _chunk_text(err_text, chunk_size=80):
                     data = {
                         "id": chat_id,
@@ -424,12 +397,96 @@ async def openai_chat_completions(
                     }
                     yield f"data: {json_dumps(data)}\n\n"
 
-        # 正常结束 chunk（OpenAI 习惯在最后给 finish_reason）
-        yield f"data: {json_dumps({'id': chat_id,'object':'chat.completion.chunk','created': created,'model': req.model,'choices':[{'index':0,'delta':{},'finish_reason':'stop'}]})}\n\n"
+            sources = (prepared.sources if prepared else []) or []
 
-        sources_event = {"id": chat_id, "object": "chat.completion.sources", "sources": prepared.sources}
-        yield f"data: {json_dumps(sources_event)}\n\n"
-        yield "data: [DONE]\n\n"
+            # 可选：把 sources 以“参考/来源”形式附在最终文本里（便于只认 content 的客户端）
+            sources_tail = ""
+            if sources and settings.answer_append_sources:
+                if settings.inline_citations_enabled:
+                    lines = ["\n\n参考："]
+                    for i, s in enumerate(sources, start=1):
+                        ref = int(s.get("ref") or i)
+                        title = (s.get("title") or "").strip()
+                        url = (s.get("url") or "").strip()
+                        if title:
+                            lines.append(f"[{ref}] {title} - {url}")
+                        else:
+                            lines.append(f"[{ref}] {url}")
+                    sources_tail = "\n".join(lines).rstrip()
+                else:
+                    sources_tail = "\n\n来源：\n" + "\n".join([f"- {s['url']}" for s in sources if s.get("url")])
+
+            no_chat_text = ""
+            if (not chat) and prepared and prepared.direct_answer is None and sources:
+                no_chat_text = (
+                    "当前服务未配置上游 ChatModel（CHAT_API_KEY），因此无法生成高质量自然语言回答。\n\n"
+                    "下面是检索到的相关文档片段（请优先查看来源链接）：\n"
+                    + "\n".join([f"- {s.get('title') or s.get('url')}（{s.get('url')}）" for s in sources[:5]])
+                )
+
+            if (not prepared) or prepared.direct_answer is not None or not prepared.messages or not chat:
+                base_text = (prepared.direct_answer if prepared else "") or no_chat_text or ""
+                tail = sources_tail if (prepared and prepared.direct_answer is not None) else ""
+                for part in _chunk_text(base_text + tail, chunk_size=60):
+                    data = {
+                        "id": chat_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": req.model,
+                        "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}],
+                    }
+                    yield f"data: {json_dumps(data)}\n\n"
+            else:
+                try:
+                    async for part in chat.stream(
+                        model=upstream_model,
+                        messages=prepared.messages,
+                        temperature=temperature,
+                        top_p=top_p,
+                        max_tokens=max_tokens,
+                    ):
+                        if not part:
+                            continue
+                        data = {
+                            "id": chat_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": req.model,
+                            "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}],
+                        }
+                        yield f"data: {json_dumps(data)}\n\n"
+
+                    if sources_tail:
+                        data = {
+                            "id": chat_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": req.model,
+                            "choices": [{"index": 0, "delta": {"content": sources_tail}, "finish_reason": None}],
+                        }
+                        yield f"data: {json_dumps(data)}\n\n"
+                except Exception as e:
+                    # 流式过程中无法再改 HTTP 状态码，采用“内容内报错 + 结束事件”兜底
+                    err_text = f"\n\n[错误] 上游模型流式输出失败：{str(e)}"
+                    for part in _chunk_text(err_text, chunk_size=80):
+                        data = {
+                            "id": chat_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": req.model,
+                            "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}],
+                        }
+                        yield f"data: {json_dumps(data)}\n\n"
+
+            # 正常结束 chunk（OpenAI 习惯在最后给 finish_reason）
+            yield f"data: {json_dumps({'id': chat_id,'object':'chat.completion.chunk','created': created,'model': req.model,'choices':[{'index':0,'delta':{},'finish_reason':'stop'}]})}\n\n"
+
+            sources_event = {"id": chat_id, "object": "chat.completion.sources", "sources": sources}
+            yield f"data: {json_dumps(sources_event)}\n\n"
+            yield "data: [DONE]\n\n"
+        finally:
+            if sem:
+                sem.release()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import re
+import time
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -12,6 +14,8 @@ from onekey_rag_service.rag.embeddings import EmbeddingsProvider
 from onekey_rag_service.rag.pgvector_store import RetrievedChunk, hybrid_search, similarity_search
 from onekey_rag_service.rag.reranker import Reranker
 from onekey_rag_service.utils import clamp_text
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -37,12 +41,13 @@ def _build_sources(chunks: list[RetrievedChunk], *, max_sources: int = 6) -> lis
     sources: list[dict] = []
 
     for c in sorted(chunks, key=lambda x: x.score, reverse=True):
-        if c.url in seen:
+        url = _append_anchor(c.url, c.section_path)
+        if url in seen:
             continue
-        seen.add(c.url)
+        seen.add(url)
         sources.append(
             {
-                "url": c.url,
+                "url": url,
                 "title": c.title,
                 "section_path": c.section_path,
                 "snippet": "",
@@ -54,6 +59,24 @@ def _build_sources(chunks: list[RetrievedChunk], *, max_sources: int = 6) -> lis
 
 
 _CITATION_RE = re.compile(r"\[(\d{1,3})\]")
+
+
+def _slugify_anchor(text: str) -> str:
+    s = (text or "").strip().lower()
+    s = re.sub(r"[^\w\s-]", "", s, flags=re.UNICODE)
+    s = re.sub(r"\s+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s
+
+
+def _append_anchor(url: str, section_path: str) -> str:
+    if not url or "#" in url:
+        return url
+    last = (section_path or "").split(" > ")[-1].strip()
+    anchor = _slugify_anchor(last)
+    if not anchor:
+        return url
+    return f"{url}#{anchor}"
 
 
 def _sanitize_inline_citations(text: str, *, max_ref: int) -> str:
@@ -115,7 +138,7 @@ def _build_inline_sources(chunks: list[RetrievedChunk], *, snippet_max_chars: in
         sources.append(
             {
                 "ref": i,
-                "url": c.url,
+                "url": _append_anchor(c.url, c.section_path),
                 "title": c.title,
                 "section_path": c.section_path,
                 "snippet": clamp_text(c.text.replace("\n", " ").strip(), snippet_max_chars),
@@ -148,6 +171,13 @@ async def prepare_rag(
     question: str,
     debug: bool = False,
 ) -> RagPrepared:
+    t_prepare = time.perf_counter()
+    t_compaction_ms: int | None = None
+    t_embed_ms: int | None = None
+    t_retrieve_ms: int | None = None
+    t_rerank_ms: int | None = None
+    t_context_ms: int | None = None
+
     system_instructions = extract_system_instructions(request_messages)
     history_messages = list(request_messages)
     for i in range(len(history_messages) - 1, -1, -1):
@@ -165,6 +195,7 @@ async def prepare_rag(
     memory_summary: str | None = None
     used_compaction = False
     if chat and (settings.query_rewrite_enabled or settings.memory_summary_enabled):
+        t0 = time.perf_counter()
         try:
             compaction = await compact_conversation(
                 settings=settings,
@@ -176,14 +207,19 @@ async def prepare_rag(
             retrieval_query = compaction.retrieval_query
             memory_summary = compaction.memory_summary
             used_compaction = compaction.used_llm
+            t_compaction_ms = int((time.perf_counter() - t0) * 1000)
         except Exception:
             # Query rewrite/记忆压缩属于“增强项”，失败不应影响主链路
             retrieval_query = question
             memory_summary = None
             used_compaction = False
+            t_compaction_ms = int((time.perf_counter() - t0) * 1000)
 
+    t0 = time.perf_counter()
     qvec = embeddings.embed_query(retrieval_query)
+    t_embed_ms = int((time.perf_counter() - t0) * 1000)
     mode = (settings.retrieval_mode or "vector").lower()
+    t0 = time.perf_counter()
     if mode == "hybrid":
         retrieved = hybrid_search(
             session,
@@ -198,12 +234,15 @@ async def prepare_rag(
         )
     else:
         retrieved = similarity_search(session, query_embedding=qvec, k=settings.rag_top_k)
+    t_retrieve_ms = int((time.perf_counter() - t0) * 1000)
     ranked = retrieved
     if reranker:
+        t0 = time.perf_counter()
         try:
             ranked = await reranker.rerank(query=retrieval_query, candidates=retrieved, top_n=settings.rag_top_n)
         except Exception:
             ranked = retrieved[: settings.rag_top_n]
+        t_rerank_ms = int((time.perf_counter() - t0) * 1000)
 
     max_ctx = min(settings.rag_top_n, settings.rag_max_sources) if settings.inline_citations_enabled else settings.rag_top_n
     topn = ranked[:max_ctx]
@@ -221,7 +260,9 @@ async def prepare_rag(
             debug={"retrieved": 0, "retrieval_query": retrieval_query, "used_compaction": used_compaction} if debug else None,
         )
 
+    t0 = time.perf_counter()
     context = _build_context(topn, max_chars=settings.rag_context_max_chars)
+    t_context_ms = int((time.perf_counter() - t0) * 1000)
 
     system = "你是 OneKey 开发者文档助手。你必须严格基于提供的“文档片段”回答，不要编造。"
 
@@ -246,7 +287,9 @@ async def prepare_rag(
         "格式要求（重要）：\n"
         "- 请使用 Markdown 输出。\n"
         "- 对变量名/方法名/参数名/字段名/命令/路径/报错关键词等“短代码片段”，使用反引号包裹（inline code），例如 `connectId`、`HardwareSDK.init()`。\n"
+        "- 不要把单个标识符/字段名（例如 `device_id`、`connectId`）单独放在一行或代码块里；尽量写在句子中。\n"
         "- 对多行代码/命令/配置使用代码块（fenced code block），并尽量标注语言，例如 ```ts / ```bash / ```json。\n"
+        "- 代码块优先用于“≥2 行”或需要复制执行的命令/配置；不要为了展示一个词/一个参数就用代码块。\n"
         "- 除代码块外，不要把短标识符单独换行。\n\n"
     )
 
@@ -268,19 +311,27 @@ async def prepare_rag(
         {"role": "user", "content": user},
     ]
 
+    debug_obj: dict | None = None
+    if debug:
+        debug_obj = {
+            "retrieved": len(retrieved),
+            "top_scores": [c.score for c in topn],
+            "retrieval_query": retrieval_query,
+            "used_compaction": used_compaction,
+            "timings_ms": {
+                "compaction": t_compaction_ms,
+                "embed": t_embed_ms,
+                "retrieve": t_retrieve_ms,
+                "rerank": t_rerank_ms,
+                "context": t_context_ms,
+                "total_prepare": int((time.perf_counter() - t_prepare) * 1000),
+            },
+        }
+
     return RagPrepared(
         messages=messages,
         sources=sources,
-        debug=(
-            {
-                "retrieved": len(retrieved),
-                "top_scores": [c.score for c in topn],
-                "retrieval_query": retrieval_query,
-                "used_compaction": used_compaction,
-            }
-            if debug
-            else None
-        ),
+        debug=debug_obj,
     )
 
 
@@ -332,6 +383,7 @@ async def answer_with_rag(
         )
         return RagAnswer(answer=answer, sources=sources, debug=prepared.debug)
 
+    t0 = time.perf_counter()
     result = await chat.complete(
         model=chat_model,
         messages=prepared.messages,
@@ -339,6 +391,7 @@ async def answer_with_rag(
         top_p=top_p,
         max_tokens=max_tokens,
     )
+    chat_ms = int((time.perf_counter() - t0) * 1000)
 
     content = (result.content or "").strip()
     if settings.inline_citations_enabled:
@@ -350,9 +403,15 @@ async def answer_with_rag(
     if sources and settings.answer_append_sources:
         content += _build_references_tail(sources=sources, inline=settings.inline_citations_enabled)
 
+    debug_obj = prepared.debug
+    if debug_obj is not None:
+        timings = dict(debug_obj.get("timings_ms") or {})
+        timings["chat"] = chat_ms
+        debug_obj = {**debug_obj, "timings_ms": timings}
+
     return RagAnswer(
         answer=content,
         sources=sources,
         usage=result.usage,
-        debug=prepared.debug,
+        debug=debug_obj,
     )
