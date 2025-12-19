@@ -1,16 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
+import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Textarea } from "../components/ui/textarea";
 import { Card } from "../components/Card";
 import { Pagination } from "../components/Pagination";
+import { EmptyState } from "../components/EmptyState";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { FilterChips, type FilterChip } from "../components/FilterChips";
+import { ProgressPill } from "../components/ProgressPill";
 import { apiFetch } from "../lib/api";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type KbsResp = { items: Array<{ id: string; name: string; status: string }> };
 type SourcesResp = { items: Array<{ id: string; name: string; type: string; status: string; config: Record<string, unknown> }> };
@@ -41,47 +46,42 @@ function parseLines(text: string): string[] | undefined {
   return lines.length ? lines : undefined;
 }
 
-function formatProgress(type: string, progress: Record<string, unknown> | undefined): string {
-  if (!progress) return "";
-  const getNum = (k: string) => {
-    const v = progress[k];
-    return typeof v === "number" && Number.isFinite(v) ? v : null;
-  };
-  if (type === "crawl") {
-    const discovered = getNum("discovered");
-    const fetched = getNum("fetched");
-    const succeeded = getNum("succeeded");
-    const failed = getNum("failed");
-    const parts = [
-      discovered != null ? `discovered=${discovered}` : "",
-      fetched != null ? `fetched=${fetched}` : "",
-      succeeded != null ? `ok=${succeeded}` : "",
-      failed != null ? `fail=${failed}` : "",
-    ].filter(Boolean);
-    return parts.join(" ");
+function isValidUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    void u;
+    return true;
+  } catch {
+    return false;
   }
-  if (type === "index") {
-    const pages = getNum("pages");
-    const chunks = getNum("chunks");
-    const embedded = getNum("embedded");
-    const upserted = getNum("upserted");
-    const parts = [
-      pages != null ? `pages=${pages}` : "",
-      chunks != null ? `chunks=${chunks}` : "",
-      embedded != null ? `embedded=${embedded}` : "",
-      upserted != null ? `upserted=${upserted}` : "",
-    ].filter(Boolean);
-    return parts.join(" ");
+}
+
+function firstInvalidUrl(text: string): string | null {
+  const lines = parseLines(text) || [];
+  for (const u of lines) {
+    if (!isValidUrl(u)) return u;
   }
-  return "";
+  return null;
+}
+
+function firstInvalidRegex(text: string): string | null {
+  const lines = parseLines(text) || [];
+  for (const r of lines) {
+    try {
+      const re = new RegExp(r);
+      void re;
+    } catch {
+      return r;
+    }
+  }
+  return null;
 }
 
 export function JobsPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
 
   const kbs = useQuery({
     queryKey: ["kbs", workspaceId],
@@ -105,6 +105,31 @@ export function JobsPage() {
     queryFn: () => apiFetch<SourcesResp>(`/admin/api/workspaces/${workspaceId}/kbs/${crawlKbId}/sources`),
     enabled: !!workspaceId && !!crawlKbId,
   });
+
+  const selectedSource = (sources.data?.items || []).find((s) => s.id === crawlSourceId);
+  const configuredMaxPages = (() => {
+    const v = (selectedSource?.config || {})["max_pages"];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  })();
+  const effectiveMaxPagesText = maxPages.trim() || (configuredMaxPages != null ? String(configuredMaxPages) : "-");
+  const maxPagesError = (() => {
+    const raw = maxPages.trim();
+    if (!raw) return "";
+    const n = Number(raw);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return "max_pages 必须是正整数";
+    return "";
+  })();
+  const baseUrlError = baseUrl.trim() && !isValidUrl(baseUrl.trim()) ? "base_url 不是合法 URL" : "";
+  const sitemapUrlError = sitemapUrl.trim() && !isValidUrl(sitemapUrl.trim()) ? "sitemap_url 不是合法 URL" : "";
+  const seedUrlsBad = firstInvalidUrl(seedUrls);
+  const seedUrlsError = seedUrlsBad ? `seed_urls 含非法 URL：${seedUrlsBad}` : "";
+  const includeBad = firstInvalidRegex(includePatterns);
+  const includePatternsError = includeBad ? `include_patterns 正则非法：${includeBad}` : "";
+  const excludeBad = firstInvalidRegex(excludePatterns);
+  const excludePatternsError = excludeBad ? `exclude_patterns 正则非法：${excludeBad}` : "";
+  const crawlFormError =
+    maxPagesError || baseUrlError || sitemapUrlError || seedUrlsError || includePatternsError || excludePatternsError;
+  const crawlFormInvalid = !crawlKbId || !crawlSourceId || !!crawlFormError;
 
   useEffect(() => {
     const firstKb = kbs.data?.items?.[0];
@@ -173,25 +198,44 @@ export function JobsPage() {
   });
 
   // ======== Job 列表 ========
-  const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(20);
-  const [typeFilter, setTypeFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [kbFilter, setKbFilter] = useState<string>("");
-  const [appFilter, setAppFilter] = useState<string>("");
-  const [sourceFilter, setSourceFilter] = useState<string>("");
-  const [qFilter, setQFilter] = useState<string>("");
-  const [createdFrom, setCreatedFrom] = useState<string>("");
-  const [createdTo, setCreatedTo] = useState<string>("");
+  const pageSize = 20;
+  const page = Math.max(1, Number.parseInt(sp.get("page") || "1", 10) || 1);
+  const typeFilter = (sp.get("type") || "").trim();
+  const statusFilter = (sp.get("status") || "").trim();
+  const kbFilter = (sp.get("kb_id") || "").trim();
+  const appFilter = (sp.get("app_id") || "").trim();
+  const sourceFilter = (sp.get("source_id") || "").trim();
+  const qFilter = (sp.get("q") || "").trim();
+  const createdFrom = (sp.get("created_from") || "").trim();
+  const createdTo = (sp.get("created_to") || "").trim();
+
+  function updateFilter(nextKV: Array<[string, string | null]>) {
+    const next = new URLSearchParams(sp);
+    next.set("page", "1");
+    for (const [k, v] of nextKV) {
+      const vv = (v || "").trim();
+      if (!vv) next.delete(k);
+      else next.set(k, vv);
+    }
+    setSp(next, { replace: true });
+  }
+
+  const chips: FilterChip[] = [
+    typeFilter ? { key: "type", label: "type", value: typeFilter, onRemove: () => updateFilter([["type", null]]) } : null,
+    statusFilter ? { key: "status", label: "status", value: statusFilter, onRemove: () => updateFilter([["status", null]]) } : null,
+    kbFilter ? { key: "kb_id", label: "KB", value: kbFilter, onRemove: () => updateFilter([["kb_id", null]]) } : null,
+    appFilter ? { key: "app_id", label: "app", value: appFilter, onRemove: () => updateFilter([["app_id", null]]) } : null,
+    sourceFilter ? { key: "source_id", label: "source", value: sourceFilter, onRemove: () => updateFilter([["source_id", null]]) } : null,
+    qFilter ? { key: "q", label: "q", value: qFilter, onRemove: () => updateFilter([["q", null]]) } : null,
+    createdFrom ? { key: "created_from", label: "from", value: createdFrom, onRemove: () => updateFilter([["created_from", null]]) } : null,
+    createdTo ? { key: "created_to", label: "to", value: createdTo, onRemove: () => updateFilter([["created_to", null]]) } : null,
+  ].filter(Boolean) as FilterChip[];
 
   useEffect(() => {
-    const qKb = (sp.get("kb_id") || "").trim();
-    if (!qKb) return;
-    setCrawlKbId(qKb);
-    setIndexKbId(qKb);
-    setKbFilter(qKb);
-    setPage(1);
-  }, [sp]);
+    if (!kbFilter) return;
+    setCrawlKbId(kbFilter);
+    setIndexKbId(kbFilter);
+  }, [kbFilter]);
 
   const jobsQuery = useQuery({
     queryKey: ["jobs", workspaceId, page, pageSize, typeFilter, statusFilter, kbFilter, appFilter, sourceFilter, qFilter, createdFrom, createdTo],
@@ -202,11 +246,11 @@ export function JobsPage() {
       if (typeFilter) params.set("type", typeFilter);
       if (statusFilter) params.set("status", statusFilter);
       if (kbFilter) params.set("kb_id", kbFilter);
-      if (appFilter.trim()) params.set("app_id", appFilter.trim());
-      if (sourceFilter.trim()) params.set("source_id", sourceFilter.trim());
-      if (qFilter.trim()) params.set("q", qFilter.trim());
-      if (createdFrom.trim()) params.set("created_from", createdFrom.trim());
-      if (createdTo.trim()) params.set("created_to", createdTo.trim());
+      if (appFilter) params.set("app_id", appFilter);
+      if (sourceFilter) params.set("source_id", sourceFilter);
+      if (qFilter) params.set("q", qFilter);
+      if (createdFrom) params.set("created_from", createdFrom);
+      if (createdTo) params.set("created_to", createdTo);
       return apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?${params.toString()}`);
     },
     enabled: !!workspaceId,
@@ -230,17 +274,13 @@ export function JobsPage() {
     },
   });
 
-  const actionError = useMemo(() => {
-    const err = triggerCrawl.error || triggerIndex.error || requeue.error || cancel.error;
-    if (!err) return "";
-    return err instanceof Error ? err.message : String(err);
-  }, [triggerCrawl.error, triggerIndex.error, requeue.error, cancel.error]);
+  const actionError = triggerCrawl.error || triggerIndex.error || requeue.error || cancel.error;
 
   return (
     <div className="space-y-4">
       <div className="text-lg font-semibold">任务中心</div>
 
-      {actionError ? <div className="text-sm text-destructive">{actionError}</div> : null}
+      {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card
@@ -293,6 +333,12 @@ export function JobsPage() {
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">max_pages（可选）</div>
                 <Input placeholder="例如 5000" value={maxPages} onChange={(e) => setMaxPages(e.target.value)} />
+                {maxPagesError ? <div className="text-xs text-destructive">{maxPagesError}</div> : null}
+                {maxPages.trim()
+                  ? null
+                  : configuredMaxPages != null
+                    ? <div className="text-xs text-muted-foreground">未填写时使用 Source.config.max_pages={configuredMaxPages}</div>
+                    : <div className="text-xs text-muted-foreground">未填写时使用 Source.config.max_pages（当前未配置）</div>}
               </div>
             </div>
 
@@ -300,33 +346,73 @@ export function JobsPage() {
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">base_url（可选）</div>
                 <Input placeholder="例如 https://developer.onekey.so/" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+                {baseUrlError ? <div className="text-xs text-destructive">{baseUrlError}</div> : null}
               </div>
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">sitemap_url（可选）</div>
                 <Input placeholder="例如 https://.../sitemap.xml" value={sitemapUrl} onChange={(e) => setSitemapUrl(e.target.value)} />
+                {sitemapUrlError ? <div className="text-xs text-destructive">{sitemapUrlError}</div> : null}
               </div>
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">seed_urls（可选，每行一个）</div>
                 <Textarea value={seedUrls} onChange={(e) => setSeedUrls(e.target.value)} placeholder="https://example.com/\nhttps://example.com/docs/" />
+                {seedUrlsError ? <div className="text-xs text-destructive">{seedUrlsError}</div> : null}
               </div>
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">include_patterns / exclude_patterns（可选，每行一个正则）</div>
                 <div className="grid grid-cols-1 gap-2">
-                  <Textarea value={includePatterns} onChange={(e) => setIncludePatterns(e.target.value)} placeholder="^https://example\\.com/.*$" />
-                  <Textarea value={excludePatterns} onChange={(e) => setExcludePatterns(e.target.value)} placeholder="^https://example\\.com/404.*$" />
+                  <div className="space-y-1">
+                    <Textarea value={includePatterns} onChange={(e) => setIncludePatterns(e.target.value)} placeholder="^https://example\\.com/.*$" />
+                    {includePatternsError ? <div className="text-xs text-destructive">{includePatternsError}</div> : null}
+                  </div>
+                  <div className="space-y-1">
+                    <Textarea value={excludePatterns} onChange={(e) => setExcludePatterns(e.target.value)} placeholder="^https://example\\.com/404.*$" />
+                    {excludePatternsError ? <div className="text-xs text-destructive">{excludePatternsError}</div> : null}
+                  </div>
                 </div>
               </div>
-            </div>
+          </div>
 
             <div>
-              <Button
-                disabled={
-                  triggerCrawl.isPending || !crawlKbId || !crawlSourceId || (maxPages.trim() ? Number.isNaN(Number(maxPages.trim())) : false)
+              <ConfirmDangerDialog
+                trigger={
+                  <Button
+                    disabled={
+                      triggerCrawl.isPending || crawlFormInvalid
+                    }
+                  >
+                    {triggerCrawl.isPending ? "触发中..." : "触发抓取"}
+                  </Button>
                 }
-                onClick={() => triggerCrawl.mutate()}
-              >
-                {triggerCrawl.isPending ? "触发中..." : "触发抓取"}
-              </Button>
+                title="确认触发抓取（crawl）？"
+                description={
+                  <>
+                    <div className="space-y-1">
+                      <div>
+                        KB=<span className="font-mono">{crawlKbId}</span> · Source=<span className="font-mono">{crawlSourceId}</span> · Mode=
+                        <span className="font-mono">{crawlMode}</span>
+                      </div>
+                      <div className="text-xs">
+                        max_pages=<span className="font-mono">{effectiveMaxPagesText}</span> · seed_urls=
+                        <span className="font-mono">{(parseLines(seedUrls) || []).length}</span> · include=
+                        <span className="font-mono">{(parseLines(includePatterns) || []).length}</span> · exclude=
+                        <span className="font-mono">{(parseLines(excludePatterns) || []).length}</span>
+                      </div>
+                      <div className="text-xs">
+                        提示：抓取可能产生较大请求与耗时；建议先用较小的 max_pages 试跑，确认规则无误后再扩大范围。
+                      </div>
+                    </div>
+                  </>
+                }
+                confirmLabel="继续触发"
+                confirmVariant="destructive"
+                confirmText="crawl"
+                confirmPlaceholder="输入 crawl 确认"
+                confirmDisabled={
+                  triggerCrawl.isPending || crawlFormInvalid
+                }
+                onConfirm={() => triggerCrawl.mutateAsync()}
+              />
             </div>
           </div>
         </Card>
@@ -360,9 +446,31 @@ export function JobsPage() {
             </div>
 
             <div>
-              <Button disabled={triggerIndex.isPending || !indexKbId} onClick={() => triggerIndex.mutate()}>
-                {triggerIndex.isPending ? "触发中..." : "触发建索引"}
-              </Button>
+              <ConfirmDangerDialog
+                trigger={
+                  <Button disabled={triggerIndex.isPending || !indexKbId}>
+                    {triggerIndex.isPending ? "触发中..." : "触发建索引"}
+                  </Button>
+                }
+                title="确认触发建索引（index）？"
+                description={
+                  <div className="space-y-1">
+                    <div>
+                      KB=<span className="font-mono">{indexKbId}</span> · Mode=<span className="font-mono">{indexMode}</span>
+                    </div>
+                    <div className="text-xs">
+                      incremental：仅对新增/变更页面增量写入 chunks；full：对全部页面重建 chunks（可能耗时更长）。
+                    </div>
+                    <div className="text-xs">提示：建索引会产生 embedding 计算成本；建议在抓取完成后再执行。</div>
+                  </div>
+                }
+                confirmLabel="继续触发"
+                confirmVariant="destructive"
+                confirmText="index"
+                confirmPlaceholder="输入 index 确认"
+                confirmDisabled={triggerIndex.isPending || !indexKbId}
+                onConfirm={() => triggerIndex.mutateAsync()}
+              />
             </div>
           </div>
         </Card>
@@ -375,8 +483,7 @@ export function JobsPage() {
             <Select
               value={typeFilter}
               onChange={(e) => {
-                setPage(1);
-                setTypeFilter(e.target.value);
+                updateFilter([["type", e.target.value]]);
               }}
             >
               <option value="">全部</option>
@@ -389,8 +496,7 @@ export function JobsPage() {
             <Select
               value={statusFilter}
               onChange={(e) => {
-                setPage(1);
-                setStatusFilter(e.target.value);
+                updateFilter([["status", e.target.value]]);
               }}
             >
               <option value="">全部</option>
@@ -406,8 +512,7 @@ export function JobsPage() {
             <Select
               value={kbFilter}
               onChange={(e) => {
-                setPage(1);
-                setKbFilter(e.target.value);
+                updateFilter([["kb_id", e.target.value]]);
               }}
             >
               <option value="">全部</option>
@@ -423,8 +528,7 @@ export function JobsPage() {
             <Input
               value={appFilter}
               onChange={(e) => {
-                setPage(1);
-                setAppFilter(e.target.value);
+                updateFilter([["app_id", e.target.value]]);
               }}
               placeholder="例如 app_default"
             />
@@ -434,8 +538,7 @@ export function JobsPage() {
             <Input
               value={sourceFilter}
               onChange={(e) => {
-                setPage(1);
-                setSourceFilter(e.target.value);
+                updateFilter([["source_id", e.target.value]]);
               }}
               placeholder="例如 src_xxx"
             />
@@ -445,8 +548,7 @@ export function JobsPage() {
             <Input
               value={qFilter}
               onChange={(e) => {
-                setPage(1);
-                setQFilter(e.target.value);
+                updateFilter([["q", e.target.value]]);
               }}
               placeholder="例如 failed / crawl_"
             />
@@ -460,8 +562,7 @@ export function JobsPage() {
               type="date"
               value={createdFrom}
               onChange={(e) => {
-                setPage(1);
-                setCreatedFrom(e.target.value);
+                updateFilter([["created_from", e.target.value]]);
               }}
             />
           </div>
@@ -471,8 +572,7 @@ export function JobsPage() {
               type="date"
               value={createdTo}
               onChange={(e) => {
-                setPage(1);
-                setCreatedTo(e.target.value);
+                updateFilter([["created_to", e.target.value]]);
               }}
             />
           </div>
@@ -483,24 +583,17 @@ export function JobsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setPage(1);
-                setTypeFilter("");
-                setStatusFilter("");
-                setKbFilter("");
-                setAppFilter("");
-                setSourceFilter("");
-                setQFilter("");
-                setCreatedFrom("");
-                setCreatedTo("");
+                setSp(new URLSearchParams(), { replace: true });
               }}
             >
               清空
             </Button>
           </div>
         </div>
+        <FilterChips items={chips} className="pb-3" />
 
         {jobsQuery.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-        {jobsQuery.error ? <div className="text-sm text-destructive">{String(jobsQuery.error)}</div> : null}
+        {jobsQuery.error ? <ApiErrorBanner error={jobsQuery.error} /> : null}
 
         <Table>
           <TableHeader>
@@ -518,46 +611,70 @@ export function JobsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(jobsQuery.data?.items || []).map((it) => (
-              <TableRow key={it.id}>
-                <TableCell className="font-mono text-xs">
-                  <Link className="underline underline-offset-2" to={`/jobs/${it.id}`}>
-                    {it.id}
-                  </Link>
-                </TableCell>
-                <TableCell>{it.type}</TableCell>
-                <TableCell>
-                  <span className={it.status === "failed" ? "text-red-300" : it.status === "succeeded" ? "text-emerald-300" : ""}>
-                    {it.status}
-                  </span>
-                  {it.error ? <span className="ml-2 text-xs text-destructive">有错误</span> : null}
-                </TableCell>
-                <TableCell className="font-mono text-xs">{it.kb_id || "-"}</TableCell>
-                <TableCell className="font-mono text-xs">{it.app_id || "-"}</TableCell>
-                <TableCell className="font-mono text-xs">{it.source_id || "-"}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">{formatProgress(it.type, it.progress)}</TableCell>
-                <TableCell className="text-muted-foreground">{it.started_at || "-"}</TableCell>
-                <TableCell className="text-muted-foreground">{it.finished_at || "-"}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${it.id}`)}>
-                      详情
-                    </Button>
-                    <Button variant="outline" size="sm" disabled={requeue.isPending} onClick={() => requeue.mutate(it.id)}>
-                      重新入队
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={cancel.isPending || it.status !== "queued"}
-                      onClick={() => cancel.mutate(it.id)}
-                    >
-                      取消
-                    </Button>
-                  </div>
+            {(jobsQuery.data?.items || []).length ? (
+              (jobsQuery.data?.items || []).map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell className="font-mono text-xs">
+                    <Link className="underline underline-offset-2" to={`/jobs/${it.id}`}>
+                      {it.id}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{it.type}</TableCell>
+                  <TableCell>
+                    <span className={it.status === "failed" ? "text-red-300" : it.status === "succeeded" ? "text-emerald-300" : ""}>
+                      {it.status}
+                    </span>
+                    {it.error ? <span className="ml-2 text-xs text-destructive">有错误</span> : null}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{it.kb_id || "-"}</TableCell>
+                  <TableCell className="font-mono text-xs">{it.app_id || "-"}</TableCell>
+                  <TableCell className="font-mono text-xs">{it.source_id || "-"}</TableCell>
+                  <TableCell>
+                    <ProgressPill type={it.type} status={it.status} progress={it.progress} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{it.started_at || "-"}</TableCell>
+                  <TableCell className="text-muted-foreground">{it.finished_at || "-"}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${it.id}`)}>
+                        详情
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={requeue.isPending} onClick={() => requeue.mutate(it.id)}>
+                        重新入队
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={cancel.isPending || it.status !== "queued"}
+                        onClick={() => cancel.mutate(it.id)}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={10}>
+                  <EmptyState
+                    description="暂无任务记录；也可能是筛选条件过严。"
+                    actions={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSp(new URLSearchParams(), { replace: true });
+                        }}
+                      >
+                        清空筛选
+                      </Button>
+                    }
+                  />
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
 
@@ -565,7 +682,11 @@ export function JobsPage() {
           page={jobsQuery.data?.page || page}
           pageSize={jobsQuery.data?.page_size || pageSize}
           total={jobsQuery.data?.total || 0}
-          onPageChange={(p) => setPage(p)}
+          onPageChange={(p) => {
+            const next = new URLSearchParams(sp);
+            next.set("page", String(p));
+            setSp(next, { replace: true });
+          }}
         />
       </Card>
     </div>

@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
+import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { apiFetch } from "../lib/api";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type JobDetail = {
   id: string;
@@ -29,8 +30,7 @@ function shouldPoll(status?: string) {
 }
 
 export function JobDetailPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const params = useParams();
   const jobId = params.jobId || "";
   const qc = useQueryClient();
@@ -66,11 +66,7 @@ export function JobDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "取消失败"),
   });
 
-  const actionError = useMemo(() => {
-    const err = requeue.error || cancel.error;
-    if (!err) return "";
-    return err instanceof Error ? err.message : String(err);
-  }, [requeue.error, cancel.error]);
+  const actionError = requeue.error || cancel.error;
 
   return (
     <div className="space-y-4">
@@ -81,26 +77,59 @@ export function JobDetailPage() {
             <Link className="underline underline-offset-2" to="/jobs">
               返回任务列表
             </Link>
+            {q.data?.kb_id ? (
+              <span className="ml-3">
+                <Link
+                  className="underline underline-offset-2"
+                  to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
+                >
+                  查看相关页面
+                </Link>
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" disabled={!q.data || requeue.isPending} onClick={() => requeue.mutate()}>
-            {requeue.isPending ? "重新入队中..." : "重新入队"}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!q.data || q.data.status !== "queued" || cancel.isPending}
-            onClick={() => cancel.mutate()}
-          >
-            {cancel.isPending ? "取消中..." : "取消(仅 queued)"}
-          </Button>
+          <ConfirmDangerDialog
+            trigger={
+              <Button variant="outline" disabled={!q.data || requeue.isPending}>
+                {requeue.isPending ? "重新入队中..." : "重新入队"}
+              </Button>
+            }
+            title="确认重新入队？"
+            description={
+              <>
+                将把 job_id=<span className="font-mono">{jobId}</span> 的状态重置为 queued，并清空 progress/error。建议仅用于排障重试。
+              </>
+            }
+            confirmLabel="继续重新入队"
+            confirmDisabled={!q.data || requeue.isPending}
+            onConfirm={() => requeue.mutateAsync()}
+          />
+          <ConfirmDangerDialog
+            trigger={
+              <Button variant="outline" disabled={!q.data || q.data.status !== "queued" || cancel.isPending}>
+                {cancel.isPending ? "取消中..." : "取消(仅 queued)"}
+              </Button>
+            }
+            title="确认取消任务？"
+            description={
+              <>
+                将取消 job_id=<span className="font-mono">{jobId}</span>（仅支持 queued）。此操作不可恢复。
+              </>
+            }
+            confirmLabel="继续取消"
+            confirmVariant="destructive"
+            confirmDisabled={!q.data || q.data.status !== "queued" || cancel.isPending}
+            onConfirm={() => cancel.mutateAsync()}
+          />
         </div>
       </div>
 
-      {actionError ? <div className="text-sm text-destructive">{actionError}</div> : null}
+      {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
       {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-      {q.error ? <div className="text-sm text-destructive">{String(q.error)}</div> : null}
+      {q.error ? <ApiErrorBanner error={q.error} /> : null}
 
       {q.data ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -3,25 +3,22 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
+import { BulkActionsBar } from "../components/BulkActionsBar";
+import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { Button } from "../components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "../components/ui/alert-dialog";
+import { Checkbox } from "../components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Card } from "../components/Card";
+import { CopyableText } from "../components/CopyableText";
+import { EmptyState } from "../components/EmptyState";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { FilterChips, type FilterChip } from "../components/FilterChips";
 import { Pagination } from "../components/Pagination";
 import { apiFetch } from "../lib/api";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type KbsResp = { items: Array<{ id: string; name: string }> };
 type PagesResp = {
@@ -42,11 +39,10 @@ type PagesResp = {
 };
 
 export function PagesPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
 
   const kbs = useQuery({
     queryKey: ["kbs", workspaceId],
@@ -54,38 +50,77 @@ export function PagesPage() {
     enabled: !!workspaceId,
   });
 
-  const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(20);
-  const [kbId, setKbId] = useState<string>("");
-  const [sourceId, setSourceId] = useState<string>("");
-  const [indexed, setIndexed] = useState<string>(""); // "", "true", "false"
-  const [q, setQ] = useState<string>("");
-  const [httpStatus, setHttpStatus] = useState<string>("");
-  const [changedOnly, setChangedOnly] = useState<boolean>(false);
+  const pageSize = 20;
+  const page = Math.max(1, Number.parseInt(sp.get("page") || "1", 10) || 1);
+  const kbId = (sp.get("kb_id") || "").trim();
+  const sourceId = (sp.get("source_id") || "").trim();
+  const indexed = (sp.get("indexed") || "").trim(); // "", "true", "false"
+  const q = (sp.get("q") || "").trim();
+  const httpStatus = (sp.get("http_status") || "").trim();
+  const changedOnly = (sp.get("changed") || "") === "true";
+  const dateRange = (sp.get("date_range") || "").trim();
 
-  useEffect(() => {
-    const qKb = (sp.get("kb_id") || "").trim();
-    if (!qKb) return;
-    setKbId(qKb);
-  }, [sp]);
+  function updateFilter(nextKV: Array<[string, string | null]>) {
+    const next = new URLSearchParams(sp);
+    next.set("page", "1");
+    for (const [k, v] of nextKV) {
+      const vv = (v || "").trim();
+      if (!vv) next.delete(k);
+      else next.set(k, vv);
+    }
+    setSp(next, { replace: true });
+  }
+
+  const chips: FilterChip[] = [
+    kbId ? { key: "kb_id", label: "KB", value: kbId, onRemove: () => updateFilter([["kb_id", null]]) } : null,
+    sourceId ? { key: "source_id", label: "source", value: sourceId, onRemove: () => updateFilter([["source_id", null]]) } : null,
+    indexed ? { key: "indexed", label: "indexed", value: indexed, onRemove: () => updateFilter([["indexed", null]]) } : null,
+    dateRange ? { key: "date_range", label: "range", value: dateRange, onRemove: () => updateFilter([["date_range", null]]) } : null,
+    q ? { key: "q", label: "q", value: q, onRemove: () => updateFilter([["q", null]]) } : null,
+    httpStatus ? { key: "http_status", label: "http", value: httpStatus, onRemove: () => updateFilter([["http_status", null]]) } : null,
+    changedOnly ? { key: "changed", label: "changed", value: "true", onRemove: () => updateFilter([["changed", null]]) } : null,
+  ].filter(Boolean) as FilterChip[];
 
   const listQuery = useQuery({
-    queryKey: ["pages", workspaceId, page, pageSize, kbId, sourceId, indexed, q, httpStatus, changedOnly],
+    queryKey: ["pages", workspaceId, page, pageSize, kbId, sourceId, indexed, q, httpStatus, changedOnly, dateRange],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("page_size", String(pageSize));
       if (kbId) params.set("kb_id", kbId);
-      if (sourceId.trim()) params.set("source_id", sourceId.trim());
+      if (sourceId) params.set("source_id", sourceId);
       if (indexed === "true") params.set("indexed", "true");
       if (indexed === "false") params.set("indexed", "false");
-      if (q.trim()) params.set("q", q.trim());
-      if (httpStatus.trim()) params.set("http_status", httpStatus.trim());
+      if (q) params.set("q", q);
+      if (httpStatus) params.set("http_status", httpStatus);
       if (changedOnly) params.set("changed", "true");
+      if (dateRange) params.set("date_range", dateRange);
       return apiFetch<PagesResp>(`/admin/api/workspaces/${workspaceId}/pages?${params.toString()}`);
     },
     enabled: !!workspaceId,
   });
+
+  const items = useMemo(() => listQuery.data?.items || [], [listQuery.data]);
+  const visibleIds = useMemo(() => items.map((it) => it.id), [items]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [workspaceId, page, kbId, sourceId, indexed, q, httpStatus, changedOnly, dateRange]);
+
+  const selectedCount = selectedIds.size;
+  const allSelected = items.length > 0 && selectedCount === items.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+
+  const [bulkRecrawlOpen, setBulkRecrawlOpen] = useState(false);
+  const [bulkRecrawlTargets, setBulkRecrawlTargets] = useState<number[]>([]);
+  const [bulkRecrawlState, setBulkRecrawlState] = useState<{
+    running: boolean;
+    total: number;
+    done: number;
+    success: Array<{ page_id: number; job_id: string }>;
+    failed: Array<{ page_id: number; error: string }>;
+  } | null>(null);
 
   const recrawl = useMutation({
     mutationFn: async (pageId: number) => {
@@ -99,38 +134,82 @@ export function PagesPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
 
+  async function runBulkRecrawl(pageIds: number[]) {
+    if (!workspaceId) return;
+    const total = pageIds.length;
+    if (!total) return;
+    setBulkRecrawlState({ running: true, total, done: 0, success: [], failed: [] });
+
+    const success: Array<{ page_id: number; job_id: string }> = [];
+    const failed: Array<{ page_id: number; error: string }> = [];
+    let done = 0;
+    const concurrency = Math.max(1, Math.min(3, total));
+    let idx = 0;
+
+    async function worker() {
+      while (idx < pageIds.length) {
+        const pid = pageIds[idx];
+        idx += 1;
+        try {
+          const res = await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/pages/${pid}/recrawl`, { method: "POST" });
+          success.push({ page_id: pid, job_id: res.job_id });
+        } catch (e) {
+          failed.push({ page_id: pid, error: e instanceof Error ? e.message : "触发失败" });
+        } finally {
+          done += 1;
+          setBulkRecrawlState({
+            running: true,
+            total,
+            done,
+            success: [...success],
+            failed: [...failed],
+          });
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+    await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
+    await qc.invalidateQueries({ queryKey: ["jobs", workspaceId] });
+    setSelectedIds(new Set());
+    setBulkRecrawlState({ running: false, total, done, success: [...success], failed: [...failed] });
+    if (success.length && failed.length) toast.success(`已触发 ${success.length} 个 recrawl；失败 ${failed.length} 个`);
+    else if (success.length) toast.success(`已触发 ${success.length} 个 recrawl`);
+    else toast.error("批量 recrawl 触发失败");
+  }
+
   const del = useMutation({
     mutationFn: async (pageId: number) => {
       return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/pages/${pageId}`, { method: "DELETE" });
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
-      toast.success("已删除 Page");
+      toast.success("已删除页面");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
-  const actionError = useMemo(() => {
-    const err = recrawl.error || del.error;
-    if (!err) return "";
-    return err instanceof Error ? err.message : String(err);
-  }, [recrawl.error, del.error]);
+  const actionError = recrawl.error || del.error;
 
   return (
     <div className="space-y-4">
-      <div className="text-lg font-semibold">Pages</div>
+      <div className="text-lg font-semibold">页面</div>
 
-      {actionError ? <div className="text-sm text-destructive">{actionError}</div> : null}
+      {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
-      <Card title="筛选" description="按 KB/关键字/HTTP 状态过滤；changed=true 表示 content_hash != indexed_content_hash">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
+      <Card
+        title="筛选"
+        description="按 KB/关键字/HTTP 状态过滤；changed=true 表示 content_hash != indexed_content_hash"
+        className="sticky top-16 z-10"
+      >
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-8">
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">KB</div>
             <Select
               value={kbId}
               onChange={(e) => {
-                setPage(1);
-                setKbId(e.target.value);
+                updateFilter([["kb_id", e.target.value]]);
               }}
             >
               <option value="">全部</option>
@@ -146,8 +225,7 @@ export function PagesPage() {
             <Input
               value={sourceId}
               onChange={(e) => {
-                setPage(1);
-                setSourceId(e.target.value);
+                updateFilter([["source_id", e.target.value]]);
               }}
               placeholder="例如 src_xxx"
             />
@@ -157,8 +235,7 @@ export function PagesPage() {
             <Select
               value={indexed}
               onChange={(e) => {
-                setPage(1);
-                setIndexed(e.target.value);
+                updateFilter([["indexed", e.target.value]]);
               }}
             >
               <option value="">全部</option>
@@ -166,13 +243,26 @@ export function PagesPage() {
               <option value="false">false</option>
             </Select>
           </div>
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">时间范围</div>
+            <Select
+              value={dateRange}
+              onChange={(e) => {
+                updateFilter([["date_range", e.target.value]]);
+              }}
+            >
+              <option value="">全部</option>
+              <option value="24h">24h</option>
+              <option value="7d">7d</option>
+              <option value="30d">30d</option>
+            </Select>
+          </div>
           <div className="space-y-1 lg:col-span-2">
             <div className="text-xs text-muted-foreground">q（URL/标题模糊匹配）</div>
             <Input
               value={q}
               onChange={(e) => {
-                setPage(1);
-                setQ(e.target.value);
+                updateFilter([["q", e.target.value]]);
               }}
               placeholder="例如 /connect 或 OneKey"
             />
@@ -182,10 +272,9 @@ export function PagesPage() {
             <Input
               value={httpStatus}
               onChange={(e) => {
-                setPage(1);
-                setHttpStatus(e.target.value);
+                updateFilter([["http_status", e.target.value]]);
               }}
-              placeholder="例如 200"
+              placeholder="例如 200,404"
             />
           </div>
           <div className="flex items-end gap-3">
@@ -194,8 +283,7 @@ export function PagesPage() {
                 type="checkbox"
                 checked={changedOnly}
                 onChange={(e) => {
-                  setPage(1);
-                  setChangedOnly(e.target.checked);
+                  updateFilter([["changed", e.target.checked ? "true" : null]]);
                 }}
               />
               只看 changed
@@ -203,17 +291,159 @@ export function PagesPage() {
             <Button variant="outline" onClick={() => listQuery.refetch()}>
               刷新
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSp(new URLSearchParams(), { replace: true });
+              }}
+            >
+              清空
+            </Button>
           </div>
         </div>
+        <FilterChips items={chips} className="pt-3" />
       </Card>
 
       <Card title="列表" description="点击 ID 查看详情；支持单页 recrawl 与删除（谨慎）">
         {listQuery.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-        {listQuery.error ? <div className="text-sm text-destructive">{String(listQuery.error)}</div> : null}
+        {listQuery.error ? <ApiErrorBanner error={listQuery.error} /> : null}
+        <BulkActionsBar
+          count={selectedCount}
+          onClear={() => setSelectedIds(new Set())}
+          actions={
+            <Button
+              type="button"
+              size="sm"
+              disabled={bulkRecrawlState?.running}
+              onClick={() => {
+                setBulkRecrawlTargets(Array.from(selectedIds));
+                setBulkRecrawlState(null);
+                setBulkRecrawlOpen(true);
+              }}
+            >
+              批量 recrawl
+            </Button>
+          }
+        />
+
+        <Dialog
+          open={bulkRecrawlOpen}
+          onOpenChange={(next) => {
+            if (bulkRecrawlState?.running) return;
+            setBulkRecrawlOpen(next);
+            if (!next) {
+              setBulkRecrawlTargets([]);
+              setBulkRecrawlState(null);
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>批量 recrawl</DialogTitle>
+              <DialogDescription>将为每个 page 触发一个 crawl 任务（可能带来额外请求与成本）。</DialogDescription>
+            </DialogHeader>
+            {bulkRecrawlState ? (
+              <div className="space-y-3">
+                <div className="text-sm">
+                  进度：{bulkRecrawlState.done}/{bulkRecrawlState.total}
+                  {bulkRecrawlState.running ? <span className="ml-2 text-muted-foreground">执行中...</span> : null}
+                </div>
+                {bulkRecrawlState.success.length ? (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">成功（{bulkRecrawlState.success.length}）</div>
+                    <div className="space-y-1">
+                      {bulkRecrawlState.success.slice(0, 50).map((s) => (
+                        <CopyableText
+                          key={`${s.page_id}:${s.job_id}`}
+                          text={s.job_id}
+                          prefix={<span className="font-mono text-xs">page {s.page_id}</span>}
+                          toastText="已复制 job_id"
+                        />
+                      ))}
+                      {bulkRecrawlState.success.length > 50 ? (
+                        <div className="text-xs text-muted-foreground">仅展示前 50 条，可在任务列表查看完整结果。</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {bulkRecrawlState.failed.length ? (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-destructive">失败（{bulkRecrawlState.failed.length}）</div>
+                    <div className="space-y-1">
+                      {bulkRecrawlState.failed.slice(0, 50).map((f) => (
+                        <CopyableText
+                          key={`${f.page_id}`}
+                          text={f.error}
+                          prefix={<span className="font-mono text-xs">page {f.page_id}</span>}
+                          toastText="已复制错误信息"
+                          textClassName="font-mono text-xs text-destructive"
+                        />
+                      ))}
+                      {bulkRecrawlState.failed.length > 50 ? (
+                        <div className="text-xs text-muted-foreground">仅展示前 50 条，可复制错误后再联查。</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <div>
+                  本次将触发 <span className="font-medium">{bulkRecrawlTargets.length}</span> 个 page 的 recrawl。
+                </div>
+                {bulkRecrawlTargets.length ? (
+                  <div className="text-xs text-muted-foreground">
+                    page_id：{bulkRecrawlTargets.slice(0, 20).join(", ")}
+                    {bulkRecrawlTargets.length > 20 ? ` …（共 ${bulkRecrawlTargets.length} 个）` : null}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">未选择任何条目。</div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={bulkRecrawlState?.running}
+                onClick={() => setBulkRecrawlOpen(false)}
+              >
+                {bulkRecrawlState?.running ? "执行中..." : "关闭"}
+              </Button>
+              {bulkRecrawlState?.running || bulkRecrawlState ? null : (
+                <Button
+                  type="button"
+                  disabled={!bulkRecrawlTargets.length}
+                  onClick={() => void runBulkRecrawl(bulkRecrawlTargets)}
+                >
+                  开始执行
+                </Button>
+              )}
+              {bulkRecrawlState && !bulkRecrawlState.running ? (
+                <Button type="button" onClick={() => navigate("/jobs?type=crawl")}>
+                  查看任务列表
+                </Button>
+              ) : null}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[44px]">
+                <Checkbox
+                  aria-label="选择本页全部"
+                  disabled={!items.length || bulkRecrawlState?.running}
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={(checked) => {
+                    setSelectedIds(() => {
+                      if (checked) return new Set(visibleIds);
+                      return new Set();
+                    });
+                  }}
+                />
+              </TableHead>
               <TableHead className="w-[90px]">ID</TableHead>
               <TableHead className="w-[160px]">KB</TableHead>
               <TableHead className="w-[180px]">Source</TableHead>
@@ -227,58 +457,98 @@ export function PagesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(listQuery.data?.items || []).map((it) => (
-              <TableRow key={it.id}>
-                <TableCell className="font-mono text-xs">
-                  <Link className="underline underline-offset-2" to={`/pages/${it.id}`}>
-                    {it.id}
-                  </Link>
-                </TableCell>
-                <TableCell className="font-mono text-xs">{it.kb_id}</TableCell>
-                <TableCell className="font-mono text-xs">{it.source_id || "-"}</TableCell>
-                <TableCell>{it.title || <span className="text-muted-foreground">-</span>}</TableCell>
-                <TableCell>
-                  <a className="break-all underline underline-offset-2" href={it.url} target="_blank" rel="noreferrer">
-                    {it.url}
-                  </a>
-                </TableCell>
-                <TableCell>
-                  <span className={it.http_status >= 400 ? "text-red-300" : ""}>{it.http_status || "-"}</span>
-                </TableCell>
-                <TableCell>{it.indexed ? <span className="text-emerald-300">yes</span> : <span className="text-muted-foreground">no</span>}</TableCell>
-                <TableCell>{it.changed ? <span className="text-amber-300">yes</span> : <span className="text-muted-foreground">no</span>}</TableCell>
-                <TableCell className="text-muted-foreground">{it.last_crawled_at || "-"}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/pages/${it.id}`)}>
-                      详情
-                    </Button>
-                    <Button variant="outline" size="sm" disabled={recrawl.isPending} onClick={() => recrawl.mutate(it.id)}>
-                      recrawl
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" disabled={del.isPending}>
-                          删除
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>确认删除 Page？</AlertDialogTitle>
-                          <AlertDialogDescription>
+            {items.length ? (
+              items.map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`选择 page ${it.id}`}
+                      disabled={bulkRecrawlState?.running}
+                      checked={selectedIds.has(it.id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(it.id);
+                          else next.delete(it.id);
+                          return next;
+                        });
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <Link className="underline underline-offset-2" to={`/pages/${it.id}`}>
+                      {it.id}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{it.kb_id}</TableCell>
+                  <TableCell className="font-mono text-xs">{it.source_id || "-"}</TableCell>
+                  <TableCell>{it.title || <span className="text-muted-foreground">-</span>}</TableCell>
+                  <TableCell className="max-w-[520px]">
+                    <CopyableText text={it.url} href={it.url} />
+                  </TableCell>
+                  <TableCell>
+                    <span className={it.http_status >= 400 ? "text-red-300" : ""}>{it.http_status || "-"}</span>
+                  </TableCell>
+                  <TableCell>{it.indexed ? <span className="text-emerald-300">yes</span> : <span className="text-muted-foreground">no</span>}</TableCell>
+                  <TableCell>{it.changed ? <span className="text-amber-300">yes</span> : <span className="text-muted-foreground">no</span>}</TableCell>
+                  <TableCell className="text-muted-foreground">{it.last_crawled_at || "-"}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/pages/${it.id}`)}>
+                        详情
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={recrawl.isPending} onClick={() => recrawl.mutate(it.id)}>
+                        recrawl
+                      </Button>
+                      <ConfirmDangerDialog
+                        trigger={
+                          <Button variant="outline" size="sm" disabled={del.isPending}>
+                            删除
+                          </Button>
+                        }
+                        title="确认删除 Page？"
+                        description={
+                          <>
                             将删除 page_id=<span className="font-mono">{it.id}</span>（会级联删除 chunks）。此操作不可恢复。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>取消</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => del.mutate(it.id)}>继续删除</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                          </>
+                        }
+                        confirmLabel="继续删除"
+                        confirmVariant="destructive"
+                        confirmText={String(it.id)}
+                        confirmPlaceholder="输入 page_id 确认"
+                        confirmDisabled={del.isPending}
+                        onConfirm={() => del.mutateAsync(it.id)}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={11}>
+                  <EmptyState
+                    description="可以尝试清空筛选条件，或去任务中心触发抓取/索引。"
+                    actions={
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSp(new URLSearchParams(), { replace: true });
+                          }}
+                        >
+                          清空筛选
+                        </Button>
+                        <Button asChild type="button" variant="outline" size="sm">
+                          <Link to="/jobs">去任务中心</Link>
+                        </Button>
+                      </>
+                    }
+                  />
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
 
@@ -286,7 +556,11 @@ export function PagesPage() {
           page={listQuery.data?.page || page}
           pageSize={listQuery.data?.page_size || pageSize}
           total={listQuery.data?.total || 0}
-          onPageChange={(p) => setPage(p)}
+          onPageChange={(p) => {
+            const next = new URLSearchParams(sp);
+            next.set("page", String(p));
+            setSp(next, { replace: true });
+          }}
         />
       </Card>
     </div>

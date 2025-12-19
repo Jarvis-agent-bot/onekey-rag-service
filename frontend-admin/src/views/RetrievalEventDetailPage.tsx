@@ -3,8 +3,10 @@ import { Link, useParams } from "react-router-dom";
 
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { TraceLink } from "../components/TraceLink";
 import { apiFetch } from "../lib/api";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type RetrievalEventDetail = {
   id: number;
@@ -26,8 +28,7 @@ type RetrievalEventDetail = {
 };
 
 export function RetrievalEventDetailPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const params = useParams();
   const eventId = Number(params.eventId || 0);
 
@@ -45,11 +46,18 @@ export function RetrievalEventDetailPage() {
           <Link className="underline underline-offset-2" to="/observability">
             返回列表
           </Link>
+          {q.data?.request_id ? (
+            <span className="ml-3">
+              <Link className="underline underline-offset-2" to={`/observability?request_id=${encodeURIComponent(q.data.request_id)}`}>
+                回到列表（带 request_id）
+              </Link>
+            </span>
+          ) : null}
         </div>
       </div>
 
       {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-      {q.error ? <div className="text-sm text-destructive">{String(q.error)}</div> : null}
+      {q.error ? <ApiErrorBanner error={q.error} /> : null}
 
       {q.data ? (
         <div className="space-y-4">
@@ -73,15 +81,33 @@ export function RetrievalEventDetailPage() {
               </div>
               <div className="lg:col-span-2">
                 <div className="text-xs text-muted-foreground">request_id</div>
-                <div className="font-mono text-xs">{q.data.request_id}</div>
+                <TraceLink
+                  text={q.data.request_id}
+                  textClassName="font-mono text-xs"
+                  toastText="已复制 request_id"
+                  to={`/observability?request_id=${encodeURIComponent(q.data.request_id)}`}
+                  toLabel="去观测联查"
+                />
               </div>
               <div className="lg:col-span-2">
                 <div className="text-xs text-muted-foreground">conversation_id</div>
-                <div className="font-mono text-xs">{q.data.conversation_id}</div>
+                <TraceLink
+                  text={q.data.conversation_id}
+                  textClassName="font-mono text-xs"
+                  toastText="已复制 conversation_id"
+                  to={`/observability?conversation_id=${encodeURIComponent(q.data.conversation_id)}`}
+                  toLabel="去观测联查"
+                />
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">message_id</div>
-                <div className="font-mono text-xs">{q.data.message_id}</div>
+                <TraceLink
+                  text={q.data.message_id}
+                  textClassName="font-mono text-xs"
+                  toastText="已复制 message_id"
+                  to={`/observability?message_id=${encodeURIComponent(q.data.message_id)}`}
+                  toLabel="去观测联查"
+                />
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">question_len</div>

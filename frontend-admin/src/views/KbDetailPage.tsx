@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
+import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
@@ -10,19 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Textarea } from "../components/ui/textarea";
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "../components/ui/alert-dialog";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { apiFetch } from "../lib/api";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type KbDetail = {
   id: string;
@@ -51,6 +42,7 @@ type SourcesResp = {
     updated_at: string | null;
   }>;
 };
+type ReferencedByResp = { total: number; items: Array<{ app_id: string; name: string; public_model_id: string }> };
 
 function safeJsonParse(text: string): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
   const raw = (text || "").trim();
@@ -65,8 +57,7 @@ function safeJsonParse(text: string): { ok: true; value: Record<string, unknown>
 }
 
 export function KbDetailPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const params = useParams();
   const kbId = params.kbId || "";
   const navigate = useNavigate();
@@ -87,6 +78,12 @@ export function KbDetailPage() {
   const sources = useQuery({
     queryKey: ["sources", workspaceId, kbId],
     queryFn: () => apiFetch<SourcesResp>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}/sources`),
+    enabled: !!workspaceId && !!kbId,
+  });
+
+  const referencedBy = useQuery({
+    queryKey: ["kb-referenced-by", workspaceId, kbId],
+    queryFn: () => apiFetch<ReferencedByResp>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}/referenced-by`),
     enabled: !!workspaceId && !!kbId,
   });
 
@@ -241,11 +238,7 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
-  const actionError = useMemo(() => {
-    const err = saveKb.error || deleteKb.error || createSource.error || updateSource.error || deleteSource.error;
-    if (!err) return "";
-    return err instanceof Error ? err.message : String(err);
-  }, [saveKb.error, deleteKb.error, createSource.error, updateSource.error, deleteSource.error]);
+  const actionError = saveKb.error || deleteKb.error || createSource.error || updateSource.error || deleteSource.error;
 
   return (
     <div className="space-y-4">
@@ -260,7 +253,7 @@ export function KbDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => navigate(`/pages?kb_id=${encodeURIComponent(kbId)}`)}>
-            查看 Pages
+            查看页面
           </Button>
           <Button variant="outline" onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(kbId)}`)}>
             去任务中心
@@ -268,20 +261,20 @@ export function KbDetailPage() {
         </div>
       </div>
 
-      {actionError ? <div className="text-sm text-destructive">{actionError}</div> : null}
+      {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
       {kb.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-      {kb.error ? <div className="text-sm text-destructive">{String(kb.error)}</div> : null}
+      {kb.error ? <ApiErrorBanner error={kb.error} /> : null}
 
       {kb.data ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card title="统计" description="Pages/Chunks/Embedding 覆盖率（用于运维看板）">
+          <Card title="统计" description="页面/Chunks/Embedding 覆盖率（用于运维看板）">
             {stats.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-            {stats.error ? <div className="text-sm text-destructive">{String(stats.error)}</div> : null}
+            {stats.error ? <ApiErrorBanner error={stats.error} /> : null}
             {stats.data ? (
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <div className="text-xs text-muted-foreground">Pages</div>
+                  <div className="text-xs text-muted-foreground">页面</div>
                   <div className="font-mono">{stats.data.pages.total}</div>
                 </div>
                 <div>
@@ -308,25 +301,49 @@ export function KbDetailPage() {
             title="知识库配置（可编辑）"
             description="注意：删除 KB 不会自动清理 pages/chunks（历史兼容）"
             actions={
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
+              <ConfirmDangerDialog
+                trigger={
                   <Button variant="outline" size="sm" disabled={deleteKb.isPending}>
                     删除 KB
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>确认删除知识库？</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      将删除 KB=<span className="font-mono">{kbId}</span> 的记录与数据源/绑定关系（历史兼容：不会自动清理 pages/chunks）。
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => deleteKb.mutate()}>继续删除</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                }
+                title="确认删除知识库？"
+                description={
+                  <>
+                    <div>
+                      将删除 KB=<span className="font-mono">{kbId}</span> 的记录与数据源/绑定关系（历史兼容：不会自动清理 pages/chunks）。此操作不可恢复。
+                    </div>
+                    {referencedBy.isLoading ? (
+                      <div className="mt-2 text-xs">引用信息加载中...</div>
+                    ) : referencedBy.error ? (
+                      <div className="mt-2 text-xs">引用信息加载失败，请稍后重试。</div>
+                    ) : referencedBy.data?.total ? (
+                      <div className="mt-2">
+                        <div>
+                          当前被 <span className="font-mono">{referencedBy.data.total}</span> 个应用引用：
+                        </div>
+                        <ul className="mt-1 list-inside list-disc">
+                          {(referencedBy.data.items || []).slice(0, 8).map((a) => (
+                            <li key={a.app_id}>
+                              <span className="font-medium">{a.name || a.app_id}</span>{" "}
+                              <span className="font-mono">({a.public_model_id || "-"})</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {referencedBy.data.total > 8 ? <div className="mt-1 text-xs">仅展示前 8 个。</div> : null}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs">当前未被应用引用。</div>
+                    )}
+                  </>
+                }
+                confirmLabel="继续删除"
+                confirmVariant="destructive"
+                confirmText={kbId}
+                confirmPlaceholder="输入 kb_id 确认"
+                confirmDisabled={deleteKb.isPending}
+                onConfirm={() => deleteKb.mutateAsync()}
+              />
             }
           >
             <div className="space-y-3 text-sm">
@@ -406,7 +423,7 @@ export function KbDetailPage() {
               </div>
 
               {sources.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-              {sources.error ? <div className="text-sm text-destructive">{String(sources.error)}</div> : null}
+              {sources.error ? <ApiErrorBanner error={sources.error} /> : null}
 
               <Table>
                 <TableHeader>
@@ -432,25 +449,25 @@ export function KbDetailPage() {
                           <Button variant="outline" size="sm" onClick={() => setEditingId(s.id)}>
                             编辑
                           </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
+                          <ConfirmDangerDialog
+                            trigger={
                               <Button variant="outline" size="sm" disabled={deleteSource.isPending}>
                                 删除
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>确认删除数据源？</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  将删除 source_id=<span className="font-mono">{s.id}</span>（不影响已抓取的 pages/chunks）。
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>取消</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteSource.mutate(s.id)}>继续删除</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                            }
+                            title="确认删除数据源？"
+                            description={
+                              <>
+                                将删除 source_id=<span className="font-mono">{s.id}</span>（不影响已抓取的 pages/chunks）。此操作不可恢复。
+                              </>
+                            }
+                            confirmLabel="继续删除"
+                            confirmVariant="destructive"
+                            confirmText={s.id}
+                            confirmPlaceholder="输入 source_id 确认"
+                            confirmDisabled={deleteSource.isPending}
+                            onConfirm={() => deleteSource.mutateAsync(s.id)}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>

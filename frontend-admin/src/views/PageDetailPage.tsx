@@ -1,24 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
+import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "../components/ui/alert-dialog";
+import { CopyableText } from "../components/CopyableText";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { apiFetch } from "../lib/api";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type PageDetail = {
   id: number;
@@ -34,8 +25,7 @@ type PageDetail = {
 };
 
 export function PageDetailPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const params = useParams();
   const pageId = Number(params.pageId || 0);
   const navigate = useNavigate();
@@ -66,59 +56,65 @@ export function PageDetailPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
-      toast.success("已删除 Page");
+      toast.success("已删除页面");
       navigate("/pages", { replace: true });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
-  const actionError = useMemo(() => {
-    const err = recrawl.error || del.error;
-    if (!err) return "";
-    return err instanceof Error ? err.message : String(err);
-  }, [recrawl.error, del.error]);
+  const actionError = recrawl.error || del.error;
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-lg font-semibold">Page 详情</div>
+          <div className="text-lg font-semibold">页面详情</div>
           <div className="mt-1 text-xs text-muted-foreground">
             <Link className="underline underline-offset-2" to="/pages">
-              返回 Pages 列表
+              返回页面列表
             </Link>
+            {q.data?.kb_id ? (
+              <span className="ml-3">
+                <Link
+                  className="underline underline-offset-2"
+                  to={`/jobs?kb_id=${encodeURIComponent(q.data.kb_id)}${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
+                >
+                  查看相关任务
+                </Link>
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" disabled={!q.data || recrawl.isPending} onClick={() => recrawl.mutate()}>
             {recrawl.isPending ? "触发中..." : "recrawl"}
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          <ConfirmDangerDialog
+            trigger={
               <Button variant="outline" disabled={!q.data || del.isPending}>
                 删除
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>确认删除 Page？</AlertDialogTitle>
-                <AlertDialogDescription>
-                  将删除 page_id=<span className="font-mono">{pageId}</span>，并级联删除其 chunks（如存在）。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction onClick={() => del.mutate()}>继续删除</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            }
+            title="确认删除 Page？"
+            description={
+              <>
+                将删除 page_id=<span className="font-mono">{pageId}</span>，并级联删除其 chunks（如存在）。此操作不可恢复。
+              </>
+            }
+            confirmLabel="继续删除"
+            confirmVariant="destructive"
+            confirmText={String(pageId)}
+            confirmPlaceholder="输入 page_id 确认"
+            confirmDisabled={!q.data || del.isPending}
+            onConfirm={() => del.mutateAsync()}
+          />
         </div>
       </div>
 
-      {actionError ? <div className="text-sm text-destructive">{actionError}</div> : null}
+      {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
       {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-      {q.error ? <div className="text-sm text-destructive">{String(q.error)}</div> : null}
+      {q.error ? <ApiErrorBanner error={q.error} /> : null}
 
       {q.data ? (
         <div className="space-y-4">
@@ -130,17 +126,24 @@ export function PageDetailPage() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">KB</div>
-                <div className="font-mono text-xs">{q.data.kb_id}</div>
+                <Link className="font-mono text-xs underline underline-offset-2" to={`/kbs/${q.data.kb_id}`}>
+                  {q.data.kb_id}
+                </Link>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Source</div>
-                <div className="font-mono text-xs">{q.data.source_id || "-"}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-mono text-xs">{q.data.source_id || "-"}</div>
+                  {q.data.kb_id ? (
+                    <Link className="text-xs underline underline-offset-2" to={`/kbs/${q.data.kb_id}`}>
+                      查看数据源
+                    </Link>
+                  ) : null}
+                </div>
               </div>
               <div className="lg:col-span-3">
                 <div className="text-xs text-muted-foreground">URL</div>
-                <a className="break-all underline underline-offset-2" href={q.data.url} target="_blank" rel="noreferrer">
-                  {q.data.url}
-                </a>
+                <CopyableText text={q.data.url} href={q.data.url} className="max-w-[980px]" />
               </div>
               <div className="lg:col-span-2">
                 <div className="text-xs text-muted-foreground">标题</div>

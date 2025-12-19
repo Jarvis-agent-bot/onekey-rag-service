@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-d
 
 import { AdminLayout } from "./views/AdminLayout";
 import { AppDetailPage } from "./views/AppDetailPage";
+import { AuditPage } from "./views/AuditPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { AppsPage } from "./views/AppsPage";
 import { FeedbackPage } from "./views/FeedbackPage";
@@ -17,13 +18,18 @@ import { QualityPage } from "./views/QualityPage";
 import { RetrievalEventDetailPage } from "./views/RetrievalEventDetailPage";
 import { SettingsPage } from "./views/SettingsPage";
 import { requireToken } from "./lib/auth";
+import { WorkspaceProvider } from "./lib/workspace";
 
 function RequireAdminLayout() {
   const location = useLocation();
   if (!requireToken()) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  return <AdminLayout />;
+  return (
+    <WorkspaceProvider>
+      <AdminLayout />
+    </WorkspaceProvider>
+  );
 }
 
 export function App() {
@@ -46,6 +52,7 @@ export function App() {
           <Route path="quality" element={<QualityPage />} />
           <Route path="observability" element={<ObservabilityPage />} />
           <Route path="observability/retrieval-events/:eventId" element={<RetrievalEventDetailPage />} />
+          <Route path="audit" element={<AuditPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

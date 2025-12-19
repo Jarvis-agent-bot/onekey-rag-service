@@ -1,5 +1,36 @@
 import { getToken, clearToken } from "./auth";
 
+export class ApiError extends Error {
+  status: number;
+  url: string;
+  bodyText: string;
+
+  constructor(message: string, opts: { status: number; url: string; bodyText: string }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = opts.status;
+    this.url = opts.url;
+    this.bodyText = opts.bodyText;
+  }
+}
+
+function extractErrorMessage(text: string): string {
+  const raw = (text || "").trim();
+  if (!raw) return "";
+  try {
+    const v = JSON.parse(raw);
+    if (typeof v === "string") return v;
+    if (v && typeof v === "object") {
+      const detail = (v as any).detail ?? (v as any).message ?? (v as any).error;
+      if (typeof detail === "string") return detail;
+      if (detail != null) return JSON.stringify(detail);
+    }
+  } catch {
+    // ignore
+  }
+  return raw;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers || {});
   headers.set("content-type", headers.get("content-type") || "application/json");
@@ -16,7 +47,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(text || `请求失败: ${resp.status}`);
+    const msg = extractErrorMessage(text) || `请求失败: ${resp.status}`;
+    throw new ApiError(msg, { status: resp.status, url: path, bodyText: text || "" });
   }
   return (await resp.json()) as T;
 }

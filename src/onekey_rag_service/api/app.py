@@ -555,6 +555,7 @@ def feedback(req: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackRes
         exists.comment = req.comment or ""
         exists.sources = {"urls": req.sources or []}
         exists.created_at = dt.datetime.utcnow()
+        exists.updated_at = dt.datetime.utcnow()
     else:
         fb = Feedback(
             workspace_id=workspace_id,
@@ -566,6 +567,7 @@ def feedback(req: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackRes
             comment=req.comment or "",
             sources={"urls": req.sources or []},
         )
+        fb.updated_at = dt.datetime.utcnow()
         db.add(fb)
 
     db.commit()

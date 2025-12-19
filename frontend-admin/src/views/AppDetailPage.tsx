@@ -11,9 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Textarea } from "../components/ui/textarea";
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { apiFetch } from "../lib/api";
 import { allocateTopK } from "../lib/kbAllocation";
-import { useMe } from "../lib/useMe";
+import { useWorkspace } from "../lib/workspace";
 
 type AppDetail = {
   id: string;
@@ -46,8 +47,7 @@ function safeJsonParse(text: string): { ok: true; value: Record<string, unknown>
 }
 
 export function AppDetailPage() {
-  const me = useMe();
-  const workspaceId = me.data?.workspace_id || "default";
+  const { workspaceId } = useWorkspace();
   const params = useParams();
   const appId = params.appId || "";
   const qc = useQueryClient();
@@ -115,7 +115,7 @@ export function AppDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["app", workspaceId, appId] });
       await qc.invalidateQueries({ queryKey: ["apps", workspaceId] });
-      toast.success("已保存 RagApp");
+      toast.success("已保存应用");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "保存失败"),
   });
@@ -175,27 +175,23 @@ export function AppDetailPage() {
   const alloc = useMemo(() => allocateTopK(enabledBindings, ragTopK), [enabledBindings, ragTopK]);
   const allocMap = useMemo(() => new Map(alloc.map((a) => [a.kb_id, a.top_k])), [alloc]);
 
-  const actionError = useMemo(() => {
-    const err = saveApp.error || saveBindings.error;
-    if (!err) return "";
-    return err instanceof Error ? err.message : String(err);
-  }, [saveApp.error, saveBindings.error]);
+  const actionError = saveApp.error || saveBindings.error;
 
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-lg font-semibold">RagApp 详情</div>
+        <div className="text-lg font-semibold">应用详情</div>
         <div className="mt-1 text-xs text-muted-foreground">
           <Link className="underline underline-offset-2" to="/apps">
-            返回 RagApp 列表
+            返回应用列表
           </Link>
         </div>
       </div>
 
-      {actionError ? <div className="text-sm text-destructive">{actionError}</div> : null}
+      {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
       {app.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-      {app.error ? <div className="text-sm text-destructive">{String(app.error)}</div> : null}
+      {app.error ? <ApiErrorBanner error={app.error} /> : null}
 
       {app.data ? (
         <div className="space-y-4">
@@ -252,7 +248,7 @@ export function AppDetailPage() {
             }
           >
             {bindings.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-            {bindings.error ? <div className="text-sm text-destructive">{String(bindings.error)}</div> : null}
+            {bindings.error ? <ApiErrorBanner error={bindings.error} /> : null}
 
             <Table>
               <TableHeader>

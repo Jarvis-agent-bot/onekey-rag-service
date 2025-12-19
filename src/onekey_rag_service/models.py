@@ -161,6 +161,19 @@ class Job(Base):
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), default=DEFAULT_WORKSPACE_ID, nullable=False, index=True)
+    actor: Mapped[str] = mapped_column(String(128), default="", nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(64), default="", nullable=False, index=True)
+    object_type: Mapped[str] = mapped_column(String(64), default="", nullable=False, index=True)
+    object_id: Mapped[str] = mapped_column(String(128), default="", nullable=False, index=True)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow, index=True)
+
+
 class Feedback(Base):
     __tablename__ = "feedback"
     __table_args__ = (
@@ -177,4 +190,8 @@ class Feedback(Base):
     reason: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     comment: Mapped[str] = mapped_column(Text, default="", nullable=False)
     sources: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="new", nullable=False, index=True)
+    attribution: Mapped[str] = mapped_column(String(32), default="", nullable=False, index=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow, index=True)

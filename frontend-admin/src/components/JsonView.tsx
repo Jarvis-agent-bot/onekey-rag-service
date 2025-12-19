@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
@@ -16,8 +17,13 @@ export function JsonView(props: { value: unknown; className?: string; defaultCol
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              void navigator.clipboard?.writeText(text);
+            onClick={async () => {
+              try {
+                await navigator.clipboard?.writeText(text);
+                toast.success("已复制 JSON");
+              } catch {
+                toast.error("复制失败");
+              }
             }}
           >
             复制

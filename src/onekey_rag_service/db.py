@@ -53,7 +53,7 @@ def ensure_admin_orphan_types(engine: Engine, *, schema: str = "public") -> None
     if not _is_safe_ident(schema):
         raise ValueError("schema 名称不安全")
 
-    table_names = ["workspaces", "knowledge_bases", "data_sources", "rag_apps", "app_kbs", "retrieval_events"]
+    table_names = ["workspaces", "knowledge_bases", "data_sources", "rag_apps", "app_kbs", "retrieval_events", "audit_logs"]
     for t in table_names:
         if not _is_safe_ident(t):
             raise ValueError("表名不安全")
@@ -158,8 +158,15 @@ def ensure_admin_schema(engine: Engine) -> None:
         try:
             conn.execute(text("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS workspace_id varchar(64) NOT NULL DEFAULT 'default'"))
             conn.execute(text("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS app_id varchar(64) NOT NULL DEFAULT ''"))
+            conn.execute(text("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS status varchar(16) NOT NULL DEFAULT 'new'"))
+            conn.execute(text("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS attribution varchar(32) NOT NULL DEFAULT ''"))
+            conn.execute(text("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tags json NOT NULL DEFAULT '[]'::json"))
+            conn.execute(text("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_feedback_workspace_id ON feedback (workspace_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_feedback_app_id ON feedback (app_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback (status)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_feedback_attribution ON feedback (attribution)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_feedback_updated_at ON feedback (updated_at)"))
         except Exception as e:
             logger.warning("确保 feedback 多租户字段失败：%s", e)
 

@@ -8,9 +8,9 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, desc, func, select, text
+from sqlalchemy import case, delete, desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ from onekey_rag_service.admin.auth import AdminPrincipal, authenticate_admin, is
 from onekey_rag_service.api.deps import get_db
 from onekey_rag_service.config import Settings, get_settings
 from onekey_rag_service.models import (
+    AuditLog,
     Chunk,
     DataSource,
     Feedback,
@@ -45,8 +46,10 @@ def _utcnow() -> dt.datetime:
 
 
 def _require_workspace_access(principal: AdminPrincipal, workspace_id: str) -> None:
-    # 当前阶段：单个超管账号，默认只允许访问 token 里的 workspace。
-    # 后续引入用户/成员体系后，再放开到“可访问的 workspaces 列表”。
+    # 当前阶段：单个超管账号（owner）允许访问所有 workspace；
+    # 其他角色默认只允许访问 token 里的 workspace。
+    if (principal.role or "").lower() == "owner":
+        return
     if principal.workspace_id and principal.workspace_id != workspace_id:
         raise HTTPException(status_code=403, detail="无权访问该 workspace")
 
@@ -56,6 +59,29 @@ def _parse_pagination(page: int, page_size: int) -> tuple[int, int, int]:
     ps = max(1, min(200, int(page_size or 20)))
     offset = (p - 1) * ps
     return p, ps, offset
+
+
+def _add_audit_log(
+    db: Session,
+    principal: AdminPrincipal,
+    *,
+    workspace_id: str,
+    action: str,
+    object_type: str,
+    object_id: str,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            actor=principal.username or "",
+            action=(action or "").strip()[:64],
+            object_type=(object_type or "").strip()[:64],
+            object_id=(object_id or "").strip()[:128],
+            meta=meta or {},
+            created_at=_utcnow(),
+        )
+    )
 
 
 class AdminLoginRequest(BaseModel):
@@ -664,6 +690,12 @@ class JobTriggerIndexRequest(BaseModel):
     mode: str = "incremental"
 
 
+class FeedbackUpdateRequest(BaseModel):
+    status: str | None = None
+    attribution: str | None = None
+    tags: list[str] | None = None
+
+
 class AppKbBindingItem(BaseModel):
     kb_id: str
     weight: float = 1.0
@@ -874,6 +906,152 @@ def workspace_settings(
     }
 
 
+class ModelTestRequest(BaseModel):
+    kind: str = "all"  # all/chat/embeddings/rerank
+    prompt: str | None = None
+
+
+@router.post("/workspaces/{workspace_id}/models/test")
+async def test_models(
+    workspace_id: str,
+    req: ModelTestRequest,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    principal: AdminPrincipal = Depends(require_admin),
+) -> dict[str, Any]:
+    _require_workspace_access(principal, workspace_id)
+
+    kind = (req.kind or "all").strip().lower()
+    if kind not in {"all", "chat", "embeddings", "rerank"}:
+        raise HTTPException(status_code=400, detail="invalid kind")
+
+    prompt = (req.prompt or "ping").strip() or "ping"
+
+    async def _test_chat() -> dict[str, Any]:
+        chat = getattr(request.app.state, "chat", None)
+        if not chat:
+            return {"ok": False, "error": "CHAT_API_KEY 未配置或 CHAT_PROVIDER 禁用"}
+        t0 = time.monotonic()
+        try:
+            r = await chat.complete(
+                model=settings.chat_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=32,
+            )
+            cost_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "ok": True,
+                "latency_ms": cost_ms,
+                "model": settings.chat_model,
+                "content_preview": (r.content or "")[:200],
+                "usage": r.usage or {},
+            }
+        except Exception as e:
+            cost_ms = int((time.monotonic() - t0) * 1000)
+            return {"ok": False, "latency_ms": cost_ms, "error": str(e)[:500]}
+
+    def _test_embeddings() -> dict[str, Any]:
+        embeddings = getattr(request.app.state, "embeddings", None)
+        name = getattr(request.app.state, "embedding_model_name", "")
+        if not embeddings:
+            return {"ok": False, "error": "embeddings 未初始化"}
+        t0 = time.monotonic()
+        try:
+            vec = embeddings.embed_query(prompt)
+            cost_ms = int((time.monotonic() - t0) * 1000)
+            return {"ok": True, "latency_ms": cost_ms, "model": name, "dim": len(vec)}
+        except Exception as e:
+            cost_ms = int((time.monotonic() - t0) * 1000)
+            return {"ok": False, "latency_ms": cost_ms, "error": str(e)[:500]}
+
+    async def _test_rerank() -> dict[str, Any]:
+        reranker = getattr(request.app.state, "reranker", None)
+        if not reranker:
+            return {"ok": False, "error": "RERANK_PROVIDER 未启用"}
+        try:
+            from onekey_rag_service.rag.pgvector_store import RetrievedChunk
+        except Exception as e:  # pragma: no cover
+            return {"ok": False, "error": f"导入 RetrievedChunk 失败：{str(e)}"}
+
+        candidates = [
+            RetrievedChunk(chunk_id=1, url="", title="", section_path="", text="ping ping ping", score=0.0),
+            RetrievedChunk(chunk_id=2, url="", title="", section_path="", text="hello world", score=0.0),
+        ]
+        t0 = time.monotonic()
+        try:
+            ranked = await reranker.rerank(query=prompt, candidates=candidates, top_n=1)
+            cost_ms = int((time.monotonic() - t0) * 1000)
+            top_id = ranked[0].chunk_id if ranked else None
+            return {"ok": True, "latency_ms": cost_ms, "top_chunk_id": top_id}
+        except Exception as e:
+            cost_ms = int((time.monotonic() - t0) * 1000)
+            return {"ok": False, "latency_ms": cost_ms, "error": str(e)[:500]}
+
+    if kind == "chat":
+        return {"ok": True, "kind": "chat", "result": await _test_chat()}
+    if kind == "embeddings":
+        return {"ok": True, "kind": "embeddings", "result": _test_embeddings()}
+    if kind == "rerank":
+        return {"ok": True, "kind": "rerank", "result": await _test_rerank()}
+
+    chat_r = await _test_chat()
+    emb_r = _test_embeddings()
+    rerank_r = await _test_rerank()
+    return {"ok": True, "kind": "all", "results": {"chat": chat_r, "embeddings": emb_r, "rerank": rerank_r}}
+
+
+@router.get("/workspaces/{workspace_id}/audit-logs")
+def list_audit_logs(
+    workspace_id: str,
+    actor: str | None = None,
+    action: str | None = None,
+    object_type: str | None = None,
+    object_id: str | None = None,
+    date_range: str | None = "24h",
+    page: int = 1,
+    page_size: int = 20,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_workspace_access(principal, workspace_id)
+    p, ps, offset = _parse_pagination(page, page_size)
+    start, end = _parse_date_range(date_range)
+
+    stmt = select(AuditLog).where(AuditLog.workspace_id == workspace_id).where(AuditLog.created_at >= start).where(AuditLog.created_at <= end)
+    if actor:
+        like = f"%{actor.strip()}%"
+        stmt = stmt.where(AuditLog.actor.ilike(like))
+    if action:
+        like = f"%{action.strip()}%"
+        stmt = stmt.where(AuditLog.action.ilike(like))
+    if object_type:
+        stmt = stmt.where(AuditLog.object_type == object_type.strip())
+    if object_id:
+        like = f"%{object_id.strip()}%"
+        stmt = stmt.where(AuditLog.object_id.ilike(like))
+
+    total = int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
+    rows = db.scalars(stmt.order_by(desc(AuditLog.created_at)).offset(offset).limit(ps)).all()
+    return {
+        "page": p,
+        "page_size": ps,
+        "total": total,
+        "items": [
+            {
+                "id": int(r.id),
+                "actor": r.actor,
+                "action": r.action,
+                "object_type": r.object_type,
+                "object_id": r.object_id,
+                "meta": r.meta or {},
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.get("/workspaces/{workspace_id}/summary", response_model=SummaryResponse)
 def workspace_summary(
     workspace_id: str,
@@ -1078,6 +1256,15 @@ def create_app(
         updated_at=now,
     )
     db.add(app)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="app.create",
+        object_type="app",
+        object_id=app_id,
+        meta={"public_model_id": public_model_id, "name": app.name},
+    )
     try:
         db.commit()
     except IntegrityError:
@@ -1121,15 +1308,29 @@ def update_app(
     app = db.get(RagApp, app_id)
     if not app or app.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="app not found")
+    changed: list[str] = []
     if req.name is not None:
         app.name = req.name.strip()
+        changed.append("name")
     if req.public_model_id is not None:
         app.public_model_id = req.public_model_id.strip()
+        changed.append("public_model_id")
     if req.status is not None:
         app.status = req.status
+        changed.append("status")
     if req.config is not None:
         app.config = req.config
+        changed.append("config")
     app.updated_at = _utcnow()
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="app.update",
+        object_type="app",
+        object_id=app_id,
+        meta={"fields": changed},
+    )
     try:
         db.commit()
     except IntegrityError:
@@ -1220,6 +1421,15 @@ def put_app_kbs(
                 created_at=now,
             )
         )
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="app.kbs.put",
+        object_type="app",
+        object_id=app_id,
+        meta={"kb_ids": kb_ids, "count": len(req.bindings)},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1232,6 +1442,66 @@ def list_kbs(
 ):
     _require_workspace_access(principal, workspace_id)
     kbs = db.scalars(select(KnowledgeBase).where(KnowledgeBase.workspace_id == workspace_id).order_by(KnowledgeBase.created_at.asc())).all()
+
+    kb_ids = [kb.id for kb in kbs]
+    pages_map: dict[str, dict[str, Any]] = {}
+    chunks_map: dict[str, dict[str, Any]] = {}
+    ref_map: dict[str, dict[str, Any]] = {}
+    if kb_ids:
+        page_rows = db.execute(
+            select(Page.kb_id, func.count(), func.max(Page.last_crawled_at))
+            .where(Page.workspace_id == workspace_id)
+            .where(Page.kb_id.in_(kb_ids))
+            .group_by(Page.kb_id)
+        ).all()
+        for kid, cnt, last_crawl in page_rows:
+            pages_map[str(kid)] = {
+                "total": int(cnt or 0),
+                "last_crawled_at": last_crawl.isoformat() if last_crawl else None,
+            }
+
+        chunk_rows = db.execute(
+            select(
+                Page.kb_id,
+                func.count(Chunk.id),
+                func.sum(case((Chunk.embedding.is_not(None), 1), else_=0)),
+                func.max(Chunk.created_at),
+            )
+            .select_from(Chunk)
+            .join(Page, Page.id == Chunk.page_id)
+            .where(Page.workspace_id == workspace_id)
+            .where(Page.kb_id.in_(kb_ids))
+            .group_by(Page.kb_id)
+        ).all()
+        for kid, total, with_emb, last_indexed in chunk_rows:
+            t = int(total or 0)
+            w = int(with_emb or 0)
+            chunks_map[str(kid)] = {
+                "total": t,
+                "with_embedding": w,
+                "embedding_coverage": (float(w) / float(t)) if t else 0.0,
+                "last_indexed_at": last_indexed.isoformat() if last_indexed else None,
+            }
+
+        ref_rows = db.execute(
+            select(RagAppKnowledgeBase.kb_id, RagApp.id, RagApp.name, RagApp.public_model_id)
+            .select_from(RagAppKnowledgeBase)
+            .join(RagApp, RagApp.id == RagAppKnowledgeBase.app_id)
+            .where(RagAppKnowledgeBase.workspace_id == workspace_id)
+            .where(RagAppKnowledgeBase.kb_id.in_(kb_ids))
+            .where(RagAppKnowledgeBase.enabled.is_(True))
+            .order_by(RagAppKnowledgeBase.kb_id.asc(), RagAppKnowledgeBase.priority.asc(), RagAppKnowledgeBase.id.asc())
+        ).all()
+        for kid, app_id, name, public_model_id in ref_rows:
+            kk = str(kid)
+            rec = ref_map.get(kk) or {"total": 0, "items": []}
+            rec["total"] = int(rec.get("total") or 0) + 1
+            items = rec.get("items") or []
+            if isinstance(items, list) and len(items) < 20:
+                items.append({"app_id": str(app_id), "name": str(name or ""), "public_model_id": str(public_model_id or "")})
+            rec["items"] = items
+            ref_map[kk] = rec
+
     return {
         "items": [
             {
@@ -1239,11 +1509,42 @@ def list_kbs(
                 "name": kb.name,
                 "description": kb.description,
                 "status": kb.status,
+                "stats": {
+                    "pages": pages_map.get(kb.id) or {"total": 0, "last_crawled_at": None},
+                    "chunks": chunks_map.get(kb.id) or {"total": 0, "with_embedding": 0, "embedding_coverage": 0.0, "last_indexed_at": None},
+                },
+                "referenced_by": ref_map.get(kb.id) or {"total": 0, "items": []},
                 "created_at": kb.created_at.isoformat() if kb.created_at else None,
                 "updated_at": kb.updated_at.isoformat() if kb.updated_at else None,
             }
             for kb in kbs
         ]
+    }
+
+
+@router.get("/workspaces/{workspace_id}/kbs/{kb_id}/referenced-by")
+def kb_referenced_by(
+    workspace_id: str,
+    kb_id: str,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_workspace_access(principal, workspace_id)
+    kb = db.get(KnowledgeBase, kb_id)
+    if not kb or kb.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="kb not found")
+    rows = db.execute(
+        select(RagApp.id, RagApp.name, RagApp.public_model_id)
+        .select_from(RagAppKnowledgeBase)
+        .join(RagApp, RagApp.id == RagAppKnowledgeBase.app_id)
+        .where(RagAppKnowledgeBase.workspace_id == workspace_id)
+        .where(RagAppKnowledgeBase.kb_id == kb_id)
+        .where(RagAppKnowledgeBase.enabled.is_(True))
+        .order_by(RagAppKnowledgeBase.priority.asc(), RagAppKnowledgeBase.id.asc())
+    ).all()
+    return {
+        "total": len(rows),
+        "items": [{"app_id": str(aid), "name": str(name or ""), "public_model_id": str(mid or "")} for aid, name, mid in rows],
     }
 
 
@@ -1268,6 +1569,15 @@ def create_kb(
         updated_at=now,
     )
     db.add(kb)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="kb.create",
+        object_type="kb",
+        object_id=kb_id,
+        meta={"name": kb.name},
+    )
     db.commit()
     return {"id": kb.id}
 
@@ -1374,15 +1684,29 @@ def update_kb(
     kb = db.get(KnowledgeBase, kb_id)
     if not kb or kb.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="kb not found")
+    changed: list[str] = []
     if req.name is not None:
         kb.name = req.name.strip()
+        changed.append("name")
     if req.description is not None:
         kb.description = req.description
+        changed.append("description")
     if req.status is not None:
         kb.status = req.status
+        changed.append("status")
     if req.config is not None:
         kb.config = req.config
+        changed.append("config")
     kb.updated_at = _utcnow()
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="kb.update",
+        object_type="kb",
+        object_id=kb_id,
+        meta={"fields": changed},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1401,6 +1725,15 @@ def delete_kb(
 
     # 删除 KB 不会自动清理 pages/chunks（历史兼容）；P1 可补齐级联与批次回滚机制
     db.delete(kb)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="kb.delete",
+        object_type="kb",
+        object_id=kb_id,
+        meta={},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1458,6 +1791,15 @@ def create_source(
         updated_at=now,
     )
     db.add(s)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="source.create",
+        object_type="source",
+        object_id=source_id,
+        meta={"kb_id": kb_id, "type": s.type, "name": s.name},
+    )
     db.commit()
     return {"id": s.id}
 
@@ -1475,13 +1817,26 @@ def update_source(
     s = db.get(DataSource, source_id)
     if not s or s.workspace_id != workspace_id or s.kb_id != kb_id:
         raise HTTPException(status_code=404, detail="source not found")
+    changed: list[str] = []
     if req.name is not None:
         s.name = req.name.strip()
+        changed.append("name")
     if req.status is not None:
         s.status = req.status
+        changed.append("status")
     if req.config is not None:
         s.config = req.config
+        changed.append("config")
     s.updated_at = _utcnow()
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="source.update",
+        object_type="source",
+        object_id=source_id,
+        meta={"kb_id": kb_id, "fields": changed},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1499,6 +1854,15 @@ def delete_source(
     if not s or s.workspace_id != workspace_id or s.kb_id != kb_id:
         raise HTTPException(status_code=404, detail="source not found")
     db.delete(s)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="source.delete",
+        object_type="source",
+        object_id=source_id,
+        meta={"kb_id": kb_id},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1617,6 +1981,15 @@ def requeue_job(
     job.progress = {}
     job.started_at = _utcnow()
     job.finished_at = None
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="job.requeue",
+        object_type="job",
+        object_id=job_id,
+        meta={"type": job.type, "status": job.status},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1636,6 +2009,15 @@ def cancel_job(
         raise HTTPException(status_code=400, detail="仅支持取消 queued 状态任务（running 暂不支持中断）")
     job.status = "cancelled"
     job.finished_at = _utcnow()
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="job.cancel",
+        object_type="job",
+        object_id=job_id,
+        meta={"type": job.type, "status": job.status},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1684,6 +2066,21 @@ def trigger_crawl_job(
         progress={},
     )
     db.add(job)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="job.trigger_crawl",
+        object_type="job",
+        object_id=job_id,
+        meta={
+            "kb_id": req.kb_id,
+            "source_id": req.source_id,
+            "mode": req.mode,
+            "max_pages": int(req.max_pages or 0) if req.max_pages is not None else None,
+            "seed_urls_count": len(req.seed_urls or []) if req.seed_urls is not None else None,
+        },
+    )
     db.commit()
     return {"job_id": job_id}
 
@@ -1714,6 +2111,15 @@ def trigger_index_job(
         progress={},
     )
     db.add(job)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="job.trigger_index",
+        object_type="job",
+        object_id=job_id,
+        meta={"kb_id": req.kb_id, "mode": req.mode},
+    )
     db.commit()
     return {"job_id": job_id}
 
@@ -1724,9 +2130,10 @@ def list_pages(
     kb_id: str | None = None,
     source_id: str | None = None,
     q: str | None = None,
-    http_status: int | None = None,
+    http_status: str | None = None,
     changed: bool | None = None,
     indexed: bool | None = None,
+    date_range: str | None = None,
     page: int = 1,
     page_size: int = 20,
     principal: AdminPrincipal = Depends(require_admin),
@@ -1740,8 +2147,18 @@ def list_pages(
         stmt = stmt.where(Page.kb_id == kb_id)
     if source_id:
         stmt = stmt.where(Page.source_id == source_id)
-    if http_status is not None:
-        stmt = stmt.where(Page.http_status == int(http_status))
+    if http_status:
+        parts = [p.strip() for p in str(http_status).split(",") if p.strip()]
+        codes: list[int] = []
+        for p0 in parts:
+            try:
+                codes.append(int(p0))
+            except Exception:
+                raise HTTPException(status_code=400, detail="http_status 仅支持逗号分隔的数字（例如 200,404）")
+        if len(codes) == 1:
+            stmt = stmt.where(Page.http_status == int(codes[0]))
+        elif codes:
+            stmt = stmt.where(Page.http_status.in_(codes))
     if changed is True:
         stmt = stmt.where(Page.content_hash != Page.indexed_content_hash)
     if indexed is True:
@@ -1751,6 +2168,9 @@ def list_pages(
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(Page.url.ilike(like) | Page.title.ilike(like))
+    if date_range:
+        dr_from, dr_to = _parse_date_range(date_range)
+        stmt = stmt.where(Page.last_crawled_at >= dr_from).where(Page.last_crawled_at <= dr_to)
 
     total = int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
     rows = db.scalars(stmt.order_by(desc(Page.last_crawled_at)).offset(offset).limit(ps)).all()
@@ -1859,6 +2279,15 @@ def recrawl_page(
         progress={},
     )
     db.add(job)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="page.recrawl",
+        object_type="page",
+        object_id=str(page.id),
+        meta={"job_id": job_id, "kb_id": page.kb_id, "source_id": page.source_id, "url": page.url},
+    )
     db.commit()
     return {"job_id": job_id}
 
@@ -1875,6 +2304,15 @@ def delete_page(
     if not page or page.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="page not found")
     db.delete(page)
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="page.delete",
+        object_type="page",
+        object_id=str(page.id),
+        meta={"kb_id": page.kb_id, "source_id": page.source_id, "url": page.url},
+    )
     db.commit()
     return {"ok": True}
 
@@ -1921,11 +2359,80 @@ def list_feedback(
                 "reason": f.reason,
                 "comment": f.comment,
                 "sources": f.sources or {},
+                "status": getattr(f, "status", "new") or "new",
+                "attribution": getattr(f, "attribution", "") or "",
+                "tags": getattr(f, "tags", []) or [],
                 "created_at": f.created_at.isoformat() if f.created_at else None,
+                "updated_at": f.updated_at.isoformat() if getattr(f, "updated_at", None) else None,
             }
             for f in rows
         ],
     }
+
+
+@router.patch("/workspaces/{workspace_id}/feedback/{feedback_id}")
+def update_feedback(
+    workspace_id: str,
+    feedback_id: int,
+    req: FeedbackUpdateRequest,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_workspace_access(principal, workspace_id)
+    fb = db.get(Feedback, int(feedback_id))
+    if not fb or fb.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="feedback not found")
+
+    changed: list[str] = []
+
+    if req.status is not None:
+        s = str(req.status or "").strip().lower()
+        allowed = {"new", "confirmed", "fixed"}
+        if s not in allowed:
+            raise HTTPException(status_code=400, detail="invalid status")
+        fb.status = s
+        changed.append("status")
+
+    if req.attribution is not None:
+        a = str(req.attribution or "").strip().lower()
+        allowed = {"", "retrieval", "rerank", "model", "content", "other"}
+        if a not in allowed:
+            raise HTTPException(status_code=400, detail="invalid attribution")
+        fb.attribution = a
+        changed.append("attribution")
+
+    if req.tags is not None:
+        items: list[str] = []
+        seen: set[str] = set()
+        for t in req.tags:
+            if not isinstance(t, str):
+                continue
+            tt = t.strip()
+            if not tt:
+                continue
+            if len(tt) > 32:
+                tt = tt[:32]
+            if tt in seen:
+                continue
+            seen.add(tt)
+            items.append(tt)
+            if len(items) >= 20:
+                break
+        fb.tags = items
+        changed.append("tags")
+
+    fb.updated_at = _utcnow()
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="feedback.update",
+        object_type="feedback",
+        object_id=str(feedback_id),
+        meta={"fields": changed},
+    )
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/workspaces/{workspace_id}/retrieval-events")
@@ -1934,7 +2441,9 @@ def list_retrieval_events(
     app_id: str | None = None,
     kb_id: str | None = None,
     conversation_id: str | None = None,
+    message_id: str | None = None,
     request_id: str | None = None,
+    error_code: str | None = None,
     has_error: bool | None = None,
     date_range: str | None = None,
     page: int = 1,
@@ -1952,8 +2461,27 @@ def list_retrieval_events(
         stmt = stmt.where(text("kb_ids::jsonb ? :kb")).params(kb=kb_id)
     if conversation_id:
         stmt = stmt.where(RetrievalEvent.conversation_id == conversation_id)
+    if message_id:
+        stmt = stmt.where(RetrievalEvent.message_id == message_id)
     if request_id:
         stmt = stmt.where(RetrievalEvent.request_id == request_id)
+    if error_code:
+        code = str(error_code).strip()
+        if code:
+            if code == "ok":
+                stmt = stmt.where(RetrievalEvent.error == "")
+            else:
+                stmt = stmt.where(RetrievalEvent.error != "")
+                stmt = stmt.where(
+                    text(
+                        """
+                        CASE
+                          WHEN position(':' in error) > 0 THEN split_part(error, ':', 1)
+                          ELSE error
+                        END = :code
+                        """
+                    )
+                ).params(code=code)
     if has_error is True:
         stmt = stmt.where(RetrievalEvent.error != "")
     if has_error is False:
@@ -1979,6 +2507,11 @@ def list_retrieval_events(
                 "timings_ms": e.timings_ms,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
                 "has_error": bool(e.error),
+                "error_code": (
+                    "ok"
+                    if not (e.error or "").strip()
+                    else (str(e.error).split(":", 1)[0].strip() if ":" in str(e.error) else str(e.error).strip())
+                ),
             }
             for e in rows
         ],

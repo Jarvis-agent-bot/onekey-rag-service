@@ -84,16 +84,21 @@ function linkCitationsForMarkdown(text: string) {
   return out.join("\n");
 }
 
+function normalizeSingleLineCodeToken(line: string) {
+  let s = (line || "").trim();
+  // 去掉零宽字符（部分模型会输出）
+  s = s.replace(/[\u200b\u200c\u200d\uFEFF]/g, "");
+  // 兼容：内容本身被 `...` 包了一层（例如：``` `connectId` ```）
+  const m = s.match(/^`([^`]+)`$/);
+  if (m) s = m[1];
+  return s.trim();
+}
+
 function shouldCollapseSingleLineCodeFence(lang: string, line: string) {
   const l = (lang || "").trim().toLowerCase();
   if (["bash", "sh", "zsh", "shell", "powershell", "ps1"].includes(l)) return false;
 
-  let s = (line || "").trim();
-  // 去掉零宽字符（部分模型会输出）
-  s = s.replace(/[\u200b\u200c\u200d\uFEFF]/g, "");
-  // 兼容：代码块里又包了一层 `inline code`
-  const m = s.match(/^`([^`]+)`$/);
-  if (m) s = m[1];
+  const s = normalizeSingleLineCodeToken(line);
   if (!s) return false;
   if (s.length > 64) return false;
   if (s.startsWith("$")) return false;
@@ -118,17 +123,15 @@ function normalizeMarkdownForDisplay(text: string) {
         .map((l) => l.trimEnd())
         .filter((l) => l.trim() !== "");
       if (lines.length !== 1) return all;
-      const single = String(lines[0] || "").replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
+      const single = normalizeSingleLineCodeToken(String(lines[0] || ""));
       if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
-      const escaped = single.replace(/`/g, "\\`");
-      return `\`${escaped}\``;
+      return `\`${single}\``;
     })
     // 兼容：```identifier``` / ```lang identifier``` 这种同一行 fenced code
     .replace(/```([a-zA-Z0-9_-]+)?[ \t]+([^`\n]+?)```/g, (all, lang, code) => {
-      const single = String(code || "").replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
+      const single = normalizeSingleLineCodeToken(String(code || ""));
       if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
-      const escaped = single.replace(/`/g, "\\`");
-      return `\`${escaped}\``;
+      return `\`${single}\``;
     });
 
   // 兼容：单行缩进 code block（4 空格/Tab），仅在“独立段落”里才收敛为 inline code
@@ -157,10 +160,9 @@ function normalizeMarkdownForDisplay(text: string) {
     const isStandalone = (start === 0 || prevLine.trim() === "") && (end >= lines.length || nextLine.trim() === "");
 
     if (block.length === 1 && isStandalone) {
-      const single = block[0].trim();
+      const single = normalizeSingleLineCodeToken(block[0]);
       if (shouldCollapseSingleLineCodeFence("", single)) {
-        const escaped = single.replace(/`/g, "\\`");
-        out.push(`\`${escaped}\``);
+        out.push(`\`${single}\``);
         continue;
       }
     }
@@ -645,14 +647,15 @@ export default function App() {
     const raw = String(children ?? "").replace(/\r\n/g, "\n");
     const codeText = raw.replace(/\n+$/, "");
     const singleCandidate = codeText.replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
+    const singleCandidateNormalized = normalizeSingleLineCodeToken(singleCandidate);
     const copyKey = `${lang}:${codeText.slice(0, 48)}`;
 
     // 兜底：有些模型会把单个标识符（connectId/device_id）用 fenced code block 输出。
     // 即使后端 prompt 已提示，也可能偶发；这里把“单行、短、像标识符”的代码块渲染成 inline code。
-    if (!inline && !singleCandidate.includes("\n") && shouldCollapseSingleLineCodeFence(lang, singleCandidate)) {
+    if (!inline && !singleCandidateNormalized.includes("\n") && shouldCollapseSingleLineCodeFence(lang, singleCandidateNormalized)) {
       return (
         <code className="whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">
-          {singleCandidate}
+          {singleCandidateNormalized}
         </code>
       );
     }

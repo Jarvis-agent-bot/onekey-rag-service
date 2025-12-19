@@ -1,10 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { apiFetch } from "../lib/api";
 import { requireToken, setToken } from "../lib/auth";
 
@@ -15,6 +16,7 @@ export function LoginPage() {
   const location = useLocation();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const fromPath = useMemo(() => {
     const raw = (location.state as { from?: string } | null | undefined)?.from || "/dashboard";
@@ -26,6 +28,21 @@ export function LoginPage() {
     if (!requireToken()) return;
     navigate(fromPath, { replace: true });
   }, [fromPath, navigate]);
+
+  useEffect(() => {
+    // 避免浏览器/密码管理器自动填充导致“默认就有密码值”，这里在 mount 后强制清空一次（并延迟再清一次）。
+    const clear = () => {
+      try {
+        if (passwordRef.current) passwordRef.current.value = "";
+      } catch {
+        // ignore
+      }
+      setPassword("");
+    };
+    clear();
+    const t = window.setTimeout(clear, 50);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -42,11 +59,6 @@ export function LoginPage() {
     },
   });
 
-  const errorText = useMemo(() => {
-    if (!mutation.error) return "";
-    return mutation.error instanceof Error ? mutation.error.message : String(mutation.error);
-  }, [mutation.error]);
-
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/40">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_50%_-180px,hsl(var(--primary)/0.18),transparent_55%)]" />
@@ -60,6 +72,7 @@ export function LoginPage() {
           <CardContent>
             <form
               className="space-y-4"
+              autoComplete="off"
               onSubmit={(e) => {
                 e.preventDefault();
                 mutation.mutate();
@@ -67,13 +80,22 @@ export function LoginPage() {
             >
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">用户名</div>
-                <Input value={username} onChange={(e) => setUsername(e.target.value)} />
+                <Input name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">密码</div>
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input
+                  ref={passwordRef}
+                  type="password"
+                  name="onekey_admin_password"
+                  autoComplete="new-password"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
-              {errorText ? <div className="text-sm text-destructive">{errorText}</div> : null}
+              {mutation.error ? <ApiErrorBanner error={mutation.error} /> : null}
               <Button type="submit" disabled={mutation.isPending} className="w-full">
                 {mutation.isPending ? "登录中..." : "登录"}
               </Button>
