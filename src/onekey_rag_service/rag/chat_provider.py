@@ -15,11 +15,15 @@ class ChatResult:
 
 
 class ChatProvider:
-    async def complete(self, *, model: str, messages: list[dict[str, Any]], **kwargs: Any) -> ChatResult:
+    async def complete(
+        self, *, model: str, messages: list[dict[str, Any]], callbacks: list[Any] | None = None, **kwargs: Any
+    ) -> ChatResult:
         raise NotImplementedError
 
-    async def stream(self, *, model: str, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncIterator[str]:
-        result = await self.complete(model=model, messages=messages, **kwargs)
+    async def stream(
+        self, *, model: str, messages: list[dict[str, Any]], callbacks: list[Any] | None = None, **kwargs: Any
+    ) -> AsyncIterator[str]:
+        result = await self.complete(model=model, messages=messages, callbacks=callbacks, **kwargs)
         yield result.content
 
 
@@ -31,7 +35,15 @@ class LangChainInitChatProvider(ChatProvider):
     timeout_s: float = 60.0
     max_retries: int = 2
 
-    def _build_model(self, *, model: str, temperature: float | None, top_p: float | None, max_tokens: int | None):
+    def _build_model(
+        self,
+        *,
+        model: str,
+        temperature: float | None,
+        top_p: float | None,
+        max_tokens: int | None,
+        callbacks: list[Any] | None,
+    ):
         try:
             from langchain.chat_models import init_chat_model  # type: ignore
         except Exception as e:  # pragma: no cover
@@ -51,6 +63,8 @@ class LangChainInitChatProvider(ChatProvider):
             "base_url": base_url,
             "api_key": self.api_key,
         }
+        if callbacks:
+            kwargs["callbacks"] = callbacks
 
         if self.model_provider:
             kwargs["model_provider"] = self.model_provider
@@ -63,12 +77,15 @@ class LangChainInitChatProvider(ChatProvider):
         *,
         model: str,
         messages: list[dict[str, Any]],
+        callbacks: list[Any] | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
         max_tokens: int | None = None,
         **_: Any,
     ) -> ChatResult:
-        lc_model = self._build_model(model=model, temperature=temperature, top_p=top_p, max_tokens=max_tokens)
+        lc_model = self._build_model(
+            model=model, temperature=temperature, top_p=top_p, max_tokens=max_tokens, callbacks=callbacks
+        )
         msg = await lc_model.ainvoke(messages)
 
         content = ""
@@ -87,12 +104,15 @@ class LangChainInitChatProvider(ChatProvider):
         *,
         model: str,
         messages: list[dict[str, Any]],
+        callbacks: list[Any] | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
         max_tokens: int | None = None,
         **_: Any,
     ) -> AsyncIterator[str]:
-        lc_model = self._build_model(model=model, temperature=temperature, top_p=top_p, max_tokens=max_tokens)
+        lc_model = self._build_model(
+            model=model, temperature=temperature, top_p=top_p, max_tokens=max_tokens, callbacks=callbacks
+        )
         async for chunk in lc_model.astream(messages):
             text = _extract_chunk_text(chunk)
             if text:

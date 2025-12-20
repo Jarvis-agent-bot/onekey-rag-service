@@ -110,6 +110,14 @@ class Settings(BaseSettings):
     # ========== Observability（仅存检索元数据）==========
     retrieval_events_enabled: bool = Field(default=True, alias="RETRIEVAL_EVENTS_ENABLED")
 
+    # ========== Langfuse（可选：上报 LangChain 回调）==========
+    langfuse_enabled: bool = Field(default=True, alias="LANGFUSE_ENABLED")
+    langfuse_base_url: str | None = Field(default=None, alias="LANGFUSE_BASE_URL")
+    langfuse_public_key: str | None = Field(default=None, alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str | None = Field(default=None, alias="LANGFUSE_SECRET_KEY")
+    langfuse_project_name: str = Field(default="onekey-rag", alias="LANGFUSE_PROJECT_NAME")
+    langfuse_dataset_name: str = Field(default="rag-llm", alias="LANGFUSE_DATASET_NAME")
+
     # ========== Pricing（可选，用于成本估算）==========
     # JSON 格式示例：
     # {"gpt-4o-mini":{"prompt_usd_per_1k":0.00015,"completion_usd_per_1k":0.0006}}

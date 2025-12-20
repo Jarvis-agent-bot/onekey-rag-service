@@ -150,6 +150,42 @@ services:
       postgres:
         condition: service_healthy
 
+  langfuse:
+    image: langfuse/langfuse:${LANGFUSE_VERSION:-latest}
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://langfuse:langfuse@postgres:5432/langfuse}
+      REDIS_URL: ${LANGFUSE_REDIS_URL:-redis://langfuse-redis:6379/0}
+      SECRET_KEY_BASE: ${LANGFUSE_SECRET_KEY_BASE:-changeme}
+      LANGFUSE_API_KEY: ${LANGFUSE_API_KEY:-changeme}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme}
+      NEXT_PUBLIC_LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://localhost:3000}
+      SEARCH_BACKEND: ${LANGFUSE_SEARCH_BACKEND:-none}
+      MSEARCH_URL: ${LANGFUSE_MSEARCH_URL:-}
+      STORAGE_BACKEND: ${LANGFUSE_STORAGE_BACKEND:-}
+      STORAGE_ENDPOINT: ${LANGFUSE_STORAGE_ENDPOINT:-}
+      STORAGE_ACCESS_KEY_ID: ${LANGFUSE_STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${LANGFUSE_STORAGE_SECRET_ACCESS_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_started
+    restart: unless-stopped
+
+  langfuse-redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - langfuse-redis:/data
+    restart: unless-stopped
+
 volumes:
   pgdata:
   hf_cache:
+  langfuse-redis:

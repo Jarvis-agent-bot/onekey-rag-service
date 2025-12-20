@@ -1,17 +1,23 @@
 
 
 {
-  email 2865679431qq@gmail.com
+  email xxxx
 }
 
-exwxyzi.cn {
+your-domain.com {
   encode zstd gzip
 
-  // 替换你的信息
   @admin path /admin/*
   basicauth @admin {
-    xxx xxxxxxxxxx
+    user replace-with-username
+    # 使用 caddy hash-password 生成
   }
 
-  reverse_proxy api:8000
+  handle_path /langfuse/* {
+    reverse_proxy langfuse:3000
+  }
+
+  handle {
+    reverse_proxy api:8000
+  }
 }

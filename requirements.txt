@@ -18,6 +18,7 @@ tenacity>=8.2.3
 
 langchain==1.1.0
 langchain-openai>=0.1.0
+langfuse>=2.38.0
 
 # cross-encoder reranker（bge-reranker）
 sentence-transformers>=3.0.0

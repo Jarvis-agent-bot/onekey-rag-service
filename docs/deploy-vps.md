@@ -118,7 +118,7 @@ sudo mkdir -p /opt/onekey-rag-service
 sudo chown -R "$USER":"$USER" /opt/onekey-rag-service
 
 cd /opt/onekey-rag-service
-git clone git@github.com:wabicai/onekey-rag-service.git .
+**git** clone https://github.com/wabicai/onekey-rag-service.git .
 git rev-parse --short HEAD
 ```
 
@@ -150,6 +150,13 @@ nano .env
   - `ADMIN_PASSWORD=强密码`
   - `ADMIN_JWT_SECRET=强随机密钥`（用于签发/校验 JWT）
 
+> 另外建议同步补全以下几组配置，以配合后台质量监控与多模型能力：
+>
+- `CHAT_DEFAULT_TEMPERATURE/TOP_P/MAX_TOKENS`：控制在客户端未传参时的默认生成参数，确保生成稳定且不会超时。
+- `CHAT_MODEL_MAP_JSON` + `CHAT_MODEL_PASSTHROUGH`：如果要把外部 `model` 映射到多个上游模型（比如 DeepSeek、自建网关），在 `.env` 里写一个 JSON 映射并决定是否允许“Passthrough”。
+- `QUERY_EMBED_CACHE_SIZE` / `QUERY_EMBED_CACHE_TTL_S`：在多实例部署中开启查询 embedding 缓存有助于降低重复计算，默认 `512 / 600s`。
+- `RETRIEVAL_EVENTS_ENABLED=true` + `MODEL_PRICING_JSON`：前者只存检索事件的 metadata（不存原文），方便配合 `GET /admin/api/workspaces/default/observability/summary` 做命中率/错误率分析；后者可以把上游模型的 token/cost 计价配置上传到 `.env`（如 `{"gpt-4o-mini":{"prompt_usd_per_1k":0.00015,"completion_usd_per_1k":0.0006}}`），Admin UI 的质量页会展示对应的成本估算（详见 `docs/onekey-rag-admin-spec.md` 的观测章节）。
+
 （强烈建议）修改 Postgres 默认口令（并同步更新 `DATABASE_URL`）：
 
 ```bash
@@ -169,7 +176,7 @@ DATABASE_URL=postgresql+psycopg2://postgres:请替换为强密码@postgres:5432/
 
 ## 6. VPS：生产用 Compose + Caddy（推荐）
 
-本仓库默认的 `docker-compose.yml` 更偏“本地一键启动”。生产推荐使用专用 Compose：`docker-compose.vps.yml`（不对外暴露 Postgres，只对公网开放 80/443）。
+本仓库默认的 `docker-compose.yml` 已包含生产所需服务（api/worker/postgres/langfuse/langfuse-redis）。生产部署可直接使用该文件，不需要额外的 compose 示例；80/443 由外部 Nginx/Caddy 反向代理并终止 TLS。
 
 后台管理说明：
 
@@ -181,360 +188,45 @@ DATABASE_URL=postgresql+psycopg2://postgres:请替换为强密码@postgres:5432/
 ```bash
 cd /opt/onekey-rag-service
 mkdir -p deploy
+cp deploy/Caddyfile.example deploy/Caddyfile
+```
 
- cat > deploy/Caddyfile <<'CADDYFILE'
-{
-  email YOUR_EMAIL
-}
+`deploy/Caddyfile.example` 示例（关键段落说明如下）：
 
-exwxyzi.cn {
+```caddyfile
+your-domain.com {
   encode zstd gzip
 
-  reverse_proxy api:8000
+  @admin path /admin/*
+  basicauth @admin {
+    user replace-with-username
+    # 使用 caddy hash-password 生成
+  }
+
+  handle_path /langfuse/* {
+    reverse_proxy langfuse:3000
+  }
+
+  handle {
+    reverse_proxy api:8000
+  }
 }
-CADDYFILE
 ```
 
-替换 `deploy/Caddyfile` 中的：
+- `your-domain.com`：替换为你的域名；如需自动 TLS，确保 DNS 已指向服务器，Caddy 会自动申请证书。
+- `basicauth`：为后台 `/admin/*` 加一道 BasicAuth 门禁，使用 `caddy hash-password --plaintext <pwd>` 生成哈希，避免明文密码。
+- `handle_path /langfuse/*`：将 `/langfuse/*` 前缀反代到 `langfuse:3000`（compose 网络内的服务名和端口），可在网关层再做 IP 白名单。
+- `handle`：其余路径反代到主 API `api:8000`。
+- `encode zstd gzip`：启用压缩。
 
-- `YOUR_EMAIL` → 你的邮箱
+与 Nginx 的差异（简述）：
+- Caddy 自动获取/续期 TLS 证书、配置更简洁（尤其反代 + HTTPS 场景），适合“快速上线”。
+- Nginx 配置更细粒度、生态丰富，适合复杂流量治理（限流/灰度/更复杂的缓存策略）。
+- 若已在生产使用 Nginx，可用等价的 `location /langfuse/` 和 `location /` 反代配置，逻辑相同；否则 Caddy 是更省事的默认选择。
 
-### 6.2 写入 `docker-compose.vps.yml`
+### 6.2 使用主 `docker-compose.yml`
 
 ```bash
-cd /opt/onekey-rag-service
-
-cat > docker-compose.vps.yml <<'YAML'
-services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-onekey_rag}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-onekey_rag}"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    restart: unless-stopped
-
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      APP_ENV: ${APP_ENV:-prod}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/onekey_rag}
-      PGVECTOR_EMBEDDING_DIM: ${PGVECTOR_EMBEDDING_DIM:-768}
-      JOBS_BACKEND: ${JOBS_BACKEND:-worker}
-
-      CRAWL_BASE_URL: ${CRAWL_BASE_URL:-https://developer.onekey.so/}
-      CRAWL_SITEMAP_URL: ${CRAWL_SITEMAP_URL:-https://developer.onekey.so/sitemap.xml}
-      CRAWL_MAX_PAGES: ${CRAWL_MAX_PAGES:-2000}
-
-      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fake}
-      SENTENCE_TRANSFORMERS_MODEL: ${SENTENCE_TRANSFORMERS_MODEL:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-
-      RERANK_PROVIDER: ${RERANK_PROVIDER:-none}
-      BGE_RERANKER_MODEL: ${BGE_RERANKER_MODEL:-BAAI/bge-reranker-large}
-      RERANK_DEVICE: ${RERANK_DEVICE:-cpu}
-      RERANK_BATCH_SIZE: ${RERANK_BATCH_SIZE:-16}
-      RERANK_MAX_CANDIDATES: ${RERANK_MAX_CANDIDATES:-30}
-      RERANK_MAX_CHARS: ${RERANK_MAX_CHARS:-1200}
-
-      CHAT_PROVIDER: ${CHAT_PROVIDER:-langchain}
-      CHAT_MODEL_PROVIDER: ${CHAT_MODEL_PROVIDER:-openai}
-      CHAT_BASE_URL: ${CHAT_BASE_URL:-https://api.openai.com/v1}
-      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
-      CHAT_TIMEOUT_S: ${CHAT_TIMEOUT_S:-60}
-      CHAT_MAX_RETRIES: ${CHAT_MAX_RETRIES:-2}
-
-      QUERY_REWRITE_ENABLED: ${QUERY_REWRITE_ENABLED:-true}
-      MEMORY_SUMMARY_ENABLED: ${MEMORY_SUMMARY_ENABLED:-true}
-      CONVERSATION_COMPACTION_MAX_TOKENS: ${CONVERSATION_COMPACTION_MAX_TOKENS:-384}
-      CONVERSATION_HISTORY_MAX_MESSAGES: ${CONVERSATION_HISTORY_MAX_MESSAGES:-12}
-      CONVERSATION_HISTORY_MAX_CHARS: ${CONVERSATION_HISTORY_MAX_CHARS:-6000}
-
-      INLINE_CITATIONS_ENABLED: ${INLINE_CITATIONS_ENABLED:-true}
-      ANSWER_APPEND_SOURCES: ${ANSWER_APPEND_SOURCES:-false}
-      RAG_PREPARE_TIMEOUT_S: ${RAG_PREPARE_TIMEOUT_S:-25}
-      RAG_TOTAL_TIMEOUT_S: ${RAG_TOTAL_TIMEOUT_S:-120}
-
-      WIDGET_FRAME_ANCESTORS: ${WIDGET_FRAME_ANCESTORS:-}
-
-      RETRIEVAL_MODE: ${RETRIEVAL_MODE:-hybrid}
-      BM25_FTS_CONFIG: ${BM25_FTS_CONFIG:-simple}
-      HYBRID_VECTOR_K: ${HYBRID_VECTOR_K:-30}
-      HYBRID_BM25_K: ${HYBRID_BM25_K:-30}
-      HYBRID_VECTOR_WEIGHT: ${HYBRID_VECTOR_WEIGHT:-0.7}
-      HYBRID_BM25_WEIGHT: ${HYBRID_BM25_WEIGHT:-0.3}
-
-      AUTO_CREATE_INDEXES: ${AUTO_CREATE_INDEXES:-true}
-      PGVECTOR_INDEX_TYPE: ${PGVECTOR_INDEX_TYPE:-hnsw}
-      PGVECTOR_HNSW_M: ${PGVECTOR_HNSW_M:-16}
-      PGVECTOR_HNSW_EF_CONSTRUCTION: ${PGVECTOR_HNSW_EF_CONSTRUCTION:-64}
-      PGVECTOR_IVFFLAT_LISTS: ${PGVECTOR_IVFFLAT_LISTS:-100}
-    env_file:
-      - .env
-    volumes:
-      - hf_cache:/root/.cache/huggingface
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["python", "-m", "onekey_rag_service.worker"]
-    environment:
-      APP_ENV: ${APP_ENV:-prod}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/onekey_rag}
-      PGVECTOR_EMBEDDING_DIM: ${PGVECTOR_EMBEDDING_DIM:-768}
-      JOBS_BACKEND: ${JOBS_BACKEND:-worker}
-
-      CRAWL_BASE_URL: ${CRAWL_BASE_URL:-https://developer.onekey.so/}
-      CRAWL_SITEMAP_URL: ${CRAWL_SITEMAP_URL:-https://developer.onekey.so/sitemap.xml}
-      CRAWL_MAX_PAGES: ${CRAWL_MAX_PAGES:-2000}
-
-      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-fake}
-      SENTENCE_TRANSFORMERS_MODEL: ${SENTENCE_TRANSFORMERS_MODEL:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-
-      RERANK_PROVIDER: ${RERANK_PROVIDER:-none}
-      BGE_RERANKER_MODEL: ${BGE_RERANKER_MODEL:-BAAI/bge-reranker-large}
-      RERANK_DEVICE: ${RERANK_DEVICE:-cpu}
-      RERANK_BATCH_SIZE: ${RERANK_BATCH_SIZE:-16}
-      RERANK_MAX_CANDIDATES: ${RERANK_MAX_CANDIDATES:-30}
-      RERANK_MAX_CHARS: ${RERANK_MAX_CHARS:-1200}
-
-      AUTO_CREATE_INDEXES: ${AUTO_CREATE_INDEXES:-true}
-      PGVECTOR_INDEX_TYPE: ${PGVECTOR_INDEX_TYPE:-hnsw}
-      PGVECTOR_HNSW_M: ${PGVECTOR_HNSW_M:-16}
-      PGVECTOR_HNSW_EF_CONSTRUCTION: ${PGVECTOR_HNSW_EF_CONSTRUCTION:-64}
-      PGVECTOR_IVFFLAT_LISTS: ${PGVECTOR_IVFFLAT_LISTS:-100}
-
-      WORKER_POLL_INTERVAL_S: ${WORKER_POLL_INTERVAL_S:-1}
-      WORKER_STALE_AFTER_S: ${WORKER_STALE_AFTER_S:-3600}
-      WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
-    env_file:
-      - .env
-    volumes:
-      - hf_cache:/root/.cache/huggingface
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  caddy:
-    image: caddy:2
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - api
-    restart: unless-stopped
-
-volumes:
-  pgdata:
-  hf_cache:
-  caddy_data:
-  caddy_config:
-YAML
-```
-
-> 安全建议：把 `postgres` 的 `POSTGRES_PASSWORD` 与 `DATABASE_URL` 改成强密码组合（并同步更新 `.env`），避免默认口令长期存在。
-
----
-
-## 7. 启动与自检
-
-### 7.1 启动
-
-```bash
-cd /opt/onekey-rag-service
-docker compose -f docker-compose.vps.yml up -d --build
-docker compose -f docker-compose.vps.yml ps
-```
-
-### 7.2 查看日志
-
-```bash
-cd /opt/onekey-rag-service
-docker compose -f docker-compose.vps.yml logs -f --tail=200
-```
-
-### 7.3 健康检查（在 VPS 上执行）
-
-```bash
-curl -sS -H "Host: exwxyzi.cn" http://127.0.0.1/healthz
-```
-
-如果你已完成域名解析与 HTTPS：
-
-```bash
-curl -sS https://exwxyzi.cn/healthz
-```
-
----
-
-## 8. 初始化数据：抓取 + 建索引（首次必做）
-
-> 本节建议在 VPS 上执行；如你不想把后台（`/admin/*`）暴露公网，可用 SSH 隧道或仅开放内网/办公网/VPN（见后文）。
-
-### 8.1 抓取（crawl）
-
-```bash
-# 1) 登录拿 token（把响应里的 access_token 复制出来）
-curl -sS https://exwxyzi.cn/admin/api/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"username":"admin","password":"你的 ADMIN_PASSWORD 明文"}'
-
-# 2) 触发 crawl（把 <token> 替换为上一步的 access_token）
-curl -sS https://exwxyzi.cn/admin/api/workspaces/default/jobs/crawl \
-  -H 'content-type: application/json' \
-  -H "Authorization: Bearer <token>" \
-  -d '{"kb_id":"default","source_id":"source_default","mode":"full","sitemap_url":"https://developer.onekey.so/sitemap.xml","seed_urls":["https://developer.onekey.so/"],"max_pages":5000}'
-```
-
-返回形如：
-
-```json
-{"job_id":"crawl_xxxxxxxxxxxx"}
-```
-
-轮询状态：
-
-```bash
-curl -sS https://exwxyzi.cn/admin/api/workspaces/default/jobs/<job_id> -H "Authorization: Bearer <token>"
-```
-
-### 8.2 建索引（index）
-
-```bash
-curl -sS https://exwxyzi.cn/admin/api/workspaces/default/jobs/index \
-  -H 'content-type: application/json' \
-  -H "Authorization: Bearer <token>" \
-  -d '{"kb_id":"default","mode":"full"}'
-```
-
-轮询状态：
-
-```bash
-curl -sS https://exwxyzi.cn/admin/api/workspaces/default/jobs/<job_id> -H "Authorization: Bearer <token>"
-```
-
----
-
-## 9. 对外联调：OpenAI-Compatible API + Widget
-
-### 9.1 模型列表
-
-```bash
-curl -sS https://exwxyzi.cn/v1/models
-```
-
-### 9.2 对话（非流式）
-
-```bash
-curl -sS https://exwxyzi.cn/v1/chat/completions \
-  -H 'content-type: application/json' \
-  -d '{"model":"onekey-docs","messages":[{"role":"user","content":"如何在项目里集成 OneKey Connect？"}],"stream":false}'
-```
-
-### 9.3 Widget（同域一行 script）
-
-```bash
-curl -I https://exwxyzi.cn/widget/widget.js
-```
-
----
-
-## 10. 日常运维命令（更新/重启/回滚/备份）
-
-### 10.1 更新代码并重启（最常用）
-
-```bash
-cd /opt/onekey-rag-service
-git pull
-docker compose -f docker-compose.vps.yml up -d --build
-docker compose -f docker-compose.vps.yml logs -f --tail=200
-```
-
-### 10.2 重启/停止
-
-```bash
-cd /opt/onekey-rag-service
-docker compose -f docker-compose.vps.yml restart
-docker compose -f docker-compose.vps.yml stop
-docker compose -f docker-compose.vps.yml up -d
-```
-
-### 10.3 快速定位问题
-
-```bash
-cd /opt/onekey-rag-service
-docker compose -f docker-compose.vps.yml ps
-docker compose -f docker-compose.vps.yml logs api --tail=200
-docker compose -f docker-compose.vps.yml logs worker --tail=200
-docker compose -f docker-compose.vps.yml logs postgres --tail=200
-docker compose -f docker-compose.vps.yml logs caddy --tail=200
-```
-
-### 10.4 回滚到某个版本（git）
-
-```bash
-cd /opt/onekey-rag-service
-git fetch --all --prune
-git checkout <commit_sha_or_tag>
-docker compose -f docker-compose.vps.yml up -d --build
-```
-
-### 10.5 备份（重点：pgdata）
-
-先找到实际 volume 名称：
-
-```bash
-docker volume ls | grep pgdata
-```
-
-备份到 `/opt/backup/`（示例：把 volume 名替换成你机器上的实际名字）：
-
-```bash
-sudo mkdir -p /opt/backup
-sudo chown -R "$USER":"$USER" /opt/backup
-
-export PGDATA_VOLUME="onekey-rag-service_pgdata"
-docker run --rm -v "$PGDATA_VOLUME":/var/lib/postgresql/data -v /opt/backup:/backup alpine \
-  sh -c 'cd /var/lib/postgresql/data && tar -czf /backup/pgdata-$(date +%F-%H%M%S).tar.gz .'
-```
-
----
-
-## 11.（可选）更安全的 Admin 调用方式：SSH 隧道
-
-如果你不想让后台（`/admin/*`）走公网，可以在本地通过 SSH 隧道把 VPS 的 443/80 或容器端口转发到本地。
-
-示例：把 VPS 上的 `127.0.0.1:8000` 映射到本地 `127.0.0.1:8000`（需要你把 `api` 端口暴露到宿主机，本指南的推荐方案默认不暴露；如确需此方式，可在 `docker-compose.vps.yml` 给 `api` 加上 `ports: ["127.0.0.1:8000:8000"]`）。
-
-```bash
-ssh -N -L 8000:127.0.0.1:8000 rag@"$VPS_IP"
-curl -sS http://127.0.0.1:8000/healthz
+docker compose up -d --build
+docker compose ps
 ```

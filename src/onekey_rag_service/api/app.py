@@ -27,6 +27,7 @@ from onekey_rag_service.db import (
 )
 from onekey_rag_service.logging import configure_logging
 from onekey_rag_service.models import Base, Feedback, Job, RagApp, RagAppKnowledgeBase, RetrievalEvent
+from onekey_rag_service.observability.langfuse import build_langfuse_callback
 from onekey_rag_service.rag.chat_provider import build_chat_provider, now_unix
 from onekey_rag_service.rag.embeddings import build_embeddings_provider
 from onekey_rag_service.rag.kb_allocation import KbBinding, allocate_top_k
@@ -261,6 +262,25 @@ async def openai_chat_completions(
     created = now_unix()
     sem = getattr(app.state, "chat_semaphore", None)
 
+    user_id = None
+    if isinstance(req.metadata, dict) and req.metadata.get("user_id"):
+        try:
+            user_id = str(req.metadata.get("user_id"))
+        except Exception:
+            user_id = None
+
+    callbacks = None
+    langfuse_cb = build_langfuse_callback(
+        settings,
+        request_id=chat_id,
+        workspace_id=workspace_id,
+        app_id=app_id,
+        metadata=req.metadata,
+        user_id=user_id,
+    )
+    if langfuse_cb:
+        callbacks = [langfuse_cb]
+
     if not req.stream:
         if sem:
             await sem.acquire()
@@ -281,6 +301,7 @@ async def openai_chat_completions(
                     top_p=top_p,
                     max_tokens=max_tokens,
                     debug=req.debug,
+                    callbacks=callbacks,
                 ),
                 timeout=settings.rag_total_timeout_s,
             )
@@ -373,6 +394,7 @@ async def openai_chat_completions(
                         workspace_id=workspace_id,
                         kb_allocations=kb_allocations,
                         debug=req.debug,
+                        callbacks=callbacks,
                     ),
                     timeout=settings.rag_prepare_timeout_s,
                 )
@@ -481,6 +503,7 @@ async def openai_chat_completions(
                         temperature=temperature,
                         top_p=top_p,
                         max_tokens=max_tokens,
+                        callbacks=callbacks,
                     ):
                         if not part:
                             continue

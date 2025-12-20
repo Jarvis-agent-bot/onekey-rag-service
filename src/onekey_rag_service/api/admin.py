@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from onekey_rag_service.admin.auth import AdminPrincipal, authenticate_admin, issue_admin_access_token, require_admin
 from onekey_rag_service.api.deps import get_db
 from onekey_rag_service.config import Settings, get_settings
+from onekey_rag_service.observability.langfuse import build_langfuse_callback
 from onekey_rag_service.models import (
     AuditLog,
     Chunk,
@@ -932,10 +933,20 @@ async def test_models(
         if not chat:
             return {"ok": False, "error": "CHAT_API_KEY 未配置或 CHAT_PROVIDER 禁用"}
         t0 = time.monotonic()
+        callbacks = None
+        lf_cb = build_langfuse_callback(
+            settings,
+            request_id=f"admin-test-{uuid.uuid4().hex}",
+            workspace_id=workspace_id,
+            metadata={"source": "admin-model-test", "kind": "chat"},
+        )
+        if lf_cb:
+            callbacks = [lf_cb]
         try:
             r = await chat.complete(
                 model=settings.chat_model,
                 messages=[{"role": "user", "content": prompt}],
+                callbacks=callbacks,
                 temperature=0.0,
                 max_tokens=32,
             )

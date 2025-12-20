@@ -107,6 +107,8 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
 当前仓库内提供 `docker-compose.yml`，默认启动：
 - `postgres`：pgvector/pg16
 - `api`：FastAPI + LangChain + crawler/index/rag + 静态 Widget（/widget）
+- `worker`：消费抓取/索引等后台任务
+- `langfuse` + `langfuse-redis`：观测平台（可视化 trace/metrics），默认随栈启动；TLS/网关由外部 Nginx 处理
 
 启动步骤（详见 `README.md`）：
 1) `cp .env.example .env` 并填写 `CHAT_API_KEY` 等配置  

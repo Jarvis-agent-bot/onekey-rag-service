@@ -86,6 +86,7 @@ async def compact_conversation(
     model: str,
     messages: list[dict[str, Any]],
     question: str,
+    callbacks: list | None = None,
 ) -> ConversationCompaction:
     """
     使用一次 LLM 调用同时完成：
@@ -130,6 +131,7 @@ async def compact_conversation(
     result = await chat.complete(
         model=model,
         messages=[{"role": "system", "content": sys}, {"role": "user", "content": user}],
+        callbacks=callbacks,
         temperature=0,
         top_p=1,
         max_tokens=settings.conversation_compaction_max_tokens,

@@ -187,6 +187,7 @@ async def prepare_rag(
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
     debug: bool = False,
+    callbacks: list | None = None,
 ) -> RagPrepared:
     t_prepare = time.perf_counter()
     t_compaction_ms: int | None = None
@@ -220,6 +221,7 @@ async def prepare_rag(
                 model=chat_model,
                 messages=request_messages,
                 question=question,
+                callbacks=callbacks,
             )
             retrieval_query = compaction.retrieval_query
             memory_summary = compaction.memory_summary
@@ -453,6 +455,7 @@ async def answer_with_rag(
     top_p: float | None = None,
     max_tokens: int | None = None,
     debug: bool = False,
+    callbacks: list | None = None,
 ) -> RagAnswer:
     prepared = await prepare_rag(
         session,
@@ -466,6 +469,7 @@ async def answer_with_rag(
         workspace_id=workspace_id,
         kb_allocations=kb_allocations,
         debug=debug,
+        callbacks=callbacks,
     )
 
     if prepared.direct_answer is not None:
@@ -497,6 +501,7 @@ async def answer_with_rag(
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
+        callbacks=callbacks,
     )
     chat_ms = int((time.perf_counter() - t0) * 1000)
 
