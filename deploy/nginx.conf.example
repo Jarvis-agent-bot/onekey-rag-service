@@ -1,0 +1,43 @@
+# 将本示例复制为 /etc/nginx/sites-available/onekey-rag.conf（或自定义名称）
+# 记得把占位符替换为你的域名与证书路径。
+
+server {
+  listen 80;
+  server_name your-domain.com;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name your-domain.com;
+
+  ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+  # 如需更严格的 TLS 策略，可按公司基线补充 ssl_protocols/ssl_ciphers/HSTS 等。
+
+  # 如需保护后台，可取消注释 BasicAuth（需提前生成 htpasswd）
+  # location /admin/ {
+  #   auth_basic "Admin Only";
+  #   auth_basic_user_file /etc/nginx/.htpasswd;
+  # }
+
+  # Langfuse 前缀反代
+  location /langfuse/ {
+    proxy_pass http://127.0.0.1:3000/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # 其余路径反代主 API（含 /admin/api 与 /widget）
+  location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off; # 支持流式/SSE
+  }
+}

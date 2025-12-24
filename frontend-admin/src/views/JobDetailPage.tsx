@@ -20,6 +20,8 @@ type JobDetail = {
   source_id: string;
   payload: Record<string, unknown>;
   progress: Record<string, unknown>;
+  logs?: Array<Record<string, unknown>>;
+  subtasks?: Array<{ id: string; filename?: string; size_bytes?: number; status?: string; error?: string }>;
   error: string;
   started_at: string | null;
   finished_at: string | null;
@@ -187,6 +189,32 @@ export function JobDetailPage() {
           <Card title="Progress" className="lg:col-span-2">
             <JsonView value={q.data.progress || {}} />
           </Card>
+
+          {q.data.subtasks?.length ? (
+            <Card title="子任务 / 文件" description="file_process 返回的文件列表">
+              <div className="space-y-2 text-xs">
+                {q.data.subtasks.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 p-2 font-mono">
+                    <span className="truncate">{s.filename || s.id}</span>
+                    <span className={s.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{s.status}</span>
+                    <span className="text-muted-foreground">{s.error || ""}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {q.data.logs?.length ? (
+            <Card title="日志" description="任务进度日志摘要">
+              <div className="space-y-1 text-xs font-mono text-muted-foreground">
+                {q.data.logs.map((l, idx) => (
+                  <div key={idx} className="truncate">
+                    {JSON.stringify(l)}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
         </div>
       ) : null}
     </div>

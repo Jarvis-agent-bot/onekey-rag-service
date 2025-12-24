@@ -26,7 +26,7 @@ from onekey_rag_service.db import (
     ensure_pgvector_extension,
 )
 from onekey_rag_service.logging import configure_logging
-from onekey_rag_service.models import Base, Feedback, Job, RagApp, RagAppKnowledgeBase, RetrievalEvent
+from onekey_rag_service.models import Base, Feedback, Job, KnowledgeBase, RagApp, RagAppKnowledgeBase, RetrievalEvent
 from onekey_rag_service.observability.langfuse import build_langfuse_callback
 from onekey_rag_service.rag.chat_provider import build_chat_provider, now_unix
 from onekey_rag_service.rag.embeddings import build_embeddings_provider
@@ -259,6 +259,7 @@ async def openai_chat_completions(
     temperature = req.temperature if req.temperature is not None else settings.chat_default_temperature
     top_p = req.top_p if req.top_p is not None else settings.chat_default_top_p
     max_tokens = req.max_tokens if req.max_tokens is not None else settings.chat_default_max_tokens
+    prompt_templates = _load_kb_prompt_templates(db, workspace_id, kb_allocations)
 
     chat_id = f"chatcmpl_{uuid.uuid4().hex}"
     created = now_unix()
@@ -299,6 +300,7 @@ async def openai_chat_completions(
                     question=question,
                     workspace_id=workspace_id,
                     kb_allocations=kb_allocations,
+                    prompt_templates=prompt_templates,
                     temperature=temperature,
                     top_p=top_p,
                     max_tokens=max_tokens,
@@ -396,6 +398,7 @@ async def openai_chat_completions(
                         question=question,
                         workspace_id=workspace_id,
                         kb_allocations=kb_allocations,
+                        prompt_templates=prompt_templates,
                         debug=req.debug,
                         callbacks=callbacks,
                     ),
@@ -695,3 +698,25 @@ def json_dumps(obj) -> str:
     import json
 
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+def _load_kb_prompt_templates(db: Session, workspace_id: str, kb_allocations: list[KbAllocation] | None) -> dict[str, str]:
+    """
+    仅取优先级最高的 KB 配置模板；缺失则返回空。
+    """
+
+    if not kb_allocations:
+        return {}
+    first = kb_allocations[0]
+    kid = (first.kb_id or "").strip()
+    if not kid:
+        return {}
+    kb = db.get(KnowledgeBase, kid)
+    if not kb or kb.workspace_id != workspace_id:
+        return {}
+    tpl = (kb.config or {}).get("prompt_templates") or {}
+    return {
+        "system": str(tpl.get("system") or ""),
+        "user": str(tpl.get("user") or ""),
+        "postprocess": str(tpl.get("postprocess") or ""),
+    }

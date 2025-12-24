@@ -193,15 +193,21 @@ export function PagesPage() {
   const actionError = recrawl.error || del.error;
 
   return (
-    <div className="space-y-4">
-      <div className="text-lg font-semibold">页面</div>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
+        <div className="flex flex-col gap-2">
+          <div className="text-xs uppercase tracking-[0.14em] text-primary">Pages</div>
+          <div className="text-2xl font-semibold text-foreground">页面搜索 / 变更与失败定位</div>
+          <div className="text-sm text-muted-foreground">按知识库/数据源/状态过滤，支持批量重抓与删除。</div>
+        </div>
+      </div>
 
       {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
       <Card
         title="筛选"
         description="按 KB/关键字/HTTP 状态过滤；changed=true 表示 content_hash != indexed_content_hash"
-        className="sticky top-16 z-10"
+        className="border border-border/70 bg-card/80 shadow-lg shadow-black/20 sticky top-16 z-10"
       >
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-8">
           <div className="space-y-1">

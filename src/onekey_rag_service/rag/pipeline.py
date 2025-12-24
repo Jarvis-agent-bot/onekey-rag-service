@@ -5,6 +5,7 @@ import re
 import time
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -219,6 +220,17 @@ def _build_context(chunks: list[RetrievedChunk], *, max_chars: int = 12_000) -> 
     return "\n\n".join(parts).strip()
 
 
+def _safe_render(template: str, variables: dict[str, Any]) -> str:
+    class _SafeDict(dict):
+        def __missing__(self, key: str):
+            return ""
+
+    try:
+        return (template or "").format_map(_SafeDict(**variables))
+    except Exception:
+        return template or ""
+
+
 async def prepare_rag(
     session: Session,
     *,
@@ -231,6 +243,7 @@ async def prepare_rag(
     question: str,
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
+    prompt_templates: dict[str, str] | None = None,
     debug: bool = False,
     callbacks: list | None = None,
 ) -> RagPrepared:
@@ -388,7 +401,9 @@ async def prepare_rag(
     context = _build_context(topn, max_chars=settings.rag_context_max_chars)
     t_context_ms = int((time.perf_counter() - t0) * 1000)
 
-    system = "你是 OneKey 开发者文档助手。你必须严格基于提供的“文档片段”回答，不要编造。"
+    templates = prompt_templates or {}
+    default_system = "你是 OneKey 开发者文档助手。你必须严格基于提供的“文档片段”回答，不要编造。"
+    system = templates.get("system") or default_system
 
     extra = ""
     if system_instructions:
@@ -417,7 +432,7 @@ async def prepare_rag(
         "- 除代码块外，不要把短标识符单独换行。\n\n"
     )
 
-    user = (
+    default_user = (
         f"{extra}"
         f"当前问题：{question}\n\n"
         f"文档片段（可引用）：\n{context}\n\n"
@@ -429,6 +444,20 @@ async def prepare_rag(
         "3) 若文档片段包含代码/配置，请给出对应示例\n"
         "4) 注意事项/常见坑（如有）\n"
     )
+
+    user = default_user
+    if templates.get("user"):
+        user = _safe_render(
+            templates.get("user") or "",
+            {
+                "user_query": question,
+                "retrieved_context": context,
+                "formatting_rules": formatting_rules,
+                "citation_rules": citation_rules,
+                "extra": extra,
+                "workspace_id": workspace_id,
+            },
+        )
 
     messages = [
         {"role": "system", "content": system},
@@ -496,6 +525,7 @@ async def answer_with_rag(
     question: str,
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
+    prompt_templates: dict[str, str] | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
     max_tokens: int | None = None,
@@ -514,6 +544,7 @@ async def answer_with_rag(
         question=question,
         workspace_id=workspace_id,
         kb_allocations=kb_allocations,
+        prompt_templates=prompt_templates,
         debug=debug,
         callbacks=callbacks,
     )

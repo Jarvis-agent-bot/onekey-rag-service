@@ -13,11 +13,19 @@ from sqlalchemy.orm import Session
 from onekey_rag_service.config import Settings, get_settings
 from onekey_rag_service.crawler.pipeline import crawl_and_store_pages
 from onekey_rag_service.admin.bootstrap import ensure_default_entities
-from onekey_rag_service.db import create_all_safe, create_db_engine, create_session_factory, ensure_admin_schema, ensure_indexes, ensure_pgvector_extension
+from onekey_rag_service.db import (
+    create_all_safe,
+    create_db_engine,
+    create_session_factory,
+    ensure_admin_schema,
+    ensure_indexes,
+    ensure_pgvector_extension,
+)
 from onekey_rag_service.indexing.pipeline import index_pages_to_chunks
 from onekey_rag_service.logging import configure_logging
-from onekey_rag_service.models import Base, Job
+from onekey_rag_service.models import Base, FileBatch, FileItem, Job, Page
 from onekey_rag_service.rag.embeddings import build_embeddings_provider
+from onekey_rag_service.utils import sha256_text
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +135,175 @@ def _handle_index_job(
     )
 
 
+def _handle_file_process_job(
+    session: Session,
+    *,
+    settings: Settings,
+    payload: dict[str, Any],
+    embeddings,
+    embedding_model_name: str,
+) -> dict:
+    """
+    读取文件内容（文本类为主），生成/更新页面并索引为 Chunks；不可读的文件标记失败。
+    """
+
+    batch_id = str(payload.get("batch_id") or "")
+    if not batch_id:
+        raise RuntimeError("batch_id 缺失")
+    batch = session.get(FileBatch, batch_id)
+    if not batch:
+        raise RuntimeError("file batch not found")
+
+    items = session.scalars(select(FileItem).where(FileItem.batch_id == batch_id).order_by(FileItem.created_at.asc())).all()
+    total = len(items)
+    done = 0
+    failed = 0
+    indexed_pages = 0
+    indexed_chunks = 0
+    failed_files: list[dict[str, Any]] = []
+    logs: list[dict[str, Any]] = []
+
+    batch.status = "processing"
+    batch.error = ""
+    batch.updated_at = _utcnow()
+    session.commit()
+
+    for it in items:
+        try:
+            text = _extract_text(it.storage_path, filename=it.filename)
+            if not text:
+                raise RuntimeError("empty file content")
+            logs.append({"file_id": it.id, "filename": it.filename, "status": "parsed"})
+
+            url = f"file://{batch_id}/{it.filename}"
+            page = session.scalar(
+                select(Page).where(
+                    Page.workspace_id == batch.workspace_id,
+                    Page.kb_id == batch.kb_id,
+                    Page.url == url,
+                )
+            )
+            now = _utcnow()
+            if not page:
+                page = Page(
+                    workspace_id=batch.workspace_id,
+                    kb_id=batch.kb_id,
+                    source_id=batch.id,
+                    url=url,
+                    title=it.filename,
+                    content_markdown=text,
+                    content_hash=sha256_text(text),
+                    indexed_content_hash="",
+                    http_status=200,
+                    last_crawled_at=now,
+                    meta={"batch_id": batch_id, "filename": it.filename},
+                )
+                session.add(page)
+            else:
+                page.title = it.filename
+                page.content_markdown = text
+                page.content_hash = sha256_text(text)
+                page.http_status = 200
+                page.last_crawled_at = now
+                page.meta = {"batch_id": batch_id, "filename": it.filename}
+            it.status = "completed"
+            it.error = ""
+            done += 1
+            logs.append({"file_id": it.id, "filename": it.filename, "status": "indexed"})
+        except Exception as e:
+            it.status = "failed"
+            it.error = str(e)
+            failed += 1
+            failed_files.append({"id": it.id, "filename": it.filename, "error": it.error})
+            logs.append({"file_id": it.id, "filename": it.filename, "status": "failed", "error": it.error})
+        it.updated_at = _utcnow()
+        session.commit()
+
+    try:
+        index_res = index_pages_to_chunks(
+            session,
+            embeddings=embeddings,
+            embedding_model_name=embedding_model_name,
+            workspace_id=batch.workspace_id,
+            kb_id=batch.kb_id,
+            chunk_max_chars=settings.chunk_max_chars,
+            chunk_overlap_chars=settings.chunk_overlap_chars,
+            mode="incremental",
+        )
+        indexed_pages = int(index_res.get("pages") or 0)
+        indexed_chunks = int(index_res.get("chunks") or 0)
+    except Exception as e:
+        failed_files.append({"id": "indexing", "filename": "*", "error": f"index failed: {e}"})
+        logs.append({"file_id": "*", "status": "index_failed", "error": str(e)})
+
+    batch.status = "failed" if failed and failed == total else ("completed" if failed == 0 else "partial")
+    batch.error = "" if failed == 0 else f"{failed} files failed"
+    batch.updated_at = _utcnow()
+    session.commit()
+
+    return {
+        "total": total,
+        "done": done,
+        "failed": failed,
+        "running": 0,
+        "batch_id": batch_id,
+        "failed_files": failed_files,
+        "indexed_pages": indexed_pages,
+        "indexed_chunks": indexed_chunks,
+        "logs": logs,
+    }
+
+
+def _extract_text(path: str, *, filename: str) -> str:
+    """
+    尝试多种格式解析文本：
+    - 扩展名 txt/md/csv/html：按文本解码（utf-8/utf-16/latin-1）。
+    - pdf/docx：若依赖缺失则抛出解析失败。
+    """
+
+    if not os.path.exists(path):
+        raise RuntimeError("file not found")
+    ext = (filename or "").split(".")[-1].lower()
+    if ext in {"txt", "md", "markdown", "csv", "html", "htm"}:
+        with open(path, "rb") as f:
+            raw = f.read()
+        for enc in ("utf-8", "utf-16", "latin-1"):
+            try:
+                return raw.decode(enc).strip()
+            except Exception:
+                continue
+        raise RuntimeError("decode failed (text)")
+
+    if ext == "pdf":
+        try:
+            import pdfplumber  # type: ignore
+        except Exception:
+            raise RuntimeError("pdf parser not installed (pdfplumber)")
+        text_parts = []
+        try:
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages:
+                    text_parts.append(page.extract_text() or "")
+        except Exception as e:
+            raise RuntimeError(f"pdf parse failed: {e}")
+        return "\n".join(text_parts).strip()
+
+    if ext in {"docx"}:
+        try:
+            import docx  # type: ignore
+        except Exception:
+            raise RuntimeError("docx parser not installed (python-docx)")
+        try:
+            doc = docx.Document(path)
+            text_parts = [p.text for p in doc.paragraphs if p.text]
+            return "\n".join(text_parts).strip()
+        except Exception as e:
+            raise RuntimeError(f"docx parse failed: {e}")
+
+    # 其他格式暂不支持
+    raise RuntimeError(f"unsupported file type: {ext}")
+
+
 async def _process_job(
     session_factory,
     *,
@@ -169,6 +346,14 @@ async def _process_job(
                     embedding_model_name=embedding_model_name,
                     payload=payload,
                 )
+            elif job.type == "file_process":
+                progress = _handle_file_process_job(
+                    session,
+                    settings=settings,
+                    payload=payload,
+                    embeddings=embeddings,
+                    embedding_model_name=embedding_model_name,
+                )
             else:
                 raise RuntimeError(f"未知 job.type: {job.type}")
     except Exception as e:
@@ -191,6 +376,7 @@ async def _process_job(
             else:
                 job.status = "failed"
                 job.finished_at = _utcnow()
+                job.progress = _merge_job_meta(progress or {}, worker_id=worker_id, attempts=attempts)
         else:
             job.status = "succeeded"
             job.finished_at = _utcnow()

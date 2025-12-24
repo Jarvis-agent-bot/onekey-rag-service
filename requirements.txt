@@ -1,5 +1,6 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
 
 pydantic>=2.6.0
 pydantic-settings>=2.2.0
@@ -22,3 +23,5 @@ langfuse>=2.38.0
 
 # cross-encoder reranker（bge-reranker）
 sentence-transformers>=3.0.0
+pdfplumber>=0.11.0
+python-docx>=1.1.0

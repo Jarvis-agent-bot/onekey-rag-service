@@ -130,16 +130,22 @@ export function QualityPage() {
   }, [q.data?.tokens_by_model]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-lg font-semibold">质量与可观测</div>
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground">时间范围</div>
-          <Select value={range} onChange={(e) => setRange(e.target.value)}>
-            <option value="24h">24h</option>
-            <option value="7d">7d</option>
-            <option value="30d">30d</option>
-          </Select>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.14em] text-primary">Quality</div>
+            <div className="text-2xl font-semibold text-foreground">质量与可观测</div>
+            <div className="text-sm text-muted-foreground">按应用/知识库查看命中率、错误率、延迟与 Token，支持范围切换。</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-muted-foreground">时间范围</div>
+            <Select value={range} onChange={(e) => setRange(e.target.value)}>
+              <option value="24h">24h</option>
+              <option value="7d">7d</option>
+              <option value="30d">30d</option>
+            </Select>
+          </div>
         </div>
       </div>
 

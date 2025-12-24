@@ -79,8 +79,29 @@ export function AuditPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <div className="text-lg font-semibold">审计日志</div>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.14em] text-primary">Audit</div>
+            <div className="text-2xl font-semibold text-foreground">审计日志</div>
+            <div className="text-sm text-muted-foreground">记录操作人、动作、目标对象；支持时间范围与关键字过滤。</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-muted-foreground">时间范围</div>
+            <Select
+              value={dateRange}
+              onChange={(e) => {
+                updateFilter([["date_range", e.target.value]]);
+              }}
+            >
+              <option value="24h">24h</option>
+              <option value="7d">7d</option>
+              <option value="30d">30d</option>
+            </Select>
+          </div>
+        </div>
+      </div>
 
       <Card title="筛选" description="用于追踪关键操作：删除/触发任务/修改配置等">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
@@ -215,4 +236,3 @@ export function AuditPage() {
     </div>
   );
 }
-

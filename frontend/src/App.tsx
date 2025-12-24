@@ -601,6 +601,27 @@ export default function App() {
     );
   }
 
+  function StreamingIndicator() {
+    return (
+      <div className="mt-3 inline-flex items-center gap-3 rounded-2xl border border-cyan-400/25 bg-gradient-to-r from-cyan-500/10 via-white/5 to-amber-300/10 px-3 py-2 text-xs text-cyan-50 shadow-[0_18px_50px_rgba(0,0,0,0.38)] backdrop-blur">
+        <div className="relative flex h-10 w-10 items-center justify-center">
+          <div className="absolute inset-0 rounded-full bg-cyan-400/25 blur-lg" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 ring-1 ring-cyan-300/40">
+            <div className="h-5 w-5 rounded-full bg-gradient-to-br from-cyan-300 via-white to-amber-200 animate-spin-slow shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" />
+          </div>
+        </div>
+        <div className="leading-tight">
+          <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/80">正在生成</div>
+          <div className="flex items-center gap-1 text-base font-semibold text-cyan-50 typing-dots">
+            <span>•</span>
+            <span>•</span>
+            <span>•</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function IconButton({
     label,
     disabled,
@@ -618,9 +639,9 @@ export default function App() {
       <button
         type="button"
         className={[
-          "inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-slate-200",
+          "inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-white/5 text-slate-200 transition-all duration-200",
           active ? "border-blue-400/60 bg-blue-500/15 text-blue-100" : "border-white/10 hover:bg-white/10",
-          disabled ? "cursor-not-allowed opacity-40" : "",
+          disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-[1px]",
         ].join(" ")}
         aria-label={label}
         title={label}
@@ -714,29 +735,35 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col bg-[#1f232a] text-slate-100">
-      <div className="flex items-center justify-between px-5 pb-3 pt-4">
-        <div className="text-sm font-semibold text-white">Ask AI</div>
-        <button
-          type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
-          aria-label="关闭"
-          title="关闭"
-          onClick={requestClose}
-        >
-          <X size={18} />
-        </button>
+    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0c1220] text-slate-100">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.18),transparent_32%),radial-gradient(circle_at_78%_10%,rgba(251,191,36,0.16),transparent_30%),radial-gradient(circle_at_42%_82%,rgba(14,165,233,0.12),transparent_26%)] blur-3xl" />
+        <div className="absolute inset-0 opacity-60 bg-[linear-gradient(120deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.07)_100%)] animate-sheen" />
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-x-hidden overflow-y-auto px-5 py-5"
-        onScroll={() => {
-          const el = scrollRef.current;
-          if (!el) return;
-          autoScrollRef.current = isAtBottom(el);
-        }}
-      >
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="flex items-center justify-between px-5 pb-3 pt-4">
+          <div className="text-sm font-semibold text-white">Ask AI</div>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition-all duration-200 hover:-translate-y-[1px] hover:bg-white/10"
+            aria-label="关闭"
+            title="关闭"
+            onClick={requestClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-x-hidden overflow-y-auto px-5 py-5"
+          onScroll={() => {
+            const el = scrollRef.current;
+            if (!el) return;
+            autoScrollRef.current = isAtBottom(el);
+          }}
+        >
         {errorBanner ? (
           <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
             {errorBanner}
@@ -771,7 +798,7 @@ export default function App() {
         ) : (
           <div className="divide-y divide-white/5">
             {messages.map((m) => (
-              <div key={m.localId} className="py-5">
+              <div key={m.localId} className="py-5 animate-float-in">
                 <div className="flex gap-3">
                   <Avatar role={m.role} />
                   <div className="min-w-0 flex-1">
@@ -813,7 +840,13 @@ export default function App() {
                     )}
 
                     {m.role === "assistant" && m.status === "streaming" && !m.content ? (
-                      <div className="mt-2 text-xs text-slate-400">正在生成…</div>
+                      <StreamingIndicator />
+                    ) : null}
+
+                    {m.role === "assistant" && m.status === "streaming" && m.content ? (
+                      <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
+                        <div className="absolute inset-0 shimmer-bar" />
+                      </div>
                     ) : null}
 
                     {m.role === "assistant" && m.status === "error" ? (
@@ -903,15 +936,16 @@ export default function App() {
               className="min-h-[44px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"
               rows={1}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  onSend().catch(() => { });
-                }
+                if (e.key !== "Enter" || e.shiftKey) return;
+                const nativeEvent = e.nativeEvent as KeyboardEvent;
+                if (nativeEvent.isComposing || nativeEvent.keyCode === 229) return; // 中文输入法时不触发发送
+                e.preventDefault();
+                onSend().catch(() => { });
               }}
             />
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-slate-100 hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-slate-100 transition-all duration-200 hover:-translate-y-[1px] hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="发送"
               title="发送"
               disabled={isStreaming || !input.trim()}
@@ -951,5 +985,6 @@ export default function App() {
         </div>
       </div>
     </div>
+  </div>
   );
 }

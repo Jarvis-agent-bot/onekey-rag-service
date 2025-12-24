@@ -12,6 +12,7 @@ import { FilterChips, type FilterChip } from "../components/FilterChips";
 import { TraceLink } from "../components/TraceLink";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
+import { Line, LineChart, Tooltip, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from "recharts";
 
 type RetrievalEventsResp = {
   page: number;
@@ -28,6 +29,24 @@ type RetrievalEventsResp = {
     created_at: string | null;
     has_error: boolean;
     error_code: string;
+  }>;
+};
+
+type MetricsResp = {
+  date_range: string;
+  degraded: boolean;
+  container: Record<string, unknown>;
+  net?: Record<string, unknown> | null;
+  disk?: Record<string, unknown> | null;
+  host?: Record<string, unknown> | null;
+  timeseries?: Array<{
+    ts: string;
+    cpu_percent?: number | null;
+    mem_used_pct?: number | null;
+    net_rx_bytes?: number | null;
+    net_tx_bytes?: number | null;
+    disk_read_bytes?: number | null;
+    disk_write_bytes?: number | null;
   }>;
 };
 
@@ -51,6 +70,7 @@ export function ObservabilityPage() {
   const errorCode = (sp.get("error_code") || "").trim();
   const hasError = (sp.get("has_error") || "").trim(); // "", "true", "false"
   const dateRange = (sp.get("date_range") || "24h").trim() || "24h";
+  const metricsRange = (sp.get("metrics_range") || "24h").trim() || "24h";
 
   function updateFilter(nextKV: Array<[string, string | null]>) {
     const next = new URLSearchParams(sp);
@@ -98,9 +118,165 @@ export function ObservabilityPage() {
     enabled: !!workspaceId,
   });
 
+  const metrics = useQuery({
+    queryKey: ["metrics", workspaceId, metricsRange],
+    queryFn: () => apiFetch<MetricsResp>(`/admin/api/workspaces/${workspaceId}/metrics?date_range=${metricsRange}`),
+    enabled: !!workspaceId,
+  });
+
+  const timeseries = metrics.data?.timeseries || [];
+  const cpuSeries = timeseries.map((p) => ({ ts: p.ts, cpu: p.cpu_percent ?? null }));
+  const memSeries = timeseries.map((p) => ({ ts: p.ts, mem: p.mem_used_pct ?? null }));
+  const netSeries = timeseries.map((p) => ({ ts: p.ts, rx: p.net_rx_bytes ?? null, tx: p.net_tx_bytes ?? null }));
+  const diskSeries = timeseries.map((p) => ({ ts: p.ts, r: p.disk_read_bytes ?? null, w: p.disk_write_bytes ?? null }));
+  const latest = timeseries.length ? timeseries[timeseries.length - 1] : null;
+  const cpuLatest = latest?.cpu_percent ?? null;
+  const memLatest = latest?.mem_used_pct ?? null;
+
   return (
-    <div className="space-y-4">
-      <div className="text-lg font-semibold">观测（Retrieval Events）</div>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.14em] text-primary">Observability</div>
+            <div className="text-2xl font-semibold text-foreground">观测 / 请求与资源</div>
+            <div className="text-sm text-muted-foreground">按请求事件检索 + 容器资源曲线（支持 1h / 24h / 7d）。</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-muted-foreground">事件时间窗</div>
+            <Select
+              value={dateRange}
+              onChange={(e) => {
+                updateFilter([["date_range", e.target.value]]);
+              }}
+            >
+              <option value="1h">1h</option>
+              <option value="24h">24h</option>
+              <option value="7d">7d</option>
+            </Select>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">CPU（容器）</div>
+            <div className="text-2xl font-semibold text-foreground">{cpuLatest != null ? `${Math.round(cpuLatest)}%` : "-"}</div>
+            <div className="text-[11px] text-muted-foreground">来自 /metrics 快照</div>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">内存占用</div>
+            <div className="text-2xl font-semibold text-foreground">{memLatest != null ? `${Math.round(memLatest)}%` : "-"}</div>
+            <div className="text-[11px] text-muted-foreground">mem_used_pct</div>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">网络 RX/TX 最新</div>
+            <div className="text-sm font-mono text-foreground">
+              {latest?.net_rx_bytes != null ? Math.round(latest.net_rx_bytes / 1024) : "-"} /{" "}
+              {latest?.net_tx_bytes != null ? Math.round(latest.net_tx_bytes / 1024) : "-"} KB
+            </div>
+            <div className="text-[11px] text-muted-foreground">累积近似值</div>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">磁盘 IO 最新</div>
+            <div className="text-sm font-mono text-foreground">
+              {latest?.disk_read_bytes != null ? Math.round(latest.disk_read_bytes / 1024) : "-"} /{" "}
+              {latest?.disk_write_bytes != null ? Math.round(latest.disk_write_bytes / 1024) : "-"} KB
+            </div>
+            <div className="text-[11px] text-muted-foreground">累积近似值</div>
+          </div>
+        </div>
+      </div>
+
+      <Card
+        title="资源指标（容器视角为主）"
+        description="容器 cgroup；若配置 NODE_EXPORTER_BASE_URL，则返回宿主机占位；当前窗口采样点绘制。"
+        className="border border-border/70 bg-card/80 shadow-lg shadow-black/20"
+      >
+        {metrics.error ? <ApiErrorBanner error={metrics.error} /> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">时间范围</div>
+            <Select
+              value={metricsRange}
+              onChange={(e) => {
+                const next = new URLSearchParams(sp);
+                next.set("metrics_range", e.target.value);
+                setSp(next, { replace: true });
+              }}
+            >
+              <option value="1h">1h</option>
+              <option value="24h">24h</option>
+              <option value="7d">7d</option>
+            </Select>
+          </div>
+          {metrics.data?.degraded ? <div className="text-xs text-amber-500">仅容器指标可用或采集失败</div> : null}
+          {metrics.data?.host && (metrics.data.host as any).error ? (
+            <div className="text-xs text-muted-foreground">宿主机：{String((metrics.data.host as any).error)}</div>
+          ) : null}
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="text-sm font-semibold">CPU</div>
+            <div className="h-36">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={cpuSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="ts" hide />
+                  <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="cpu" stroke="#b5ff66" dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="text-sm font-semibold">内存</div>
+            <div className="h-36">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={memSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="ts" hide />
+                  <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="mem" stroke="#8bd1ff" dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="text-sm font-semibold">网络 RX/TX</div>
+            <div className="h-36">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={netSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="ts" hide />
+                  <YAxis tickFormatter={(v) => `${Math.round((v || 0) / 1024)}KB`} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="rx" stroke="#7dd3fc" dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="tx" stroke="#f59e0b" dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="text-sm font-semibold">磁盘 IO</div>
+            <div className="h-36">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={diskSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="ts" hide />
+                  <YAxis tickFormatter={(v) => `${Math.round((v || 0) / 1024)}KB`} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="r" stroke="#22c55e" dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="w" stroke="#ef4444" dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 text-xs text-muted-foreground font-mono">
+          快速查看：{JSON.stringify(metrics.data?.container?.summary || {})}
+        </div>
+      </Card>
 
       {list.error ? <ApiErrorBanner error={list.error} /> : null}
 

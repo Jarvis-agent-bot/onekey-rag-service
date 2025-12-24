@@ -109,6 +109,7 @@ class Settings(BaseSettings):
 
     # ========== Observability（仅存检索元数据）==========
     retrieval_events_enabled: bool = Field(default=True, alias="RETRIEVAL_EVENTS_ENABLED")
+    node_exporter_base_url: str | None = Field(default=None, alias="NODE_EXPORTER_BASE_URL")
 
     # ========== Langfuse（可选：上报 LangChain 回调）==========
     langfuse_enabled: bool = Field(default=True, alias="LANGFUSE_ENABLED")

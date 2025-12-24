@@ -219,7 +219,7 @@ tracer.log_event(
 
 - Prometheus：Langfuse 镜像提供 metrics（参考官方文档，通常通过反向代理暴露 `/metrics`），请将 endpoint 加入现有 Prom 抓取列表并加上 job 标签（env/instance）。
 - 告警：根据 Langfuse metrics 或 UI 配置接口错误率/队列长度/请求延迟等规则；上游可接企业微信/Slack/Webhook。
-- 访问控制：在反向代理层（Caddy/Nginx/API Gateway）给 `/langfuse` 加 IP 白名单和 TLS，`NEXTAUTH_SECRET` 必填；按环境拆分不同 `LANGFUSE_API_KEY` 并限制只注入后台服务。
+- 访问控制：在反向代理层（Nginx/Ingress/API Gateway）给 `/langfuse` 加 IP 白名单和 TLS，`NEXTAUTH_SECRET` 必填；按环境拆分不同 `LANGFUSE_API_KEY` 并限制只注入后台服务。
 
 ### 4.4 备份与回滚
 

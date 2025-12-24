@@ -157,45 +157,80 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold">总览</div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            workspace <span className="font-mono">{workspaceId}</span>
-            <span className="mx-2">·</span>
-            最近抓取 <span className="font-mono">{data.pages.last_crawled_at || "-"}</span>
-            <span className="mx-2">·</span>
-            最后更新 <span className="font-mono">{lastUpdated || "-"}</span>
+      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.14em] text-primary">Dashboard</div>
+            <div className="text-2xl font-semibold text-foreground">总览</div>
+            <div className="text-sm text-muted-foreground">
+              workspace <span className="font-mono">{workspaceId}</span>
+              <span className="mx-2 text-border">·</span>
+              最近抓取 <span className="font-mono">{data.pages.last_crawled_at || "-"}</span>
+              <span className="mx-2 text-border">·</span>
+              最后更新 <span className="font-mono">{lastUpdated || "-"}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={refreshing} onClick={() => void refreshAll()}>
+              {refreshing ? "刷新中..." : "刷新"}
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/quality">查看质量</Link>
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={refreshing}
-            onClick={() => void refreshAll()}
-          >
-            {refreshing ? "刷新中..." : "刷新"}
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/quality">查看质量</Link>
-          </Button>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">24h 请求</div>
+            <div className="text-2xl font-semibold text-foreground">{overall ? formatInt(overall.requests) : "-"}</div>
+            <div className="text-[11px] text-muted-foreground">命中率 {overall ? pct(overall.hit_ratio) : "-"} · 错误率 {overall ? pct(overall.error_ratio) : "-"}</div>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">Embedding 覆盖率</div>
+            <div className="text-2xl font-semibold text-foreground">{Math.round((data.chunks.embedding_coverage || 0) * 100)}%</div>
+            <div className="text-[11px] text-muted-foreground">
+              {formatInt(data.chunks.with_embedding)}/{formatInt(data.chunks.total)} chunks
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">任务运行中 / 失败</div>
+            <div className="text-2xl font-semibold text-foreground">
+              {formatInt(jobsRunning)} / <span className="text-destructive">{formatInt(jobsFailed)}</span>
+            </div>
+            <div className="text-[11px] text-muted-foreground">排队 {formatInt(jobsQueued)} · 成功 {formatInt(jobsSucceeded)}</div>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+            <div className="text-xs text-muted-foreground">系统资源（容器快照）</div>
+            <div className="text-2xl font-semibold text-foreground">
+              {system.data?.system?.cpu_percent != null ? `${system.data.system.cpu_percent}% CPU` : "CPU -"}{" "}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              内存{" "}
+              {system.data?.system?.memory?.used_percent != null
+                ? `${Math.round(system.data.system.memory.used_percent)}%`
+                : "-"}
+              ，磁盘{" "}
+              {system.data?.system?.disk_root?.used_bytes != null && system.data?.system?.disk_root?.total_bytes
+                ? `${Math.round((system.data.system.disk_root.used_bytes / Math.max(1, system.data.system.disk_root.total_bytes)) * 100)}%`
+                : "-"}
+            </div>
+          </div>
         </div>
       </div>
 
       {healthStatus && healthStatus !== "ok" ? (
-        <UiCard className="border-red-200 bg-red-50 text-red-950">
+        <UiCard className="border-destructive/60 bg-destructive/10 text-destructive-foreground">
           <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-4 w-4" />
               <div className="text-sm font-medium">健康状态异常</div>
             </div>
-            <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-red-950/80 hover:bg-red-100">
+            <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-destructive-foreground hover:bg-destructive/20">
               <Link to="/settings">去处理</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
-            <div className="text-xs text-red-950/70">
+            <div className="text-xs text-destructive-foreground/80">
               status=<span className="font-mono">{healthStatus}</span>（建议优先检查数据库/索引/配置）
             </div>
           </CardContent>
@@ -203,18 +238,18 @@ export function DashboardPage() {
       ) : null}
 
       {jobsFailed > 0 ? (
-        <UiCard className="border-amber-200 bg-amber-50 text-amber-950">
+        <UiCard className="border-amber-400/60 bg-amber-500/10 text-amber-50">
           <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <div className="flex items-center gap-2">
               <ListChecks className="h-4 w-4" />
               <div className="text-sm font-medium">存在失败任务</div>
             </div>
-            <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-950/80 hover:bg-amber-100">
+            <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-100 hover:bg-amber-400/20">
               <Link to="/jobs?status=failed">去处理</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
-            <div className="text-xs text-amber-950/70">
+            <div className="text-xs text-amber-100/80">
               failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（点击跳转到任务列表查看详情）
             </div>
           </CardContent>
@@ -222,24 +257,24 @@ export function DashboardPage() {
       ) : null}
 
       {alerts.isLoading ? null : topAlerts.length ? (
-        <UiCard className="border-amber-200 bg-amber-50 text-amber-950">
+        <UiCard className="border-amber-400/60 bg-amber-500/10 text-amber-50">
           <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-4 w-4" />
               <div className="text-sm font-medium">告警（最近 24h）</div>
             </div>
-            <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-950/80 hover:bg-amber-100">
+            <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-100 hover:bg-amber-400/20">
               <Link to="/quality">去处理</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {topAlerts.map((a) => (
-              <div key={a.code} className="rounded-md border border-amber-200 bg-white/70 p-3">
+              <div key={a.code} className="rounded-md border border-border/70 bg-background/60 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium">{a.title}</div>
-                  <span className="font-mono text-xs text-amber-950/70">{a.severity}</span>
+                  <div className="font-medium text-foreground">{a.title}</div>
+                  <span className="font-mono text-xs text-muted-foreground">{a.severity}</span>
                 </div>
-                <div className="mt-1 text-xs text-amber-950/70">{a.detail}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{a.detail}</div>
               </div>
             ))}
           </CardContent>

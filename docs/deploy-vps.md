@@ -10,9 +10,9 @@
 
 - 对外入口：`https://exwxyzi.cn`
 - 服务端口：VPS 只对公网开放 `22/80/443`
-- 反向代理：Caddy 自动申请/续期 HTTPS 证书
+- 反向代理：Nginx 终止 TLS + 反代（使用 Certbot 自动申请/续期证书）
 - 安全加固（可选）：限制 `/admin/*` 仅内网/办公网/VPN 访问（或额外加 BasicAuth 门禁）
-- 容器编排：`postgres(pgvector) + api + worker + caddy`
+- 容器编排：`postgres(pgvector) + api + worker`（网关由宿主机 Nginx 承担）
 
 ---
 
@@ -92,6 +92,15 @@ docker ps
 ```
 
 > 后续如果你切换到 `rag` 用户执行，所有路径和命令保持一致即可。
+
+### 3.4 安装 Nginx + Certbot（TLS 自动续期）
+
+```bash
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+sudo systemctl enable --now nginx
+```
+
+> 如果已有公司统一的入口层/证书管理，可跳过本节并按现有流程配置证书。
 
 ---
 
@@ -174,57 +183,53 @@ DATABASE_URL=postgresql+psycopg2://postgres:请替换为强密码@postgres:5432/
 
 ---
 
-## 6. VPS：生产用 Compose + Caddy（推荐）
+## 6. VPS：生产用 Compose + Nginx（推荐）
 
-本仓库默认的 `docker-compose.yml` 已包含生产所需服务（api/worker/postgres/langfuse/langfuse-redis）。生产部署可直接使用该文件，不需要额外的 compose 示例；80/443 由外部 Nginx/Caddy 反向代理并终止 TLS。
+本仓库默认的 `docker-compose.yml` 已包含生产所需服务（api/worker/postgres/langfuse/langfuse-redis）。生产部署使用宿主机 Nginx 终止 TLS 并反代到容器（80/443 暴露给公网，应用端口仅暴露给本机或内部网络）。
 
 后台管理说明：
 
 - Admin UI：`https://YOUR_DOMAIN/admin/ui/#/login`（使用应用层 JWT 登录）
 - Admin API：`/admin/api/*`（需要 `Authorization: Bearer <token>`）
 
-### 6.1 写入 `deploy/Caddyfile`
+### 6.1 写入 `deploy/nginx.conf`
 
 ```bash
 cd /opt/onekey-rag-service
 mkdir -p deploy
-cp deploy/Caddyfile.example deploy/Caddyfile
+cp deploy/nginx.conf.example deploy/nginx.conf
+nano deploy/nginx.conf   # 替换域名、证书路径、反代端口
 ```
 
-`deploy/Caddyfile.example` 示例（关键段落说明如下）：
+`deploy/nginx.conf.example` 示例（关键段落说明如下）：
 
-```caddyfile
-your-domain.com {
-  encode zstd gzip
+- `your-domain.com`：替换为你的域名；确保 DNS 已指向服务器。
+- 证书路径：示例为 Certbot 默认路径，可按实际修改。
+- `location /langfuse/`：把前缀反代到 Langfuse（默认宿主机 3000）。
+- `location /`：其余路径反代到主 API（默认宿主机 8000），关闭 `proxy_buffering` 以支持流式/SSE。
+- 可选：在 `/admin/` 段落开启 BasicAuth 或 IP 白名单。
 
-  @admin path /admin/*
-  basicauth @admin {
-    user replace-with-username
-    # 使用 caddy hash-password 生成
-  }
+把配置安装到系统 Nginx，并检查：
 
-  handle_path /langfuse/* {
-    reverse_proxy langfuse:3000
-  }
-
-  handle {
-    reverse_proxy api:8000
-  }
-}
+```bash
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/onekey-rag.conf
+sudo ln -sf /etc/nginx/sites-available/onekey-rag.conf /etc/nginx/sites-enabled/onekey-rag.conf
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-- `your-domain.com`：替换为你的域名；如需自动 TLS，确保 DNS 已指向服务器，Caddy 会自动申请证书。
-- `basicauth`：为后台 `/admin/*` 加一道 BasicAuth 门禁，使用 `caddy hash-password --plaintext <pwd>` 生成哈希，避免明文密码。
-- `handle_path /langfuse/*`：将 `/langfuse/*` 前缀反代到 `langfuse:3000`（compose 网络内的服务名和端口），可在网关层再做 IP 白名单。
-- `handle`：其余路径反代到主 API `api:8000`。
-- `encode zstd gzip`：启用压缩。
+> compose 中已将 api/langfuse 端口绑定到 `127.0.0.1`（仅宿主机可访问），Postgres 只通过 `expose` 提供内部访问，不对公网开放。如需临时远程排障数据库，可按需做 SSH 隧道或临时端口映射，完毕后记得关闭。
 
-与 Nginx 的差异（简述）：
-- Caddy 自动获取/续期 TLS 证书、配置更简洁（尤其反代 + HTTPS 场景），适合“快速上线”。
-- Nginx 配置更细粒度、生态丰富，适合复杂流量治理（限流/灰度/更复杂的缓存策略）。
-- 若已在生产使用 Nginx，可用等价的 `location /langfuse/` 和 `location /` 反代配置，逻辑相同；否则 Caddy 是更省事的默认选择。
+### 6.2 申请/续期证书（使用 Certbot）
 
-### 6.2 使用主 `docker-compose.yml`
+```bash
+sudo certbot --nginx -d YOUR_DOMAIN -m YOUR_EMAIL --agree-tos --redirect
+sudo systemctl reload nginx
+```
+
+> Certbot 会自动写入/更新 SSL 配置并定期续期。若使用自签名或已有证书，直接替换 Nginx 配置中的证书路径即可。
+
+### 6.3 使用主 `docker-compose.yml`
 
 ```bash
 docker compose up -d --build

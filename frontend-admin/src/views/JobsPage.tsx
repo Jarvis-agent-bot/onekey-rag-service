@@ -9,6 +9,7 @@ import { Select } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Textarea } from "../components/ui/textarea";
 import { Card } from "../components/Card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Pagination } from "../components/Pagination";
 import { EmptyState } from "../components/EmptyState";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
@@ -32,6 +33,8 @@ type JobsResp = {
     app_id: string;
     source_id: string;
     progress: Record<string, unknown>;
+    logs?: Array<Record<string, unknown>>;
+    subtasks?: Array<{ id: string; filename?: string; size_bytes?: number; status?: string; error?: string }>;
     error: string;
     started_at: string | null;
     finished_at: string | null;
@@ -82,6 +85,7 @@ export function JobsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [sp, setSp] = useSearchParams();
+  const [tab, setTab] = useState("list");
 
   const kbs = useQuery({
     queryKey: ["kbs", workspaceId],
@@ -277,206 +281,35 @@ export function JobsPage() {
   const actionError = triggerCrawl.error || triggerIndex.error || requeue.error || cancel.error;
 
   return (
-    <div className="space-y-4">
-      <div className="text-lg font-semibold">任务中心</div>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.14em] text-primary">Task Center</div>
+            <div className="text-2xl font-semibold text-foreground">任务中心</div>
+            <div className="text-sm text-muted-foreground">分组查看抓取/索引/文件处理任务，带进度与日志。</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setTab("actions")}>
+              触发新任务
+            </Button>
+            <Button variant="outline" onClick={() => jobsQuery.refetch()}>
+              刷新列表
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {actionError ? <ApiErrorBanner error={actionError} /> : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card
-          title="触发抓取（crawl）"
-          description="sitemap 优先，失败自动降级为 seed_urls；可用输入覆盖 DataSource.config"
-          actions={
-            <Button variant="outline" size="sm" onClick={() => navigate("/kbs")} title="去管理数据源">
-              管理 KB/Source
-            </Button>
-          }
-        >
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">KB</div>
-                <Select
-                  value={crawlKbId}
-                  onChange={(e) => setCrawlKbId(e.target.value)}
-                >
-                  {(kbs.data?.items || []).map((kb) => (
-                    <option key={kb.id} value={kb.id}>
-                      {kb.name} ({kb.id})
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">Source</div>
-                <Select
-                  value={crawlSourceId}
-                  onChange={(e) => setCrawlSourceId(e.target.value)}
-                >
-                  {(sources.data?.items || []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.id})
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">Mode</div>
-                <Select
-                  value={crawlMode}
-                  onChange={(e) => setCrawlMode(e.target.value)}
-                >
-                  <option value="full">full</option>
-                  <option value="incremental">incremental</option>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">max_pages（可选）</div>
-                <Input placeholder="例如 5000" value={maxPages} onChange={(e) => setMaxPages(e.target.value)} />
-                {maxPagesError ? <div className="text-xs text-destructive">{maxPagesError}</div> : null}
-                {maxPages.trim()
-                  ? null
-                  : configuredMaxPages != null
-                    ? <div className="text-xs text-muted-foreground">未填写时使用 Source.config.max_pages={configuredMaxPages}</div>
-                    : <div className="text-xs text-muted-foreground">未填写时使用 Source.config.max_pages（当前未配置）</div>}
-              </div>
-            </div>
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+        <TabsList className="w-full justify-start gap-2 overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-2">
+          <TabsTrigger value="list">任务列表</TabsTrigger>
+          <TabsTrigger value="actions">触发任务</TabsTrigger>
+        </TabsList>
 
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">base_url（可选）</div>
-                <Input placeholder="例如 https://developer.onekey.so/" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-                {baseUrlError ? <div className="text-xs text-destructive">{baseUrlError}</div> : null}
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">sitemap_url（可选）</div>
-                <Input placeholder="例如 https://.../sitemap.xml" value={sitemapUrl} onChange={(e) => setSitemapUrl(e.target.value)} />
-                {sitemapUrlError ? <div className="text-xs text-destructive">{sitemapUrlError}</div> : null}
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">seed_urls（可选，每行一个）</div>
-                <Textarea value={seedUrls} onChange={(e) => setSeedUrls(e.target.value)} placeholder="https://example.com/\nhttps://example.com/docs/" />
-                {seedUrlsError ? <div className="text-xs text-destructive">{seedUrlsError}</div> : null}
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">include_patterns / exclude_patterns（可选，每行一个正则）</div>
-                <div className="grid grid-cols-1 gap-2">
-                  <div className="space-y-1">
-                    <Textarea value={includePatterns} onChange={(e) => setIncludePatterns(e.target.value)} placeholder="^https://example\\.com/.*$" />
-                    {includePatternsError ? <div className="text-xs text-destructive">{includePatternsError}</div> : null}
-                  </div>
-                  <div className="space-y-1">
-                    <Textarea value={excludePatterns} onChange={(e) => setExcludePatterns(e.target.value)} placeholder="^https://example\\.com/404.*$" />
-                    {excludePatternsError ? <div className="text-xs text-destructive">{excludePatternsError}</div> : null}
-                  </div>
-                </div>
-              </div>
-          </div>
-
-            <div>
-              <ConfirmDangerDialog
-                trigger={
-                  <Button
-                    disabled={
-                      triggerCrawl.isPending || crawlFormInvalid
-                    }
-                  >
-                    {triggerCrawl.isPending ? "触发中..." : "触发抓取"}
-                  </Button>
-                }
-                title="确认触发抓取（crawl）？"
-                description={
-                  <>
-                    <div className="space-y-1">
-                      <div>
-                        KB=<span className="font-mono">{crawlKbId}</span> · Source=<span className="font-mono">{crawlSourceId}</span> · Mode=
-                        <span className="font-mono">{crawlMode}</span>
-                      </div>
-                      <div className="text-xs">
-                        max_pages=<span className="font-mono">{effectiveMaxPagesText}</span> · seed_urls=
-                        <span className="font-mono">{(parseLines(seedUrls) || []).length}</span> · include=
-                        <span className="font-mono">{(parseLines(includePatterns) || []).length}</span> · exclude=
-                        <span className="font-mono">{(parseLines(excludePatterns) || []).length}</span>
-                      </div>
-                      <div className="text-xs">
-                        提示：抓取可能产生较大请求与耗时；建议先用较小的 max_pages 试跑，确认规则无误后再扩大范围。
-                      </div>
-                    </div>
-                  </>
-                }
-                confirmLabel="继续触发"
-                confirmVariant="destructive"
-                confirmText="crawl"
-                confirmPlaceholder="输入 crawl 确认"
-                confirmDisabled={
-                  triggerCrawl.isPending || crawlFormInvalid
-                }
-                onConfirm={() => triggerCrawl.mutateAsync()}
-              />
-            </div>
-          </div>
-        </Card>
-
-        <Card title="触发建索引（index）" description="对已抓取页面执行 chunk + embedding 写入 chunks">
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">KB</div>
-                <Select
-                  value={indexKbId}
-                  onChange={(e) => setIndexKbId(e.target.value)}
-                >
-                  {(kbs.data?.items || []).map((kb) => (
-                    <option key={kb.id} value={kb.id}>
-                      {kb.name} ({kb.id})
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">Mode</div>
-                <Select
-                  value={indexMode}
-                  onChange={(e) => setIndexMode(e.target.value)}
-                >
-                  <option value="incremental">incremental</option>
-                  <option value="full">full</option>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <ConfirmDangerDialog
-                trigger={
-                  <Button disabled={triggerIndex.isPending || !indexKbId}>
-                    {triggerIndex.isPending ? "触发中..." : "触发建索引"}
-                  </Button>
-                }
-                title="确认触发建索引（index）？"
-                description={
-                  <div className="space-y-1">
-                    <div>
-                      KB=<span className="font-mono">{indexKbId}</span> · Mode=<span className="font-mono">{indexMode}</span>
-                    </div>
-                    <div className="text-xs">
-                      incremental：仅对新增/变更页面增量写入 chunks；full：对全部页面重建 chunks（可能耗时更长）。
-                    </div>
-                    <div className="text-xs">提示：建索引会产生 embedding 计算成本；建议在抓取完成后再执行。</div>
-                  </div>
-                }
-                confirmLabel="继续触发"
-                confirmVariant="destructive"
-                confirmText="index"
-                confirmPlaceholder="输入 index 确认"
-                confirmDisabled={triggerIndex.isPending || !indexKbId}
-                onConfirm={() => triggerIndex.mutateAsync()}
-              />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Card title="任务列表" description="支持按 type/status/KB 过滤；点击 ID 查看详情">
+        <TabsContent value="list">
+          <Card title="任务列表" description="支持按 type/status/知识库过滤；点击 ID 查看详情">
         <div className="grid grid-cols-1 gap-3 pb-3 md:grid-cols-2 lg:grid-cols-6">
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">type</div>
@@ -604,7 +437,7 @@ export function JobsPage() {
               <TableHead className="w-[160px]">KB</TableHead>
               <TableHead className="w-[160px]">App</TableHead>
               <TableHead className="w-[180px]">Source</TableHead>
-              <TableHead>进度</TableHead>
+              <TableHead>进度 / 明细</TableHead>
               <TableHead className="w-[170px]">开始</TableHead>
               <TableHead className="w-[170px]">结束</TableHead>
               <TableHead className="w-[260px]">操作</TableHead>
@@ -631,6 +464,30 @@ export function JobsPage() {
                   <TableCell className="font-mono text-xs">{it.source_id || "-"}</TableCell>
                   <TableCell>
                     <ProgressPill type={it.type} status={it.status} progress={it.progress} />
+                    {it.subtasks?.length ? (
+                      <div className="mt-2 rounded-md border bg-muted/40 p-2">
+                        <div className="text-[11px] text-muted-foreground">文件/子任务</div>
+                        <div className="mt-1 space-y-1">
+                          {it.subtasks.slice(0, 3).map((s) => (
+                            <div key={s.id} className="flex items-center justify-between gap-2 text-[11px] font-mono">
+                              <span className="truncate">{s.filename || s.id}</span>
+                              <span className={s.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{s.status}</span>
+                            </div>
+                          ))}
+                          {it.subtasks.length > 3 ? <div className="text-[11px] text-muted-foreground">… 共 {it.subtasks.length} 项</div> : null}
+                        </div>
+                      </div>
+                    ) : null}
+                    {it.logs?.length ? (
+                      <div className="mt-2 rounded-md border bg-muted/30 p-2 text-[11px] font-mono text-muted-foreground">
+                        {(it.logs || []).slice(0, 2).map((l, idx) => (
+                          <div key={idx} className="truncate">
+                            {JSON.stringify(l)}
+                          </div>
+                        ))}
+                        {it.logs.length > 2 ? <div>…</div> : null}
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{it.started_at || "-"}</TableCell>
                   <TableCell className="text-muted-foreground">{it.finished_at || "-"}</TableCell>
@@ -688,7 +545,175 @@ export function JobsPage() {
             setSp(next, { replace: true });
           }}
         />
-      </Card>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="actions">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card
+              title="触发抓取（网站爬虫）"
+              description="sitemap 优先，失败自动降级为 seed_urls；可用输入覆盖数据源配置"
+              actions={
+                <Button variant="outline" size="sm" onClick={() => navigate("/kbs")} title="去管理数据源">
+                  管理知识库/数据源
+                </Button>
+              }
+            >
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">知识库</div>
+                    <Select value={crawlKbId} onChange={(e) => setCrawlKbId(e.target.value)}>
+                      {(kbs.data?.items || []).map((kb) => (
+                        <option key={kb.id} value={kb.id}>
+                          {kb.name} ({kb.id})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">数据源</div>
+                    <Select value={crawlSourceId} onChange={(e) => setCrawlSourceId(e.target.value)}>
+                      {(sources.data?.items || []).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.id})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">模式</div>
+                    <Select value={crawlMode} onChange={(e) => setCrawlMode(e.target.value)}>
+                      <option value="full">full</option>
+                      <option value="incremental">incremental</option>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">max_pages（可选）</div>
+                    <Input placeholder="例如 5000" value={maxPages} onChange={(e) => setMaxPages(e.target.value)} />
+                    {maxPagesError ? <div className="text-xs text-destructive">{maxPagesError}</div> : null}
+                    {maxPages.trim() ? null : configuredMaxPages != null ? (
+                      <div className="text-xs text-muted-foreground">未填写时使用数据源 max_pages={configuredMaxPages}</div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">未填写时使用数据源默认 max_pages</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">base_url（可选）</div>
+                    <Input placeholder="例如 https://developer.onekey.so/" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+                    {baseUrlError ? <div className="text-xs text-destructive">{baseUrlError}</div> : null}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">sitemap_url（可选）</div>
+                    <Input placeholder="例如 https://.../sitemap.xml" value={sitemapUrl} onChange={(e) => setSitemapUrl(e.target.value)} />
+                    {sitemapUrlError ? <div className="text-xs text-destructive">{sitemapUrlError}</div> : null}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">seed_urls（可选，每行一个）</div>
+                    <Textarea value={seedUrls} onChange={(e) => setSeedUrls(e.target.value)} placeholder="https://example.com/\nhttps://example.com/docs/" />
+                    {seedUrlsError ? <div className="text-xs text-destructive">{seedUrlsError}</div> : null}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">include_patterns / exclude_patterns（正则）</div>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="space-y-1">
+                        <Textarea value={includePatterns} onChange={(e) => setIncludePatterns(e.target.value)} placeholder="^https://example\\.com/.*$" />
+                        {includePatternsError ? <div className="text-xs text-destructive">{includePatternsError}</div> : null}
+                      </div>
+                      <div className="space-y-1">
+                        <Textarea value={excludePatterns} onChange={(e) => setExcludePatterns(e.target.value)} placeholder="^https://example\\.com/404.*$" />
+                        {excludePatternsError ? <div className="text-xs text-destructive">{excludePatternsError}</div> : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <ConfirmDangerDialog
+                    trigger={
+                      <Button disabled={triggerCrawl.isPending || crawlFormInvalid}>{triggerCrawl.isPending ? "触发中..." : "触发抓取"}</Button>
+                    }
+                    title="确认触发抓取？"
+                    description={
+                      <>
+                        <div className="space-y-1">
+                          <div>
+                            知识库=<span className="font-mono">{crawlKbId}</span> · 数据源=<span className="font-mono">{crawlSourceId}</span> · 模式=
+                            <span className="font-mono">{crawlMode}</span>
+                          </div>
+                          <div className="text-xs">
+                            max_pages=<span className="font-mono">{effectiveMaxPagesText}</span> · seed_urls=
+                            <span className="font-mono">{(parseLines(seedUrls) || []).length}</span> · include=
+                            <span className="font-mono">{(parseLines(includePatterns) || []).length}</span> · exclude=
+                            <span className="font-mono">{(parseLines(excludePatterns) || []).length}</span>
+                          </div>
+                          <div className="text-xs">建议先小批量试跑，确认规则无误后再扩大抓取范围。</div>
+                        </div>
+                      </>
+                    }
+                    confirmLabel="继续触发"
+                    confirmVariant="destructive"
+                    confirmText="crawl"
+                    confirmPlaceholder="输入 crawl 确认"
+                    confirmDisabled={triggerCrawl.isPending || crawlFormInvalid}
+                    onConfirm={() => triggerCrawl.mutateAsync()}
+                  />
+                </div>
+              </div>
+            </Card>
+
+            <Card title="触发建索引（index）" description="对已抓取页面执行分段与向量写入">
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">知识库</div>
+                    <Select value={indexKbId} onChange={(e) => setIndexKbId(e.target.value)}>
+                      {(kbs.data?.items || []).map((kb) => (
+                        <option key={kb.id} value={kb.id}>
+                          {kb.name} ({kb.id})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">模式</div>
+                    <Select value={indexMode} onChange={(e) => setIndexMode(e.target.value)}>
+                      <option value="incremental">incremental</option>
+                      <option value="full">full</option>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <ConfirmDangerDialog
+                    trigger={<Button disabled={triggerIndex.isPending || !indexKbId}>{triggerIndex.isPending ? "触发中..." : "触发建索引"}</Button>}
+                    title="确认触发建索引？"
+                    description={
+                      <div className="space-y-1">
+                        <div>
+                          知识库=<span className="font-mono">{indexKbId}</span> · 模式=<span className="font-mono">{indexMode}</span>
+                        </div>
+                        <div className="text-xs">
+                          incremental：增量写入；full：全量重建，耗时更长。建索引会产生 embedding 成本，建议抓取完成后再执行。
+                        </div>
+                      </div>
+                    }
+                    confirmLabel="继续触发"
+                    confirmVariant="destructive"
+                    confirmText="index"
+                    confirmPlaceholder="输入 index 确认"
+                    confirmDisabled={triggerIndex.isPending || !indexKbId}
+                    onConfirm={() => triggerIndex.mutateAsync()}
+                  />
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

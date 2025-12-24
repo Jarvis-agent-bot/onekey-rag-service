@@ -4,11 +4,13 @@ import datetime as dt
 import os
 import platform
 import shutil
+import tempfile
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy import case, delete, desc, func, select, text
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +25,8 @@ from onekey_rag_service.models import (
     Chunk,
     DataSource,
     Feedback,
+    FileBatch,
+    FileItem,
     Job,
     KnowledgeBase,
     Page,
@@ -40,6 +44,9 @@ _last_sys_cpu_sample: dict[str, float] | None = None
 _last_cgroup_cpu_sample: dict[str, float] | None = None
 _last_storage_sample: dict[str, Any] | None = None
 _last_storage_sample_ts: float | None = None
+_UPLOAD_ROOT = Path(tempfile.gettempdir()) / "onekey_rag_uploads"
+_UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+_last_metrics_ts: list[dict[str, Any]] = []
 
 
 def _utcnow() -> dt.datetime:
@@ -508,6 +515,103 @@ def _compute_cpu_percents() -> dict[str, Any]:
     return out
 
 
+def _collect_container_metrics() -> dict[str, Any]:
+    """
+    容器内 cgroup + /proc 的轻量指标；不可用则返回空 dict。
+    """
+
+    cpu = _compute_cpu_percents()
+    mem = _read_meminfo_bytes()
+    rss = _read_proc_rss_bytes()
+    cgroup_limits = _read_cgroup_limits()
+    cgroup_usage = _compute_cgroup_cpu_usage(
+        limit_cores=float(cgroup_limits.get("cpu_quota_cores") or 0) if cgroup_limits else None,
+        cpuset_count=int(cgroup_limits.get("cpuset_cpu_count") or 0) if cgroup_limits else None,
+    )
+    mem_total = int(mem.get("MemTotal") or 0)
+    mem_avail = int(mem.get("MemAvailable") or 0)
+    mem_used = mem_total - mem_avail if mem_total and mem_avail else None
+    mem_used_pct = (float(mem_used) / float(mem_total) * 100.0) if (mem_used is not None and mem_total) else None
+
+    return {
+        "cpu": cpu,
+        "memory": {"meminfo": mem, "process_rss_bytes": rss},
+        "cgroup": {"limits": cgroup_limits, "usage": cgroup_usage},
+        "summary": {
+            "cpu_percent": (cgroup_usage or {}).get("usage_percent_of_limit") or (cpu.get("system") or {}).get("cpu_percent"),
+            "mem_used_pct": mem_used_pct,
+        },
+    }
+
+
+def _collect_network_io() -> dict[str, Any]:
+    rx = 0
+    tx = 0
+    try:
+        with open("/proc/net/dev", "r", encoding="utf-8") as f:
+            lines = f.readlines()[2:]
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 17:
+                continue
+            # parts[0] 带冒号
+            try:
+                rx += int(parts[1])
+                tx += int(parts[9])
+            except Exception:
+                continue
+    except Exception:
+        return {}
+    return {"rx_bytes": rx, "tx_bytes": tx}
+
+
+def _collect_disk_io() -> dict[str, Any]:
+    read_sectors = 0
+    write_sectors = 0
+    try:
+        with open("/proc/diskstats", "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 14:
+                    continue
+                try:
+                    read_sectors += int(parts[5])
+                    write_sectors += int(parts[9])
+                except Exception:
+                    continue
+    except Exception:
+        return {}
+    # 扇区大小通常 512 字节
+    return {"read_bytes_approx": read_sectors * 512, "write_bytes_approx": write_sectors * 512}
+
+
+def _append_metrics_point(ts_list: list[dict[str, Any]], point: dict[str, Any], *, max_points: int = 60) -> list[dict[str, Any]]:
+    ts_list.append(point)
+    if len(ts_list) > max_points:
+        ts_list = ts_list[-max_points:]
+    return ts_list
+
+
+def _fetch_node_exporter_metrics(base_url: str) -> dict[str, Any]:
+    """
+    可选：从 node exporter 拉取宿主机指标（Prometheus 简化查询）。
+    这里只做占位与降级，实际拉取需额外实现。
+    """
+
+    try:
+        import httpx  # type: ignore
+    except Exception:
+        return {"error": "httpx not installed"}
+
+    try:
+        resp = httpx.get(f"{base_url}/api/v1/status/runtimeinfo", timeout=2.0)
+        if resp.status_code != 200:
+            return {"error": f"node_exporter status {resp.status_code}"}
+        return {"info": resp.json()}
+    except Exception as e:
+        return {"error": f"node_exporter fetch failed: {e}"}
+
+
 @router.get("/workspaces/{workspace_id}/system")
 def workspace_system(
     workspace_id: str,
@@ -617,6 +721,52 @@ def workspace_system(
     }
 
 
+@router.get("/workspaces/{workspace_id}/metrics")
+def workspace_metrics(
+    workspace_id: str,
+    date_range: str = "24h",
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    """
+    观测/总览使用的资源指标：
+    - 容器 cgroup /proc（默认可用）
+    - 可选 node exporter（宿主机）
+    """
+
+    _require_workspace_access(principal, workspace_id)
+    global _last_metrics_ts
+
+    container = _collect_container_metrics()
+    net = _collect_network_io()
+    disk = _collect_disk_io()
+    host: dict[str, Any] | None = None
+    if settings.node_exporter_base_url:
+        host = _fetch_node_exporter_metrics(settings.node_exporter_base_url)
+
+    ts_point = {
+        "ts": _utcnow().isoformat(),
+        "cpu_percent": (container.get("summary") or {}).get("cpu_percent") if container else None,
+        "mem_used_pct": (container.get("summary") or {}).get("mem_used_pct") if container else None,
+        "net_rx_bytes": net.get("rx_bytes") if net else None,
+        "net_tx_bytes": net.get("tx_bytes") if net else None,
+        "disk_read_bytes": disk.get("read_bytes_approx") if disk else None,
+        "disk_write_bytes": disk.get("write_bytes_approx") if disk else None,
+    }
+    _last_metrics_ts = _append_metrics_point(_last_metrics_ts, ts_point, max_points=120)
+
+    return {
+        "date_range": date_range,
+        "container": container,
+        "net": net,
+        "disk": disk,
+        "host": host,
+        "degraded": not bool(container),
+        "timeseries": _last_metrics_ts,
+    }
+
+
 @router.get("/workspaces/{workspace_id}/storage")
 def workspace_storage(
     workspace_id: str,
@@ -661,6 +811,21 @@ class KbUpdateRequest(BaseModel):
     config: dict[str, Any] | None = None
 
 
+class PromptTemplatePayload(BaseModel):
+    """
+    知识库级提示词模板（与 Dify 层级一致，不再暴露全局）。
+    system/user/postprocess 采用字符串，允许为空；占位符按 {var} 渲染。
+    """
+
+    system: str | None = None
+    user: str | None = None
+    postprocess: str | None = None
+
+
+class PromptTemplateRenderRequest(BaseModel):
+    variables: dict[str, Any] = Field(default_factory=dict)
+
+
 class SourceCreateRequest(BaseModel):
     type: str = "crawler_site"
     name: str
@@ -689,6 +854,14 @@ class JobTriggerCrawlRequest(BaseModel):
 class JobTriggerIndexRequest(BaseModel):
     kb_id: str
     mode: str = "incremental"
+
+
+class FileBatchResponse(BaseModel):
+    id: str
+    status: str
+    error: str
+    kb_id: str
+    items: list[dict[str, Any]]
 
 
 class FeedbackUpdateRequest(BaseModel):
@@ -1445,6 +1618,28 @@ def put_app_kbs(
     return {"ok": True}
 
 
+def _ensure_kb_or_404(db: Session, workspace_id: str, kb_id: str) -> KnowledgeBase:
+    kb = db.get(KnowledgeBase, kb_id)
+    if not kb or kb.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="kb not found")
+    return kb
+
+
+def _safe_render(template: str, variables: dict[str, Any]) -> str:
+    """
+    使用 format_map 渲染占位符，缺失变量置为空，避免 KeyError 中断。
+    """
+
+    class _SafeDict(dict):
+        def __missing__(self, key: str):
+            return ""
+
+    try:
+        return (template or "").format_map(_SafeDict(**variables))
+    except Exception:
+        return template or ""
+
+
 @router.get("/workspaces/{workspace_id}/kbs")
 def list_kbs(
     workspace_id: str,
@@ -1878,6 +2073,82 @@ def delete_source(
     return {"ok": True}
 
 
+def _kb_prompt_templates(kb: KnowledgeBase) -> dict[str, str]:
+    cfg = kb.config or {}
+    tpl = cfg.get("prompt_templates") or {}
+    return {
+        "system": str(tpl.get("system") or ""),
+        "user": str(tpl.get("user") or ""),
+        "postprocess": str(tpl.get("postprocess") or ""),
+    }
+
+
+@router.get("/workspaces/{workspace_id}/kbs/{kb_id}/prompt-template", response_model=PromptTemplatePayload)
+def get_kb_prompt_template(
+    workspace_id: str,
+    kb_id: str,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> PromptTemplatePayload:
+    _require_workspace_access(principal, workspace_id)
+    kb = _ensure_kb_or_404(db, workspace_id, kb_id)
+    tpl = _kb_prompt_templates(kb)
+    return PromptTemplatePayload(**tpl)
+
+
+@router.put("/workspaces/{workspace_id}/kbs/{kb_id}/prompt-template")
+def put_kb_prompt_template(
+    workspace_id: str,
+    kb_id: str,
+    req: PromptTemplatePayload,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_workspace_access(principal, workspace_id)
+    kb = _ensure_kb_or_404(db, workspace_id, kb_id)
+    cfg = dict(kb.config or {})
+    cfg["prompt_templates"] = {
+        "system": req.system or "",
+        "user": req.user or "",
+        "postprocess": req.postprocess or "",
+    }
+    kb.config = cfg
+    kb.updated_at = _utcnow()
+    _add_audit_log(
+        db,
+        principal,
+        workspace_id=workspace_id,
+        action="kb.prompt_template.put",
+        object_type="kb",
+        object_id=kb_id,
+        meta={"fields": ["prompt_templates"]},
+    )
+    db.commit()
+    return {"ok": True, "prompt_templates": cfg["prompt_templates"]}
+
+
+@router.post("/workspaces/{workspace_id}/kbs/{kb_id}/prompt-template/render")
+def render_kb_prompt_template(
+    workspace_id: str,
+    kb_id: str,
+    req: PromptTemplateRenderRequest,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_workspace_access(principal, workspace_id)
+    kb = _ensure_kb_or_404(db, workspace_id, kb_id)
+    tpl = _kb_prompt_templates(kb)
+    vars_clean = req.variables or {}
+    return {
+        "rendered": {
+            "system": _safe_render(tpl.get("system") or "", vars_clean),
+            "user": _safe_render(tpl.get("user") or "", vars_clean),
+            "postprocess": _safe_render(tpl.get("postprocess") or "", vars_clean),
+        },
+        "raw": tpl,
+    }
+
+
 @router.get("/workspaces/{workspace_id}/jobs")
 def list_jobs(
     workspace_id: str,
@@ -1927,6 +2198,26 @@ def list_jobs(
 
     total = int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
     rows = db.scalars(stmt.order_by(desc(Job.started_at)).offset(offset).limit(ps)).all()
+    subtasks_cache: dict[str, list[dict[str, Any]]] = {}
+    for j in rows:
+        if j.type == "file_process":
+            batch_id = None
+            try:
+                batch_id = (j.progress or {}).get("batch_id") or (j.payload or {}).get("batch_id")
+            except Exception:
+                batch_id = None
+            if batch_id:
+                items_rows = db.scalars(select(FileItem).where(FileItem.batch_id == str(batch_id)).order_by(FileItem.created_at.asc())).all()
+                subtasks_cache[j.id] = [
+                    {
+                        "id": it.id,
+                        "filename": it.filename,
+                        "size_bytes": it.size_bytes,
+                        "status": it.status,
+                        "error": it.error or "",
+                    }
+                    for it in items_rows
+                ]
     return {
         "page": p,
         "page_size": ps,
@@ -1940,6 +2231,8 @@ def list_jobs(
                 "app_id": j.app_id,
                 "source_id": j.source_id,
                 "progress": j.progress or {},
+                "logs": (j.progress or {}).get("logs") if isinstance((j.progress or {}).get("logs"), list) else [],
+                "subtasks": subtasks_cache.get(j.id) or [],
                 "error": j.error or "",
                 "started_at": j.started_at.isoformat() if j.started_at else None,
                 "finished_at": j.finished_at.isoformat() if j.finished_at else None,
@@ -1960,6 +2253,21 @@ def get_job(
     job = db.get(Job, job_id)
     if not job or job.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="job not found")
+    progress = dict(job.progress or {})
+    subtasks: list[dict[str, Any]] = []
+    logs = progress.get("logs") if isinstance(progress.get("logs"), list) else []
+    if job.type == "file_process":
+        items = db.scalars(select(FileItem).where(FileItem.batch_id == progress.get("batch_id")).order_by(FileItem.created_at.asc())).all()
+        for it in items:
+            subtasks.append(
+                {
+                    "id": it.id,
+                    "filename": it.filename,
+                    "size_bytes": it.size_bytes,
+                    "status": it.status,
+                    "error": it.error or "",
+                }
+            )
     return {
         "id": job.id,
         "type": job.type,
@@ -1969,8 +2277,10 @@ def get_job(
         "app_id": job.app_id,
         "source_id": job.source_id,
         "payload": job.payload or {},
-        "progress": job.progress or {},
+        "progress": progress,
         "error": job.error or "",
+        "logs": logs,
+        "subtasks": subtasks,
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
@@ -2031,6 +2341,220 @@ def cancel_job(
     )
     db.commit()
     return {"ok": True}
+
+
+@router.post("/workspaces/{workspace_id}/kbs/{kb_id}/files", response_model=FileBatchResponse)
+async def upload_kb_files(
+    workspace_id: str,
+    kb_id: str,
+    files: list[UploadFile] = File(...),
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    上传文件批次，返回批次 id；文件仅保存，不自动解析。
+    """
+
+    _require_workspace_access(principal, workspace_id)
+    kb = _ensure_kb_or_404(db, workspace_id, kb_id)
+    if not files:
+        raise HTTPException(status_code=400, detail="缺少文件")
+
+    allowed_ext = {"md", "markdown", "txt", "pdf", "docx", "csv", "html", "htm"}
+    batch_id = f"filebatch_{uuid.uuid4().hex[:12]}"
+    now = _utcnow()
+    batch = FileBatch(
+        id=batch_id,
+        workspace_id=workspace_id,
+        kb_id=kb_id,
+        status="pending",
+        error="",
+        meta={"kb_name": kb.name},
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(batch)
+    items: list[dict[str, Any]] = []
+    batch_dir = _UPLOAD_ROOT / batch_id
+    batch_dir.mkdir(parents=True, exist_ok=True)
+
+    for uf in files:
+        fname = (uf.filename or "").strip()
+        ext = fname.split(".")[-1].lower() if "." in fname else ""
+        if ext and ext not in allowed_ext:
+            raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext}")
+        item_id = f"file_{uuid.uuid4().hex[:12]}"
+        dst = batch_dir / fname
+        size = _save_upload_file(dst, uf)
+        fi = FileItem(
+            id=item_id,
+            batch_id=batch_id,
+            filename=fname,
+            size_bytes=size,
+            status="uploaded",
+            storage_path=str(dst),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(fi)
+        items.append(
+            {
+                "id": fi.id,
+                "filename": fi.filename,
+                "size_bytes": fi.size_bytes,
+                "status": fi.status,
+            }
+        )
+
+    db.commit()
+    return FileBatchResponse(id=batch_id, status="pending", error="", kb_id=kb_id, items=items)
+
+
+@router.get("/workspaces/{workspace_id}/kbs/{kb_id}/files/{batch_id}", response_model=FileBatchResponse)
+def get_kb_file_batch(
+    workspace_id: str,
+    kb_id: str,
+    batch_id: str,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> FileBatchResponse:
+    _require_workspace_access(principal, workspace_id)
+    _ensure_kb_or_404(db, workspace_id, kb_id)
+    batch = db.get(FileBatch, batch_id)
+    if not batch or batch.workspace_id != workspace_id or batch.kb_id != kb_id:
+        raise HTTPException(status_code=404, detail="file batch not found")
+    items_rows = db.scalars(select(FileItem).where(FileItem.batch_id == batch_id).order_by(FileItem.created_at.asc())).all()
+    items_out: list[dict[str, Any]] = []
+    for it in items_rows:
+        page_id = db.scalar(
+            select(Page.id).where(
+                Page.workspace_id == workspace_id,
+                Page.kb_id == kb_id,
+                Page.url == f"file://{batch_id}/{it.filename}",
+            )
+        )
+        chunk_count: int | None = None
+        chunk_preview: str | None = None
+        if page_id:
+            chunk_count = int(db.scalar(select(func.count(Chunk.id)).where(Chunk.page_id == page_id)) or 0)
+            preview = db.scalar(
+                select(Chunk.chunk_text)
+                .where(Chunk.page_id == page_id)
+                .order_by(Chunk.chunk_index.asc())
+                .limit(1)
+            )
+            if isinstance(preview, str) and preview:
+                chunk_preview = preview[:500]
+
+        items_out.append(
+            {
+                "id": it.id,
+                "filename": it.filename,
+                "size_bytes": it.size_bytes,
+                "status": it.status,
+                "error": it.error or "",
+                "page_id": page_id,
+                "chunk_count": chunk_count,
+                "chunk_preview": chunk_preview,
+            }
+        )
+
+    return FileBatchResponse(
+        id=batch.id,
+        status=batch.status,
+        error=batch.error or "",
+        kb_id=kb_id,
+        items=items_out,
+    )
+
+
+@router.get("/workspaces/{workspace_id}/kbs/{kb_id}/files")
+def list_kb_file_batches(
+    workspace_id: str,
+    kb_id: str,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_workspace_access(principal, workspace_id)
+    _ensure_kb_or_404(db, workspace_id, kb_id)
+    batches = (
+        db.scalars(
+            select(FileBatch)
+            .where(FileBatch.workspace_id == workspace_id)
+            .where(FileBatch.kb_id == kb_id)
+            .order_by(FileBatch.created_at.desc())
+        )
+        .all()
+    )
+    items = []
+    for b in batches:
+        total = int(db.scalar(select(func.count()).select_from(FileItem).where(FileItem.batch_id == b.id)) or 0)
+        done = int(
+            db.scalar(
+                select(func.count()).select_from(FileItem).where(FileItem.batch_id == b.id).where(FileItem.status == "completed")
+            )
+            or 0
+        )
+        failed = int(
+            db.scalar(select(func.count()).select_from(FileItem).where(FileItem.batch_id == b.id).where(FileItem.status == "failed")) or 0
+        )
+        items.append(
+            {
+                "id": b.id,
+                "status": b.status,
+                "error": b.error or "",
+                "total": total,
+                "done": done,
+                "failed": failed,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+                "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+            }
+        )
+    return {"items": items}
+
+
+@router.post("/workspaces/{workspace_id}/kbs/{kb_id}/files/{batch_id}/process")
+def process_kb_file_batch(
+    workspace_id: str,
+    kb_id: str,
+    batch_id: str,
+    principal: AdminPrincipal = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    触发文件解析+分段任务，返回 job_id（当前仅入队为 queued，需 worker 支持处理）。
+    """
+
+    _require_workspace_access(principal, workspace_id)
+    _ensure_kb_or_404(db, workspace_id, kb_id)
+    batch = db.get(FileBatch, batch_id)
+    if not batch or batch.workspace_id != workspace_id or batch.kb_id != kb_id:
+        raise HTTPException(status_code=404, detail="file batch not found")
+
+    job_id = f"fileproc_{uuid.uuid4().hex[:12]}"
+    now = _utcnow()
+    job = Job(
+        id=job_id,
+        workspace_id=workspace_id,
+        kb_id=kb_id,
+        app_id="",
+        source_id="",
+        type="file_process",
+        status="queued",
+        payload={"batch_id": batch_id},
+        progress={
+            "total": len(db.scalars(select(FileItem.id).where(FileItem.batch_id == batch_id)).all()),
+            "done": 0,
+            "failed": 0,
+            "running": 0,
+        },
+        error="",
+        started_at=now,
+        finished_at=None,
+    )
+    db.add(job)
+    db.commit()
+    return {"job_id": job_id, "status": "queued"}
 
 
 @router.post("/workspaces/{workspace_id}/jobs/crawl")

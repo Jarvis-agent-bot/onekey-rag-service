@@ -145,12 +145,12 @@
 
 ## 3. 权限与鉴权（JWT + RBAC）
 
-### 3.1 为什么仍建议保留 Caddy
+### 3.1 入口层的作用（Nginx/Ingress）
 
-- **Caddy 的角色**：TLS 证书、反向代理、压缩、基础限流/黑白名单（可选）。
+- **入口层角色**：TLS 证书、反向代理、压缩、基础限流/黑白名单（可选）。
 - **JWT 的角色**：应用层鉴权/授权/审计闭环。
 
-> 即使使用 JWT，也需要一个入口层（Caddy/Ingress/云 LB）来提供 HTTPS 与流量治理。
+> 即使使用 JWT，也需要一个入口层（Nginx/Ingress/云 LB）来提供 HTTPS 与流量治理。
 
 ### 3.2 JWT 方案建议（Admin 场景）
 
@@ -389,9 +389,11 @@
 
 ---
 
-## 7. 部署与入口层（Caddy）
+## 7. 部署与入口层（Nginx）
 
-- 继续采用 `docs/deploy-vps.md` 的“Compose + Caddy”作为默认生产模板。
+## 7. 部署与入口层（Nginx）
+
+- 默认采用 `docs/deploy-vps.md` 的“Compose + Nginx”生产模板（宿主机 Nginx 终止 TLS 并反代到容器）。
 - JWT 上线后，`BasicAuth` 可：
   - 关闭（仅依赖 JWT）
   - 或作为“额外一层门禁”保留（例如只开放给内网/办公网/VPN）
