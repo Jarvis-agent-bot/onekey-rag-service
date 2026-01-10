@@ -692,7 +692,7 @@ export default function App() {
                     {m.role === "user" ? (
                       <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{m.content}</div>
                     ) : (
-                      <div className="prose prose-invert max-w-none break-words overflow-x-hidden text-sm prose-a:font-medium prose-a:text-blue-300 hover:prose-a:text-blue-200">
+                      <div className="prose prose-invert max-w-none break-words overflow-x-hidden text-sm prose-a:font-medium prose-a:text-blue-300 hover:prose-a:text-blue-200 prose-code:before:content-none prose-code:after:content-none">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm, remarkNormalizeInlineCode]}
                           rehypePlugins={[[rehypeHighlight, { ignoreMissing: true }]]}
