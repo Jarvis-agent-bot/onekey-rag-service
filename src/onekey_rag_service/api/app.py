@@ -48,7 +48,6 @@ from onekey_rag_service.schemas import (
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="OneKey RAG Service", version="0.1.0")
-
 # 前端 Widget（/widget/widget.js + /widget/）
 _WIDGET_DIR = Path(__file__).resolve().parents[1] / "static" / "widget"
 app.mount("/widget", StaticFiles(directory=str(_WIDGET_DIR), html=True, check_dir=False), name="widget")

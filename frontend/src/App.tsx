@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   Check,
   Copy,
@@ -84,94 +83,22 @@ function linkCitationsForMarkdown(text: string) {
   return out.join("\n");
 }
 
-function normalizeSingleLineCodeToken(line: string) {
-  let s = (line || "").trim();
-  // 去掉零宽字符（部分模型会输出）
-  s = s.replace(/[\u200b\u200c\u200d\uFEFF]/g, "");
-  // 兼容：内容本身被 `...` 包了一层（例如：``` `connectId` ```）
-  const m = s.match(/^`([^`]+)`$/);
-  if (m) s = m[1];
-  return s.trim();
-}
-
-function shouldCollapseSingleLineCodeFence(lang: string, line: string) {
-  const l = (lang || "").trim().toLowerCase();
-  if (["bash", "sh", "zsh", "shell", "powershell", "ps1"].includes(l)) return false;
-
-  const s = normalizeSingleLineCodeToken(line);
-  if (!s) return false;
-  if (s.length > 64) return false;
-  if (s.startsWith("$")) return false;
-  if (/^https?:\/\//i.test(s)) return false;
-  if (/^(npm|pnpm|yarn|npx|curl|wget|docker|kubectl|python|pip|node|git)\b/i.test(s)) return false;
-
-  // 单个标识符/字段名：不包含空白，且基本由常见标识符字符构成
-  if (/[\t ]/.test(s)) return false;
-  if (/^[\[{]/.test(s)) return false; // json/object/array 仍保持 code block
-  if (!/^[A-Za-z0-9_.$:@/\\\-='\"()[\]<>:,;!?]+$/.test(s)) return false;
-  return true;
-}
-
-function normalizeMarkdownForDisplay(text: string) {
-  const t = (text || "").replace(/\r\n/g, "\n");
-  // 把“仅 1 行的代码块”中类似 device_id/connectId 这类标识符，收敛为 inline code
-  const collapsed = t
-    .replace(/```([a-zA-Z0-9_-]+)?\n([\s\S]*?)\n```/g, (all, lang, body) => {
-      const code = String(body || "").replace(/^\n+/, "").replace(/\n+$/, "");
-      const lines = code
-        .split("\n")
-        .map((l) => l.trimEnd())
-        .filter((l) => l.trim() !== "");
-      if (lines.length !== 1) return all;
-      const single = normalizeSingleLineCodeToken(String(lines[0] || ""));
-      if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
-      return `\`${single}\``;
-    })
-    // 兼容：```identifier``` / ```lang identifier``` 这种同一行 fenced code
-    .replace(/```([a-zA-Z0-9_-]+)?[ \t]+([^`\n]+?)```/g, (all, lang, code) => {
-      const single = normalizeSingleLineCodeToken(String(code || ""));
-      if (!shouldCollapseSingleLineCodeFence(String(lang || ""), single)) return all;
-      return `\`${single}\``;
-    });
-
-  // 兼容：单行缩进 code block（4 空格/Tab），仅在“独立段落”里才收敛为 inline code
-  const lines = collapsed.split("\n");
-  const out: string[] = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const isIndented = line.startsWith("    ") || line.startsWith("\t");
-    if (!isIndented) {
-      out.push(line);
-      continue;
-    }
-
-    const start = i;
-    const block: string[] = [];
-    while (i < lines.length && (lines[i].startsWith("    ") || lines[i].startsWith("\t"))) {
-      const l = lines[i];
-      block.push(l.startsWith("\t") ? l.slice(1) : l.slice(4));
-      i += 1;
-    }
-    const end = i;
-    i = end - 1;
-
-    const prevLine = start === 0 ? "" : lines[start - 1];
-    const nextLine = end >= lines.length ? "" : lines[end];
-    const isStandalone = (start === 0 || prevLine.trim() === "") && (end >= lines.length || nextLine.trim() === "");
-
-    if (block.length === 1 && isStandalone) {
-      const single = normalizeSingleLineCodeToken(block[0]);
-      if (shouldCollapseSingleLineCodeFence("", single)) {
-        out.push(`\`${single}\``);
-        continue;
+function remarkNormalizeInlineCode() {
+  return (tree: any) => {
+    const visit = (node: any) => {
+      if (!node) return;
+      if (node.type === "inlineCode" && typeof node.value === "string") {
+        const raw = node.value.trim();
+        if (raw.startsWith("`") && raw.endsWith("`") && raw.length > 1) {
+          node.value = raw.slice(1, -1).trim();
+        }
       }
-    }
-
-    // 不满足收敛条件：原样保留
-    for (let j = start; j < end; j += 1) out.push(lines[j]);
-  }
-
-  return out.join("\n");
+      if (Array.isArray(node.children)) {
+        node.children.forEach(visit);
+      }
+    };
+    visit(tree);
+  };
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -298,13 +225,7 @@ export default function App() {
   const parentOrigin = sp.get("parent_origin") || "";
   const apiBase = sp.get("api_base") || "";
   const contactUrl = sp.get("contact_url") || "https://onekey.so";
-  const oneKeyLogoUrl = useMemo(() => {
-    try {
-      return new URL("onekey.png", window.location.href).toString();
-    } catch {
-      return "onekey.png";
-    }
-  }, []);
+  const oneKeyLogoUrl = "/onekey.png";
 
   const [pageUrl, setPageUrl] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -601,27 +522,6 @@ export default function App() {
     );
   }
 
-  function StreamingIndicator() {
-    return (
-      <div className="mt-3 inline-flex items-center gap-3 rounded-2xl border border-cyan-400/25 bg-gradient-to-r from-cyan-500/10 via-white/5 to-amber-300/10 px-3 py-2 text-xs text-cyan-50 shadow-[0_18px_50px_rgba(0,0,0,0.38)] backdrop-blur">
-        <div className="relative flex h-10 w-10 items-center justify-center">
-          <div className="absolute inset-0 rounded-full bg-cyan-400/25 blur-lg" />
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 ring-1 ring-cyan-300/40">
-            <div className="h-5 w-5 rounded-full bg-gradient-to-br from-cyan-300 via-white to-amber-200 animate-spin-slow shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" />
-          </div>
-        </div>
-        <div className="leading-tight">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/80">正在生成</div>
-          <div className="flex items-center gap-1 text-base font-semibold text-cyan-50 typing-dots">
-            <span>•</span>
-            <span>•</span>
-            <span>•</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function IconButton({
     label,
     disabled,
@@ -654,44 +554,56 @@ export default function App() {
     );
   }
 
-  function CodeBlock({
-    inline,
-    className,
-    children,
-  }: {
-    inline?: boolean;
-    className?: string;
-    children: ReactNode;
-  }) {
-    const match = /language-(\w+)/.exec(className || "");
+  function StreamingIndicator() {
+    return (
+      <div
+        className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-300 typing-dots"
+        aria-label="生成中"
+      >
+        <span>.</span>
+        <span>.</span>
+        <span>.</span>
+      </div>
+    );
+  }
+
+  const extractText = (node: ReactNode): string => {
+    if (node === null || node === undefined || typeof node === "boolean") return "";
+    if (typeof node === "string" || typeof node === "number") return String(node);
+    if (Array.isArray(node)) return node.map(extractText).join("");
+    if (typeof node === "object" && "props" in node) return extractText((node as any).props?.children);
+    return "";
+  };
+
+  const normalizeClassName = (value: unknown) => {
+    if (Array.isArray(value)) return value.join(" ");
+    if (typeof value === "string") return value;
+    return "";
+  };
+
+  function CodeBlock({ children }: { children: ReactNode }) {
+    const codeElement =
+      Children.toArray(children).find((child) => isValidElement(child) && child.type === "code") ?? null;
+    const codeClassName =
+      codeElement && isValidElement(codeElement) ? normalizeClassName(codeElement.props.className) : "";
+    const match = /language-(\w+)/.exec(codeClassName || "");
     const lang = (match?.[1] || "").toLowerCase();
-    const raw = String(children ?? "").replace(/\r\n/g, "\n");
-    const codeText = raw.replace(/\n+$/, "");
-    const singleCandidate = codeText.replace(/[\u200b\u200c\u200d\uFEFF]/g, "").trim();
-    const singleCandidateNormalized = normalizeSingleLineCodeToken(singleCandidate);
+    const codeText = extractText(codeElement?.props?.children ?? children).replace(/\r\n/g, "\n").replace(/\n+$/, "");
     const copyKey = `${lang}:${codeText.slice(0, 48)}`;
-
-    // 兜底：有些模型会把单个标识符（connectId/device_id）用 fenced code block 输出。
-    // 即使后端 prompt 已提示，也可能偶发；这里把“单行、短、像标识符”的代码块渲染成 inline code。
-    if (!inline && !singleCandidateNormalized.includes("\n") && shouldCollapseSingleLineCodeFence(lang, singleCandidateNormalized)) {
-      return (
-        <code className="whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">
-          {singleCandidateNormalized}
-        </code>
-      );
-    }
-
-    if (inline) {
-      return (
-        <code className="whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">
-          {children}
-        </code>
-      );
-    }
+    const codeNode =
+      codeElement && isValidElement(codeElement)
+        ? cloneElement(codeElement, {
+            className: [normalizeClassName(codeElement.props.className), "font-mono text-slate-100"]
+              .filter(Boolean)
+              .join(" "),
+          })
+        : (
+          <code className="font-mono text-slate-100">{children}</code>
+        );
 
     return (
-      <div className="not-prose my-3 overflow-hidden rounded-xl border border-white/10 bg-[#282c34]">
-        <div className="flex items-center justify-between bg-[#21252b] px-3 py-2">
+      <div className="not-prose my-3 overflow-hidden rounded-xl border border-white/10 bg-[#1f2532]">
+        <div className="flex items-center justify-between bg-[#1a202c] px-3 py-2">
           <div className="font-mono text-[10px] uppercase tracking-wide text-white/55">{lang || "text"}</div>
           <button
             type="button"
@@ -709,39 +621,14 @@ export default function App() {
             {copiedCodeKey === copyKey ? <Check size={14} /> : <Copy size={14} />}
           </button>
         </div>
-        <SyntaxHighlighter
-          language={lang}
-          PreTag="div"
-          style={atomDark}
-          wrapLongLines
-          customStyle={{
-            margin: 0,
-            background: "transparent",
-            padding: "12px 14px",
-            fontSize: "12px",
-            lineHeight: "1.6",
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            },
-          }}
-        >
-          {codeText}
-        </SyntaxHighlighter>
+        <pre className="overflow-x-auto px-3 py-3 text-[12px] leading-6">{codeNode}</pre>
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0c1220] text-slate-100">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.18),transparent_32%),radial-gradient(circle_at_78%_10%,rgba(251,191,36,0.16),transparent_30%),radial-gradient(circle_at_42%_82%,rgba(14,165,233,0.12),transparent_26%)] blur-3xl" />
-        <div className="absolute inset-0 opacity-60 bg-[linear-gradient(120deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0)_45%,rgba(255,255,255,0.07)_100%)] animate-sheen" />
-      </div>
-
-      <div className="relative z-10 flex h-full flex-col">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#0c1220] text-slate-100">
+      <div className="flex h-full flex-col">
         <div className="flex items-center justify-between px-5 pb-3 pt-4">
           <div className="text-sm font-semibold text-white">Ask AI</div>
           <button
@@ -777,9 +664,9 @@ export default function App() {
             <div className="mt-5 text-xs font-semibold text-slate-300">示例问题</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {[
-                "如何在项目里集成 OneKey Connect？",
-                "WebUSB 权限需要注意什么？",
-                "如何发现设备并获取 connectId？",
+                "如何接入 OneKey 硬件钱包？",
+                "移动端如何与 OneKey 硬件通讯？",
+                "如何在 dApp 中接入 OneKey Connect？",
               ].map((q) => (
                 <button
                   key={q}
@@ -798,7 +685,7 @@ export default function App() {
         ) : (
           <div className="divide-y divide-white/5">
             {messages.map((m) => (
-              <div key={m.localId} className="py-5 animate-float-in">
+              <div key={m.localId} className="py-5">
                 <div className="flex gap-3">
                   <Avatar role={m.role} />
                   <div className="min-w-0 flex-1">
@@ -807,10 +694,10 @@ export default function App() {
                     ) : (
                       <div className="prose prose-invert max-w-none break-words overflow-x-hidden text-sm prose-a:font-medium prose-a:text-blue-300 hover:prose-a:text-blue-200">
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
+                          remarkPlugins={[remarkGfm, remarkNormalizeInlineCode]}
+                          rehypePlugins={[[rehypeHighlight, { ignoreMissing: true }]]}
                           components={{
-                            // 让 CodeBlock 自己决定是块级还是内联，避免“被收敛为 inline code 的短标识符”仍然被外层 pre/div 拉成块级
-                            pre: ({ children }) => <>{children}</>,
+                            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
                             a: ({ href, children, ...rest }) => {
                               const hrefStr = typeof href === "string" ? href : "";
                               const maybeCitation = hrefStr.startsWith("#cite-") ? renderCitationLink(hrefStr, children, m) : null;
@@ -827,27 +714,14 @@ export default function App() {
                                 </a>
                               );
                             },
-                            code: ({ inline, className, children }) => (
-                              <CodeBlock inline={inline} className={className}>
-                                {children}
-                              </CodeBlock>
-                            ),
                           }}
                         >
-                          {linkCitationsForMarkdown(normalizeMarkdownForDisplay(m.content))}
+                          {linkCitationsForMarkdown(m.content)}
                         </ReactMarkdown>
                       </div>
                     )}
 
-                    {m.role === "assistant" && m.status === "streaming" && !m.content ? (
-                      <StreamingIndicator />
-                    ) : null}
-
-                    {m.role === "assistant" && m.status === "streaming" && m.content ? (
-                      <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
-                        <div className="absolute inset-0 shimmer-bar" />
-                      </div>
-                    ) : null}
+                    {m.role === "assistant" && m.status === "streaming" && !m.content ? <StreamingIndicator /> : null}
 
                     {m.role === "assistant" && m.status === "error" ? (
                       <div className="mt-2 text-xs text-red-200">生成失败：{m.errorText}</div>

@@ -13,7 +13,7 @@ build/
 
 node_modules/
 .vite/
-
+.pnpm-store
 .env
 .env.*
 !.env.example

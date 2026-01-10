@@ -104,7 +104,7 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
 
 ### 9.1 docker-compose（本地一键启动）
 
-当前仓库内提供 `docker-compose.yml`，默认启动：
+当前仓库内提供 `docker-compose.yml`，默认启动后端服务：
 - `postgres`：pgvector/pg16
 - `api`：FastAPI + LangChain + crawler/index/rag + 静态 Widget（/widget）
 - `worker`：消费抓取/索引等后台任务
@@ -116,12 +116,17 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
 3) 初始化数据：登录拿 JWT → 触发 crawl/index Job（`/admin/api/*`）  
 4) 前端接入：在文档站引入 `https://你的-rag-域名/widget/widget.js`
 
-### 9.2 前端工程（同仓库，构建到后端静态目录）
+### 9.2 前端工程（同仓库，独立构建）
 
-前端源码位于 `frontend/`，在构建 `api` 镜像时会：
-- 执行 `npm install && npm run build`
-- 将 `frontend/dist` 拷贝到后端静态目录 `onekey_rag_service/static/widget`
-- 由后端同域提供 `/widget/*`
+前端源码位于 `frontend/` 与 `frontend-admin/`，前后端构建解耦：
+- 后端镜像不再构建前端静态资源
+- 前端可本地运行或单独构建并部署
+- 本地开发：
+  - `cd frontend && corepack enable && pnpm install`
+  - `pnpm dev`
+  - `cd frontend-admin && corepack enable && pnpm install`
+  - `pnpm dev`
+  - 一键拉起前后端（Docker）：`docker compose --profile frontend up -d --build`
 
 ## 4. 数据流与链路（端到端）
 

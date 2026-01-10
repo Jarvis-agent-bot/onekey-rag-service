@@ -16,13 +16,24 @@
      - `SENTENCE_TRANSFORMERS_MODEL=sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
      - `PGVECTOR_EMBEDDING_DIM=768`
 
-2. 启动服务：
+2. 启动后端服务（不含前端）：
    - `docker compose up -d --build`
    - API 默认地址：`http://localhost:8000`
    - 健康检查：`GET http://localhost:8000/healthz`
    - 后台任务：默认启用 `worker`（见 `JOBS_BACKEND`），抓取/索引会入队由 Worker 消费
 
-3. 初始化数据：抓取 + 建索引（首次建议 `full`，后续可用 `incremental`）
+3. 前端本地开发（非 Docker）：
+   - `cd frontend && corepack enable && pnpm install`
+   - `pnpm dev`（默认代理后端 `http://localhost:8000`）
+   - 管理后台：`cd frontend-admin && corepack enable && pnpm install`
+   - `pnpm dev`（默认代理后端 `http://localhost:8000`）
+   - 如需一键拉起前后端（Docker）：`docker compose --profile frontend up -d --build`
+   - 如需让后端同域提供静态页面：
+     - `cd frontend && pnpm build` → 产物在 `frontend/dist`
+     - `cd frontend-admin && pnpm build` → 产物在 `frontend-admin/dist`
+     - 将产物分别拷贝到 `src/onekey_rag_service/static/widget` 与 `src/onekey_rag_service/static/admin`
+
+4. 初始化数据：抓取 + 建索引（首次建议 `full`，后续可用 `incremental`）
    - 先用 Admin 账号登录拿 JWT（账号密码来自 `.env` 的 `ADMIN_USERNAME/ADMIN_PASSWORD`）：
      - `POST http://localhost:8000/admin/api/auth/login`
    - 触发抓取（默认工作区/默认 KB/默认数据源分别为 `default`/`default`/`source_default`）：
@@ -53,7 +64,7 @@
      - `GET http://localhost:8000/admin/api/workspaces/default/jobs/<job_id>`
    - 说明：当 `JOBS_BACKEND=worker` 时，任务会先进入 `queued`，随后由 Worker 拉起为 `running` 并最终 `succeeded/failed`
 
-4. 对话（OpenAI 兼容）：
+5. 对话（OpenAI 兼容）：
    - `POST http://localhost:8000/v1/chat/completions`
    - 非流式示例：
      ```bash
@@ -68,7 +79,7 @@
        -d '{"model":"onekey-docs","messages":[{"role":"user","content":"WebUSB 权限需要注意什么？"}],"stream":true}'
      ```
 
-5. 常用接口一览：
+6. 常用接口一览：
    - 模型列表：`GET http://localhost:8000/v1/models`
    - 反馈：`POST http://localhost:8000/v1/feedback`
    - 健康检查：`GET http://localhost:8000/healthz`
