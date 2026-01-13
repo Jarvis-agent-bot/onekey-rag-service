@@ -1,22 +1,30 @@
-# ==================== Stage 1: Build Admin UI ====================
-FROM node:20-alpine AS frontend-builder
+# ==================== Stage 1: Build Widget ====================
+FROM node:20-alpine AS widget-builder
 
 WORKDIR /build
 
-# 启用 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# 复制前端依赖文件
-COPY frontend-admin/package.json frontend-admin/pnpm-lock.yaml ./
-
-# 安装依赖
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# 复制前端源码并构建
+COPY frontend/ ./
+RUN pnpm build
+
+# ==================== Stage 2: Build Admin UI ====================
+FROM node:20-alpine AS admin-builder
+
+WORKDIR /build
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY frontend-admin/package.json frontend-admin/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
 COPY frontend-admin/ ./
 RUN pnpm build
 
-# ==================== Stage 2: Python Backend ====================
+# ==================== Stage 3: Python Backend ====================
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -34,8 +42,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY onekey_rag_service /app/onekey_rag_service
 
-# 从第一阶段复制前端构建产物到静态目录
-COPY --from=frontend-builder /build/dist /app/onekey_rag_service/static/admin
+# 从构建阶段复制前端产物到静态目录
+COPY --from=widget-builder /build/dist /app/onekey_rag_service/static/widget
+COPY --from=admin-builder /build/dist /app/onekey_rag_service/static/admin
 
 ENV PYTHONPATH=/app
 
