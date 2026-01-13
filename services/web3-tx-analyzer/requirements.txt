@@ -1,0 +1,30 @@
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# HTTP Client
+httpx>=0.25.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+asyncpg>=0.29.0
+
+# Redis
+redis>=5.0.0
+
+# Ethereum
+eth-abi>=4.2.0
+eth-utils>=2.3.0
+eth-hash[pycryptodome]>=0.5.0
+
+# Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Logging
+structlog>=23.2.0
+
+# Utils
+python-dotenv>=1.0.0
+tenacity>=8.2.0

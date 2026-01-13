@@ -244,6 +244,98 @@ services:
       api:
         condition: service_started
 
+  # Web3 Transaction Analyzer Service
+  tx-analyzer-redis:
+    image: redis:7-alpine
+    profiles: ["tx-analyzer"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - tx-analyzer-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  web3-tx-analyzer:
+    build:
+      context: ./services/web3-tx-analyzer
+      dockerfile: Dockerfile
+    profiles: ["tx-analyzer"]
+    container_name: web3-tx-analyzer
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${TX_ANALYZER_LOG_FORMAT:-json}
+      PORT: 8001
+
+      # Database (shared PostgreSQL, independent schema)
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:replace-me@postgres:5432/onekey_rag}
+      DATABASE_SCHEMA: ${TX_ANALYZER_DATABASE_SCHEMA:-tx_analyzer}
+
+      # Redis cache
+      REDIS_URL: ${TX_ANALYZER_REDIS_URL:-redis://tx-analyzer-redis:6379/0}
+
+      # RAG service
+      RAG_BASE_URL: ${TX_ANALYZER_RAG_BASE_URL:-http://api:8000}
+      RAG_MODEL: ${TX_ANALYZER_RAG_MODEL:-gpt-4o-mini}
+      RAG_TIMEOUT_S: ${TX_ANALYZER_RAG_TIMEOUT_S:-60}
+
+      # Chain RPC endpoints (use env vars or defaults)
+      ETH_RPC_URL: ${ETH_RPC_URL:-https://eth.llamarpc.com}
+      BSC_RPC_URL: ${BSC_RPC_URL:-https://bsc-dataseed.binance.org}
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL:-https://polygon-rpc.com}
+      ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-https://arb1.arbitrum.io/rpc}
+      OPTIMISM_RPC_URL: ${OPTIMISM_RPC_URL:-https://mainnet.optimism.io}
+
+      # Etherscan API keys (optional, for ABI fetching)
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
+      BSCSCAN_API_KEY: ${BSCSCAN_API_KEY:-}
+      POLYGONSCAN_API_KEY: ${POLYGONSCAN_API_KEY:-}
+      ARBISCAN_API_KEY: ${ARBISCAN_API_KEY:-}
+      OPTIMISTIC_ETHERSCAN_API_KEY: ${OPTIMISTIC_ETHERSCAN_API_KEY:-}
+
+      # Tracing
+      TRACE_STORE_DB: ${TX_ANALYZER_TRACE_STORE_DB:-true}
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8001:8001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      tx-analyzer-redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Web3 Transaction Analyzer Frontend
+  frontend-tx-analyzer:
+    image: node:20-alpine
+    profiles: ["frontend", "tx-analyzer"]
+    working_dir: /app
+    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev -- --host 0.0.0.0"]
+    environment:
+      VITE_TX_ANALYZER_API_URL: http://web3-tx-analyzer:8001
+    ports:
+      - "5175:5175"
+    volumes:
+      - ./frontend-tx-analyzer:/app
+      - frontend-tx-analyzer-node-modules:/app/node_modules
+    depends_on:
+      web3-tx-analyzer:
+        condition: service_started
+
 
 volumes:
   pgdata:
@@ -252,3 +344,5 @@ volumes:
   clickhouse-data:
   frontend-node-modules:
   frontend-admin-node-modules:
+  tx-analyzer-redis:
+  frontend-tx-analyzer-node-modules:
