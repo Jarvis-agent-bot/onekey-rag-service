@@ -192,6 +192,30 @@
 - **AI 解释**：基于 RAG 服务生成人类可读的交易说明
 - **历史记录**：支持查询历史分析记录
 
+### 快速启动脚本（推荐）
+
+使用 `deploy/start.sh` 脚本可以自动清理残留网络并启动服务，避免 Docker 网络冲突问题：
+
+```bash
+# 启动基础服务
+./deploy/start.sh
+
+# 启动 TX Analyzer 服务
+./deploy/start.sh tx-analyzer
+
+# 启动前端开发服务
+./deploy/start.sh frontend
+
+# 启动所有服务
+./deploy/start.sh all
+
+# 停止服务
+./deploy/stop.sh
+
+# 停止并清理数据卷（慎用）
+./deploy/stop.sh --clean
+```
+
 ### Docker Compose 构建命令
 
 本项目使用 Docker Compose profiles 管理不同服务组合：
