@@ -4,23 +4,28 @@ import { AnalyzePage } from '@/features/analyze/AnalyzePage'
 import { HistoryPage } from '@/features/history/HistoryPage'
 import { ChainsPage } from '@/features/chains/ChainsPage'
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <AppLayout />,
+      children: [
+        {
+          index: true,
+          element: <AnalyzePage />,
+        },
+        {
+          path: 'history',
+          element: <HistoryPage />,
+        },
+        {
+          path: 'chains',
+          element: <ChainsPage />,
+        },
+      ],
+    },
+  ],
   {
-    path: '/',
-    element: <AppLayout />,
-    children: [
-      {
-        index: true,
-        element: <AnalyzePage />,
-      },
-      {
-        path: 'history',
-        element: <HistoryPage />,
-      },
-      {
-        path: 'chains',
-        element: <ChainsPage />,
-      },
-    ],
-  },
-])
+    basename: '/tx-analyzer',
+  }
+)

@@ -4,6 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/tx-analyzer/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -14,10 +15,10 @@ export default defineConfig({
     host: true,
     allowedHosts: ['exwxyzi.cn'],
     proxy: {
-      '/api': {
+      '/tx-analyzer/api': {
         target: process.env.VITE_TX_ANALYZER_API_URL || 'http://localhost:8001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/tx-analyzer\/api/, ''),
       },
     },
   },
