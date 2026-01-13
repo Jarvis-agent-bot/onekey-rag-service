@@ -13,9 +13,9 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY src /app/src
+COPY onekey_rag_service /app/onekey_rag_service
 
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
