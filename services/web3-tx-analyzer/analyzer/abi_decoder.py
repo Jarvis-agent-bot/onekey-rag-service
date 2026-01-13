@@ -7,7 +7,7 @@ from eth_abi import decode as abi_decode
 from eth_abi.exceptions import DecodingError
 from eth_utils import decode_hex, to_checksum_address
 
-from logging import get_logger
+from app_logging import get_logger
 
 logger = get_logger(__name__)
 

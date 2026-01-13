@@ -8,7 +8,7 @@ from analyzer import TxParser
 from analyzer.schemas import TxParseResult, ExplanationResult as AnalyzerExplanation
 from clients import RAGClient
 from config import Settings, get_settings
-from logging import Tracer, get_logger, bind_context, clear_context
+from app_logging import Tracer, get_logger, bind_context, clear_context
 from storage import RedisCache, get_db_context, ParseLog
 
 from .schemas import (

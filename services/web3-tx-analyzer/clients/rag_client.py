@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from logging import get_logger
+from app_logging import get_logger
 
 logger = get_logger(__name__)
 

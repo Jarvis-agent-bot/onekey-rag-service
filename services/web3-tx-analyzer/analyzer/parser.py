@@ -4,7 +4,7 @@ from typing import Any
 
 from config import Settings, ChainConfig
 from integrations import RPCClient, EtherscanClient, SignatureDB
-from logging import Tracer, get_logger
+from app_logging import Tracer, get_logger
 from storage import RedisCache
 
 from .abi_decoder import ABIDecoder

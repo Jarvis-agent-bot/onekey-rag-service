@@ -10,7 +10,7 @@ from api import router
 from analyzer import TxParser
 from clients import RAGClient
 from config import Settings, get_settings
-from logging import configure_logging, get_logger
+from app_logging import configure_logging, get_logger
 from storage import RedisCache, create_engine_and_session, ensure_schema
 
 logger = get_logger(__name__)
