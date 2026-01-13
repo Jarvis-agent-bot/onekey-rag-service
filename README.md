@@ -192,14 +192,50 @@
 - **AI 解释**：基于 RAG 服务生成人类可读的交易说明
 - **历史记录**：支持查询历史分析记录
 
-### 启动 TX Analyzer
+### Docker Compose 构建命令
+
+本项目使用 Docker Compose profiles 管理不同服务组合：
 
 ```bash
-# 仅启动 TX Analyzer（后端 + Redis）
+# ========== 基础服务（默认启动） ==========
+# 启动核心服务：postgres + api + worker + langfuse
+docker compose up -d --build
+
+# ========== 前端开发服务 ==========
+# 启动前端开发服务（Widget + Admin）
+docker compose --profile frontend up -d --build
+
+# ========== TX Analyzer 服务 ==========
+# 仅启动 TX Analyzer（后端 + Redis + 前端）
 docker compose --profile tx-analyzer up -d --build
 
-# 启动所有服务（含主 RAG + 前端 + TX Analyzer）
+# ========== 完整服务 ==========
+# 启动所有服务（核心 + 前端 + TX Analyzer）
 docker compose --profile frontend --profile tx-analyzer up -d --build
+
+# ========== 常用运维命令 ==========
+# 查看服务状态
+docker compose ps
+docker compose --profile tx-analyzer ps
+
+# 查看日志
+docker compose logs -f api worker
+docker compose logs -f web3-tx-analyzer frontend-tx-analyzer
+
+# 停止服务
+docker compose down
+docker compose --profile tx-analyzer down
+
+# 停止并清理数据卷（慎用，会删除数据库数据）
+docker compose down -v
+
+# 重新构建单个服务
+docker compose build api
+docker compose --profile tx-analyzer build web3-tx-analyzer
+
+# 重启单个服务
+docker compose restart api
+docker compose --profile tx-analyzer restart web3-tx-analyzer
 ```
 
 ### 服务端口
