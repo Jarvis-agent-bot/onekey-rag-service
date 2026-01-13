@@ -181,6 +181,67 @@
   - `BGE_RERANKER_MODEL=BAAI/bge-reranker-large`
   - `RERANK_DEVICE=cpu`
 
+## Web3 Transaction Analyzer（可选服务）
+
+本仓库还包含一个独立的 Web3 交易分析服务，用于解析和解释区块链交易。
+
+### 功能特性
+
+- **多链支持**：Ethereum、BSC、Polygon、Arbitrum、Optimism
+- **智能解析**：自动获取 ABI、解码合约调用、识别代币转账
+- **AI 解释**：基于 RAG 服务生成人类可读的交易说明
+- **历史记录**：支持查询历史分析记录
+
+### 启动 TX Analyzer
+
+```bash
+# 仅启动 TX Analyzer（后端 + Redis）
+docker compose --profile tx-analyzer up -d --build
+
+# 启动所有服务（含主 RAG + 前端 + TX Analyzer）
+docker compose --profile frontend --profile tx-analyzer up -d --build
+```
+
+### 服务端口
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| TX Analyzer API | 8001 | 后端 API 服务 |
+| TX Analyzer Frontend | 5175 | 前端 Web 界面 |
+
+### API 端点
+
+- 健康检查：`GET http://localhost:8001/healthz`
+- 解析交易：`POST http://localhost:8001/api/v1/tx/parse`
+- 分析交易：`POST http://localhost:8001/api/v1/tx/analyze`
+- 支持的链：`GET http://localhost:8001/api/v1/chains`
+- 历史记录：`GET http://localhost:8001/api/v1/history`
+
+### 使用示例
+
+```bash
+# 解析交易（不含 AI 解释）
+curl -s http://localhost:8001/api/v1/tx/parse \
+  -H 'content-type: application/json' \
+  -d '{"tx_hash":"0x123...","chain_id":1}'
+
+# 分析交易（含 AI 解释）
+curl -s http://localhost:8001/api/v1/tx/analyze \
+  -H 'content-type: application/json' \
+  -d '{"tx_hash":"0x123...","chain_id":1}'
+```
+
+### 配置说明
+
+TX Analyzer 使用独立的数据库 schema（`tx_analyzer`）和 Redis 实例（`tx-analyzer-redis`）。
+
+主要环境变量（见 `.env.example`）：
+- `TX_ANALYZER_DATABASE_SCHEMA`：数据库 schema 名称
+- `TX_ANALYZER_REDIS_URL`：Redis 连接地址
+- `TX_ANALYZER_RAG_BASE_URL`：RAG 服务地址（用于 AI 解释）
+- `ETH_RPC_URL`、`BSC_RPC_URL` 等：各链 RPC 端点
+- `ETHERSCAN_API_KEY` 等：区块链浏览器 API Key（用于获取 ABI）
+
 ## TODO（对标 Inkeep 的产品化差距）
 
 - 持久化任务队列/Worker（已实现 MVP）：`jobs` 表持久化队列 + `worker` 容器消费 + 重试（attempts）+ 超时重入队；后续补齐：心跳/断点续跑的细粒度进度、定时调度、并发配额与优先级队列。
