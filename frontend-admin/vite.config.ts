@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5174,
+    allowedHosts: "all",
     proxy: {
       "/admin/api": {
         target: process.env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8000",
