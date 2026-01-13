@@ -14,6 +14,9 @@ export default defineConfig({
     port: 5175,
     host: true,
     allowedHosts: ['exwxyzi.cn'],
+    watch: {
+      ignored: ['**/.pnpm-store/**', '**/node_modules/**'],
+    },
     proxy: {
       '/tx-analyzer/api': {
         target: process.env.VITE_TX_ANALYZER_API_URL || 'http://localhost:8001',
