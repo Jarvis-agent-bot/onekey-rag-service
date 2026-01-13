@@ -6,7 +6,7 @@ import type {
   ParseResponse,
 } from './types'
 
-const API_BASE = '/api'
+const API_BASE = '/tx-analyzer/api'
 
 class ApiError extends Error {
   constructor(
