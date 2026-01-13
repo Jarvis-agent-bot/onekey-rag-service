@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
-    allowedHosts: "all",
+    allowedHosts: ['exwxyzi.cn'],
     proxy: {
       "/v1": {
         target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",

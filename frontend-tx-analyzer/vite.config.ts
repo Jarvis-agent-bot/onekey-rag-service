@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     port: 5175,
     host: true,
-    allowedHosts: 'all',
+    allowedHosts: ['exwxyzi.cn'],
     proxy: {
       '/api': {
         target: process.env.VITE_TX_ANALYZER_API_URL || 'http://localhost:8001',
