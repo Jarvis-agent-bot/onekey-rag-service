@@ -13,13 +13,61 @@ server {
 
   ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-  # 如需更严格的 TLS 策略，可按公司基线补充 ssl_protocols/ssl_ciphers/HSTS 等。
+
+  # ==================== 性能优化 ====================
+
+  # Gzip 压缩
+  gzip on;
+  gzip_vary on;
+  gzip_proxied any;
+  gzip_comp_level 6;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml application/xml+rss image/svg+xml;
+
+  # 静态资源缓存（JS/CSS/图片等）
+  location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # 缓存 7 天
+    expires 7d;
+    add_header Cache-Control "public, immutable";
+    add_header Vary Accept-Encoding;
+  }
+
+  # HTML 文件不缓存（确保更新及时）
+  location ~* \.html$ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    expires -1;
+    add_header Cache-Control "no-store, no-cache, must-revalidate";
+  }
+
+  # ==================== 安全配置 ====================
+
+  # TLS 优化
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers on;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 10m;
+
+  # HSTS（强制 HTTPS）
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
   # 如需保护后台，可取消注释 BasicAuth（需提前生成 htpasswd）
   # location /admin/ {
   #   auth_basic "Admin Only";
   #   auth_basic_user_file /etc/nginx/.htpasswd;
   # }
+
+  # ==================== 反向代理 ====================
 
   # Langfuse 前缀反代
   location /langfuse/ {

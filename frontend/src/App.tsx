@@ -225,7 +225,7 @@ export default function App() {
   const parentOrigin = sp.get("parent_origin") || "";
   const apiBase = sp.get("api_base") || "";
   const contactUrl = sp.get("contact_url") || "https://onekey.so";
-  const oneKeyLogoUrl = "/onekey.png";
+  const oneKeyLogoUrl = "./onekey.png";
 
   const [pageUrl, setPageUrl] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
