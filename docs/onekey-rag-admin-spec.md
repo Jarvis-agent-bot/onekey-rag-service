@@ -3,7 +3,7 @@
 > 版本：v0.1（草案）  
 > 适用阶段：内部先用，但按“可交付（多租户）”设计  
 > 前端：React + shadcn/ui + TanStack Query/Table（Dashboard 模板做壳）  
-> 后端：现有 FastAPI（`src/onekey_rag_service/api/app.py`）扩展 `/admin/api/*`  
+> 后端：现有 FastAPI（`onekey_rag_service/api/app.py`）扩展 `/admin/api/*`  
 > 实现进度：见 `docs/onekey-rag-admin-todo.md`（以本文为规格来源）
 
 ---

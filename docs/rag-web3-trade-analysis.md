@@ -709,7 +709,7 @@ sequenceDiagram
 ## 9.1 Etherscan 系列合约代码扫描服务落地建议
 
 ### 9.1.1 服务职责与放置
-- 统一归类为**集成/适配层**，在 `src/onekey_rag_service/integrations/etherscan_client.py` 中完成 API client、请求限流、链 ID 与网络加载。  
+- 统一归类为**集成/适配层**，在 `onekey_rag_service/integrations/etherscan_client.py` 中完成 API client、请求限流、链 ID 与网络加载。  
 - 多链支持放在同一模块，通过配置驱动 `chain` → `base_url`、`api_key`、`chain_name`；未来可扩展至 BSC、Polygon、Arbitrum 等兼容 Etherscan 的链。  
 - 由 `indexing/pipeline.py` 新增“Etherscan ABI/源码抓取”阶段，完成数据清洗后推送到指纹知识库或文档向量库，保持与 RAG 解释层的分离。
 

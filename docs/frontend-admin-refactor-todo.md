@@ -248,11 +248,11 @@
 
 **涉及文件与改法（S1）**
 - 后端核心：
-  - `src/onekey_rag_service/rag/pipeline.py`：移除硬编码模板；改为读取“默认模板”与“知识库模板”合成；占位符清理。  
-  - `src/onekey_rag_service/admin/api/...`（新增）：知识库模板 CRUD、模板渲染预览接口；文件上传/批次状态/触发处理接口；任务进度/重试/取消接口。  
-  - `src/onekey_rag_service/models.py` & migrations：KB 增加模板字段；文件批次/文件表；任务子任务表（如需）。  
-  - `src/onekey_rag_service/worker.py`：队列消费文件解析任务；任务进度上报。  
-  - `src/onekey_rag_service/rag/conversation.py`（若有）：模板变量注入辅助。
+  - `onekey_rag_service/rag/pipeline.py`：移除硬编码模板；改为读取“默认模板”与“知识库模板”合成；占位符清理。  
+  - `onekey_rag_service/admin/api/...`（新增）：知识库模板 CRUD、模板渲染预览接口；文件上传/批次状态/触发处理接口；任务进度/重试/取消接口。  
+  - `onekey_rag_service/models.py` & migrations：KB 增加模板字段；文件批次/文件表；任务子任务表（如需）。  
+  - `onekey_rag_service/worker.py`：队列消费文件解析任务；任务进度上报。  
+  - `onekey_rag_service/rag/conversation.py`（若有）：模板变量注入辅助。
 - 前端核心：
   - 路由：`frontend-admin/src/router.tsx`（保持）；  
   - 知识库：`frontend-admin/src/views/KbsPage.tsx`（向导 Stepper UI）；`frontend-admin/src/views/KbDetailPage.tsx`（配置 Tab 增加模板编辑/预览）；  
@@ -277,7 +277,7 @@
 
 **涉及文件与改法（S2）**
 - 后端：  
-  - `src/onekey_rag_service/crawler/` & `indexing/`：补文件解析/分段/清洗逻辑，支持配置入参。  
+  - `onekey_rag_service/crawler/` & `indexing/`：补文件解析/分段/清洗逻辑，支持配置入参。  
   - `admin/api`：数据源字段扩展（网站爬虫高级、文件导入参数），任务详情返回子任务明细。  
   - `worker.py`：分段/索引任务上报子任务进度。  
 - 前端：  

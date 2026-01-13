@@ -31,7 +31,7 @@
    - 如需让后端同域提供静态页面：
      - `cd frontend && pnpm build` → 产物在 `frontend/dist`
      - `cd frontend-admin && pnpm build` → 产物在 `frontend-admin/dist`
-     - 将产物分别拷贝到 `src/onekey_rag_service/static/widget` 与 `src/onekey_rag_service/static/admin`
+     - 将产物分别拷贝到 `onekey_rag_service/static/widget` 与 `onekey_rag_service/static/admin`
 
 4. 初始化数据：抓取 + 建索引（首次建议 `full`，后续可用 `incremental`）
    - 先用 Admin 账号登录拿 JWT（账号密码来自 `.env` 的 `ADMIN_USERNAME/ADMIN_PASSWORD`）：
