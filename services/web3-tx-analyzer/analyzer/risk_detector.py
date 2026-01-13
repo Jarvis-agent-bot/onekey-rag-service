@@ -5,6 +5,22 @@ from typing import Any
 from .schemas import BehaviorResult, DecodedEvent, DecodedMethod, RiskFlag
 
 
+def _parse_int_value(value: str | int | None) -> int:
+    """安全解析可能是十六进制或十进制的值"""
+    if value is None:
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if value.startswith("0x") or value.startswith("0X"):
+            return int(value, 16)
+        if value == "":
+            return 0
+        return int(value)
+    return 0
+
+
 # 已知的高风险合约特征
 HIGH_RISK_SELECTORS = {
     # setApprovalForAll
@@ -71,7 +87,7 @@ class RiskDetector:
 
             value = event.args.get("value", "0")
             try:
-                v = int(value)
+                v = _parse_int_value(value)
                 if v >= HIGH_VALUE_THRESHOLD:
                     return RiskFlag(
                         type="unlimited_approve",
@@ -152,7 +168,7 @@ class RiskDetector:
     def _check_high_value_native_transfer(self, value: str) -> RiskFlag | None:
         """检查大额原生代币转账"""
         try:
-            v = int(value)
+            v = _parse_int_value(value)
             # 超过 10 ETH（单位 wei）
             if v > 10 * 10**18:
                 eth_value = v / 10**18

@@ -5,6 +5,22 @@ from typing import Any
 from .schemas import BehaviorResult, DecodedEvent, DecodedMethod
 
 
+def _parse_int_value(value: str | int | None) -> int:
+    """安全解析可能是十六进制或十进制的值"""
+    if value is None:
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if value.startswith("0x") or value.startswith("0X"):
+            return int(value, 16)
+        if value == "":
+            return 0
+        return int(value)
+    return 0
+
+
 # 已知的 DEX Router 合约地址
 KNOWN_DEX_ROUTERS = {
     # Uniswap V2 Router
@@ -336,7 +352,7 @@ class BehaviorAnalyzer:
                 )
 
         # 检查原生代币转账
-        if value and int(value) > 0 and not evidence:
+        if value and _parse_int_value(value) > 0 and not evidence:
             evidence.append(f"native_transfer:value={value}")
 
         if evidence:
@@ -352,7 +368,7 @@ class BehaviorAnalyzer:
     def _is_unlimited_value(self, value: str) -> bool:
         """检查是否是 unlimited 授权值"""
         try:
-            v = int(value)
+            v = _parse_int_value(value)
             # MAX_UINT256 或接近的值
             max_uint256 = 2**256 - 1
             return v >= max_uint256 * 0.9
