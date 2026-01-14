@@ -11,25 +11,25 @@ interface RiskBadgeProps {
 
 const riskConfig = {
   low: {
-    label: 'Low Risk',
+    label: '低风险',
     icon: ShieldCheck,
     variant: 'success' as const,
     className: 'text-risk-low',
   },
   medium: {
-    label: 'Medium Risk',
+    label: '中风险',
     icon: ShieldAlert,
     variant: 'warning' as const,
     className: 'text-risk-medium',
   },
   high: {
-    label: 'High Risk',
+    label: '高风险',
     icon: ShieldX,
     variant: 'danger' as const,
     className: 'text-risk-high',
   },
   unknown: {
-    label: 'Unknown',
+    label: '未知',
     icon: HelpCircle,
     variant: 'outline' as const,
     className: 'text-muted-foreground',

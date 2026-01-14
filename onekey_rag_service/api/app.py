@@ -241,9 +241,7 @@ async def openai_chat_completions(
             for b in binding_rows
             if (b.kb_id or "").strip() and float(b.weight or 0.0) > 0.0
         ]
-        if not bindings:
-            bindings = [KbBinding(kb_id="default", weight=1.0, priority=0)]
-        kb_allocations = allocate_top_k(bindings, total_k=int(settings.rag_top_k))
+        kb_allocations = allocate_top_k(bindings, total_k=int(settings.rag_top_k)) if bindings else []
 
         chat_cfg = dict((app_row.config or {}).get("chat") or {})
         upstream_model = str(chat_cfg.get("model") or settings.chat_model)
@@ -253,7 +251,7 @@ async def openai_chat_completions(
         elif settings.chat_model_passthrough:
             upstream_model = req.model
         else:
-            upstream_model = settings.chat_model
+            raise HTTPException(status_code=404, detail="model not found")
 
     temperature = req.temperature if req.temperature is not None else settings.chat_default_temperature
     top_p = req.top_p if req.top_p is not None else settings.chat_default_top_p
@@ -300,6 +298,8 @@ async def openai_chat_completions(
                     workspace_id=workspace_id,
                     kb_allocations=kb_allocations,
                     prompt_templates=prompt_templates,
+                    requested_model=req.model,
+                    strict_kb=bool(app_row),
                     temperature=temperature,
                     top_p=top_p,
                     max_tokens=max_tokens,
@@ -398,6 +398,8 @@ async def openai_chat_completions(
                         workspace_id=workspace_id,
                         kb_allocations=kb_allocations,
                         prompt_templates=prompt_templates,
+                        requested_model=req.model,
+                        strict_kb=bool(app_row),
                         debug=req.debug,
                         callbacks=callbacks,
                     ),

@@ -17,8 +17,9 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
-    }
+      "@/*": ["src/shared/*"]
+    },
+    "types": ["chrome"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

@@ -5,6 +5,11 @@ from typing import Any
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+RAG_BASE_URL = "http://api:8000"
+RAG_MODEL = "tx-analyzer"
+RAG_API_KEY = ""
+RAG_TIMEOUT_S = 60.0
+
 
 class ChainConfig:
     """链配置"""
@@ -43,10 +48,10 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/1", alias="REDIS_URL")
 
     # RAG 服务
-    rag_base_url: str = Field(default="http://localhost:8000", alias="RAG_BASE_URL")
-    rag_model: str = Field(default="web3-tx-analysis", alias="RAG_MODEL")
-    rag_api_key: str = Field(default="", alias="RAG_API_KEY")
-    rag_timeout_s: float = Field(default=30.0, alias="RAG_TIMEOUT_S")
+    rag_base_url: str = Field(default=RAG_BASE_URL)
+    rag_model: str = Field(default=RAG_MODEL)
+    rag_api_key: str = Field(default=RAG_API_KEY)
+    rag_timeout_s: float = Field(default=RAG_TIMEOUT_S)
 
     # 链 RPC
     eth_rpc_url: str = Field(default="https://eth.llamarpc.com", alias="ETH_RPC_URL")
@@ -131,4 +136,8 @@ def get_settings() -> Settings:
     global _settings
     if _settings is None:
         _settings = Settings()
+        _settings.rag_base_url = RAG_BASE_URL
+        _settings.rag_model = RAG_MODEL
+        _settings.rag_api_key = RAG_API_KEY
+        _settings.rag_timeout_s = RAG_TIMEOUT_S
     return _settings

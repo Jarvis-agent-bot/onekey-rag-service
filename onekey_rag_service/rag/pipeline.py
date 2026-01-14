@@ -85,6 +85,23 @@ class RagPrepared:
     meta: dict | None = None
 
 
+def _resolve_default_prompts(requested_model: str | None) -> tuple[str, str]:
+    if requested_model == "onekey-docs" or not requested_model:
+        return (
+            "你是 OneKey 开发者文档助手。你必须严格基于提供的“文档片段”回答，不要编造。",
+            "我在 OneKey 开发者文档中没有检索到直接相关的内容。你可以换一种问法，或提供更具体的关键词（如 SDK 名称/方法名/报错信息）。",
+        )
+    if requested_model == "tx-analyzer":
+        return (
+            "你是 Web3 交易分析知识库助手。你必须严格基于提供的“知识库片段”回答，不要编造。",
+            "当前 tx-analyzer 知识库未检索到相关内容，请补充知识库文档或调整交易问题。",
+        )
+    return (
+        "你是知识库助手。你必须严格基于提供的“知识库片段”回答，不要编造。",
+        "当前知识库未检索到相关内容，请补充文档或调整问题。",
+    )
+
+
 def _merge_candidates(candidates: list[list[RetrievedChunk]], *, k: int) -> list[RetrievedChunk]:
     by_id: dict[int, RetrievedChunk] = {}
     for group in candidates:
@@ -244,6 +261,8 @@ async def prepare_rag(
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
     prompt_templates: dict[str, str] | None = None,
+    requested_model: str | None = None,
+    strict_kb: bool = False,
     debug: bool = False,
     callbacks: list | None = None,
 ) -> RagPrepared:
@@ -292,12 +311,37 @@ async def prepare_rag(
             used_compaction = False
             t_compaction_ms = int((time.perf_counter() - t0) * 1000)
 
+    default_system, no_sources_answer = _resolve_default_prompts(requested_model)
+
     t0 = time.perf_counter()
     qvec = embeddings.embed_query(retrieval_query)
     t_embed_ms = int((time.perf_counter() - t0) * 1000)
     mode = (settings.retrieval_mode or "vector").lower()
     t0 = time.perf_counter()
     allocations = [a for a in (kb_allocations or []) if int(a.top_k or 0) > 0]
+    if strict_kb and not allocations:
+        return RagPrepared(
+            messages=None,
+            direct_answer=no_sources_answer,
+            sources=[],
+            debug={"retrieved": 0, "retrieval_query": retrieval_query, "used_compaction": used_compaction} if debug else None,
+            meta={
+                "workspace_id": workspace_id,
+                "kb_allocations": [a.__dict__ for a in allocations],
+                "retrieval_query": retrieval_query,
+                "retrieved": 0,
+                "rerank_used": False,
+                "timings_ms": {
+                    "compaction": t_compaction_ms,
+                    "embed": t_embed_ms,
+                    "retrieve": t_retrieve_ms,
+                    "rerank": t_rerank_ms,
+                    "context": t_context_ms,
+                    "total_prepare": int((time.perf_counter() - t_prepare) * 1000),
+                },
+                "used_compaction": used_compaction,
+            },
+        )
     if allocations:
         groups: list[list[RetrievedChunk]] = []
         for a in allocations:
@@ -376,7 +420,7 @@ async def prepare_rag(
     if not topn:
         return RagPrepared(
             messages=None,
-            direct_answer="我在 OneKey 开发者文档中没有检索到直接相关的内容。你可以换一种问法，或提供更具体的关键词（如 SDK 名称/方法名/报错信息）。",
+            direct_answer=no_sources_answer,
             sources=[],
             debug={"retrieved": 0, "retrieval_query": retrieval_query, "used_compaction": used_compaction} if debug else None,
             meta={
@@ -402,7 +446,6 @@ async def prepare_rag(
     t_context_ms = int((time.perf_counter() - t0) * 1000)
 
     templates = prompt_templates or {}
-    default_system = "你是 OneKey 开发者文档助手。你必须严格基于提供的“文档片段”回答，不要编造。"
     system = templates.get("system") or default_system
 
     extra = ""
@@ -526,6 +569,8 @@ async def answer_with_rag(
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
     prompt_templates: dict[str, str] | None = None,
+    requested_model: str | None = None,
+    strict_kb: bool = False,
     temperature: float | None = None,
     top_p: float | None = None,
     max_tokens: int | None = None,
@@ -533,6 +578,7 @@ async def answer_with_rag(
     debug: bool = False,
     callbacks: list | None = None,
 ) -> RagAnswer:
+    _, no_sources_answer = _resolve_default_prompts(requested_model)
     prepared = await prepare_rag(
         session,
         settings=settings,
@@ -545,6 +591,8 @@ async def answer_with_rag(
         workspace_id=workspace_id,
         kb_allocations=kb_allocations,
         prompt_templates=prompt_templates,
+        requested_model=requested_model,
+        strict_kb=strict_kb,
         debug=debug,
         callbacks=callbacks,
     )
@@ -554,7 +602,7 @@ async def answer_with_rag(
 
     if not prepared.messages:
         return RagAnswer(
-            answer="我在 OneKey 开发者文档中没有检索到直接相关的内容。你可以换一种问法，或提供更具体的关键词（如 SDK 名称/方法名/报错信息）。",
+            answer=no_sources_answer,
             sources=[],
             debug=prepared.debug,
             meta=prepared.meta,
@@ -564,11 +612,7 @@ async def answer_with_rag(
 
     if not chat:
         # 降级：无上游模型时，返回可用片段的摘要式回答（确保服务可运行）
-        answer = (
-            "当前服务暂时没有搜索到可用信息。\n\n"
-            "下面是检索到的可能的相关文档片段（请优先查看来源链接）：\n"
-            + "\n".join([f"- {s['title'] or s['url']}（{s['url']}）" for s in sources[:5]])
-        )
+        answer = no_sources_answer
         return RagAnswer(answer=answer, sources=sources, debug=prepared.debug, meta=prepared.meta)
 
     t0 = time.perf_counter()

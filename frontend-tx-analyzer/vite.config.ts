@@ -1,27 +1,40 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { crx } from '@crxjs/vite-plugin'
 import path from 'path'
+import { fileURLToPath } from 'url'
+import manifest from './src/manifest.json'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export default defineConfig({
-  plugins: [react()],
-  base: '/tx-analyzer/',
+  base: '/',
+  plugins: [
+    react(),
+    crx({ manifest }),
+  ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, './src/shared'),
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 5175,
-    host: true,
-    allowedHosts: ['localhost', 'exwxyzi.cn'],
-    watch: {
-      ignored: ['**/.pnpm-store/**', '**/node_modules/**'],
+    strictPort: true,
+    origin: 'http://localhost:5175',
+    hmr: {
+      host: 'localhost',
+      port: 5175,
     },
-    proxy: {
-      '/tx-analyzer/api': {
-        target: process.env.VITE_TX_ANALYZER_API_URL || 'http://localhost:8001',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/tx-analyzer\/api/, ''),
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        popup: 'src/popup/index.html',
+        sidepanel: 'src/sidepanel/index.html',
+        options: 'src/options/index.html',
       },
     },
   },

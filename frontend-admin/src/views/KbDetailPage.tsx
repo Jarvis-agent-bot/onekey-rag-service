@@ -354,6 +354,30 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
 
+  const triggerIndex = useMutation({
+    mutationFn: async () => {
+      return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/index`, {
+        method: "POST",
+        body: JSON.stringify({
+          kb_id: kbId,
+          mode: "full",
+        }),
+      });
+    },
+    onSuccess: async (data) => {
+      toast.success("索引任务已启动", {
+        description: `任务 ID: ${data.job_id}`,
+        action: {
+          label: "查看详情",
+          onClick: () => navigate(`/jobs/${data.job_id}`),
+        },
+      });
+      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
+      await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
+  });
+
   // ======== 内容 (Pages) Tab ========
   const [pagesPage, setPagesPage] = useState(1);
   const [pagesSourceId, setPagesSourceId] = useState("");
@@ -747,6 +771,14 @@ export function KbDetailPage() {
                             >
                               <Play className="mr-1 h-3 w-3" />
                               抓取
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => triggerIndex.mutate()}
+                              disabled={triggerIndex.isPending}
+                            >
+                              索引
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => { setEditingSourceId(s.id); setShowSourceForm(true); }}>
                               编辑

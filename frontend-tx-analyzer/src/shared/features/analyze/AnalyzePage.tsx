@@ -77,25 +77,25 @@ export function AnalyzePage() {
       {result && result.parse_result && (
         <div className="space-y-6 animate-fade-in">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Analysis Result</h2>
+            <h2 className="text-base font-semibold">分析结果</h2>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                Trace ID: {result.trace_id}
+                Trace: {result.trace_id}
               </span>
-              <Button variant="outline" size="sm" onClick={handleCopyResult}>
+              <Button variant="ghost" size="sm" onClick={handleCopyResult}>
                 {copied ? (
                   <Check className="h-4 w-4 text-risk-low" />
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}
-                <span className="ml-2">Copy JSON</span>
+                <span className="ml-2">复制 JSON</span>
               </Button>
             </div>
           </div>
 
           <Separator />
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <ResultOverview result={result.parse_result} />
             <RiskAssessment
               explanation={result.explanation}
@@ -105,11 +105,11 @@ export function AnalyzePage() {
 
           <Tabs defaultValue="method" className="w-full">
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="method">Method</TabsTrigger>
+              <TabsTrigger value="method">方法</TabsTrigger>
               <TabsTrigger value="events">
-                Events ({result.parse_result.events.length})
+                事件 ({result.parse_result.events.length})
               </TabsTrigger>
-              <TabsTrigger value="explanation">RAG Explanation</TabsTrigger>
+              <TabsTrigger value="explanation">解释</TabsTrigger>
               <TabsTrigger value="trace">Trace</TabsTrigger>
             </TabsList>
             <TabsContent value="method">

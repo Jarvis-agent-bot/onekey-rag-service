@@ -1,0 +1,79 @@
+{
+  "manifest_version": 3,
+  "name": "Web3 TX Analyzer",
+  "version": "1.0.0",
+  "description": "AI-powered Web3 transaction security analyzer - Protect your assets before signing",
+
+  "permissions": [
+    "activeTab",
+    "storage",
+    "sidePanel",
+    "scripting",
+    "contextMenus"
+  ],
+
+  "host_permissions": [
+    "https://tx-analyzer.onekey.so/*",
+    "http://127.0.0.1:8001/*",
+    "http://localhost:8001/*",
+    "https://*.etherscan.io/*",
+    "https://*.bscscan.com/*",
+    "https://*.polygonscan.com/*",
+    "https://*.arbiscan.io/*",
+    "https://*.optimistic.etherscan.io/*"
+  ],
+
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+
+  "action": {
+    "default_title": "TX Analyzer",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+
+  "options_ui": {
+    "page": "src/options/index.html",
+    "open_in_tab": true
+  },
+
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content-scripts/dapp-interceptor.ts"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.etherscan.io/tx/*",
+        "https://*.bscscan.com/tx/*",
+        "https://*.polygonscan.com/tx/*",
+        "https://*.arbiscan.io/tx/*",
+        "https://*.optimistic.etherscan.io/tx/*"
+      ],
+      "js": ["src/content-scripts/etherscan-enhancer.ts"],
+      "css": ["src/content-scripts/styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "web_accessible_resources": [{
+    "resources": ["src/content-scripts/injected/*", "src/content-scripts/styles.css"],
+    "matches": ["<all_urls>"]
+  }],
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
