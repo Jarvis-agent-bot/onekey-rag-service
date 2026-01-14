@@ -7,7 +7,11 @@ export default defineConfig({
   server: {
     host: true,
     port: 5174,
-    allowedHosts: ['exwxyzi.cn'],
+    allowedHosts: ['localhost', 'exwxyzi.cn'],
+    watch: {
+      // 忽略这些目录以减少内存占用
+      ignored: ['**/.pnpm-store/**', '**/node_modules/**'],
+    },
     proxy: {
       "/admin/api": {
         target: process.env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8000",

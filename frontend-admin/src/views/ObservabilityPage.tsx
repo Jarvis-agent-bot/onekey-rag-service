@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { DebouncedInput } from "../components/DebouncedInput";
 import { Select } from "../components/ui/select";
 import { Card } from "../components/Card";
+import { Loading } from "../components/Loading";
 import { Pagination } from "../components/Pagination";
 import { EmptyState } from "../components/EmptyState";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
@@ -84,17 +85,17 @@ export function ObservabilityPage() {
   }
 
   const chips: FilterChip[] = [
-    appId ? { key: "app_id", label: "app", value: appId, onRemove: () => updateFilter([["app_id", null]]) } : null,
-    kbId ? { key: "kb_id", label: "KB", value: kbId, onRemove: () => updateFilter([["kb_id", null]]) } : null,
+    appId ? { key: "app_id", label: "应用", value: appId, onRemove: () => updateFilter([["app_id", null]]) } : null,
+    kbId ? { key: "kb_id", label: "知识库", value: kbId, onRemove: () => updateFilter([["kb_id", null]]) } : null,
     conversationId
-      ? { key: "conversation_id", label: "conversation", value: conversationId, onRemove: () => updateFilter([["conversation_id", null]]) }
+      ? { key: "conversation_id", label: "会话", value: conversationId, onRemove: () => updateFilter([["conversation_id", null]]) }
       : null,
-    messageId ? { key: "message_id", label: "message", value: messageId, onRemove: () => updateFilter([["message_id", null]]) } : null,
-    requestId ? { key: "request_id", label: "request", value: requestId, onRemove: () => updateFilter([["request_id", null]]) } : null,
-    errorCode ? { key: "error_code", label: "error_code", value: errorCode, onRemove: () => updateFilter([["error_code", null]]) } : null,
-    hasError ? { key: "has_error", label: "error", value: hasError, onRemove: () => updateFilter([["has_error", null]]) } : null,
+    messageId ? { key: "message_id", label: "消息", value: messageId, onRemove: () => updateFilter([["message_id", null]]) } : null,
+    requestId ? { key: "request_id", label: "请求", value: requestId, onRemove: () => updateFilter([["request_id", null]]) } : null,
+    errorCode ? { key: "error_code", label: "错误码", value: errorCode, onRemove: () => updateFilter([["error_code", null]]) } : null,
+    hasError ? { key: "has_error", label: "有错误", value: hasError === "true" ? "是" : "否", onRemove: () => updateFilter([["has_error", null]]) } : null,
     dateRange && dateRange !== "24h"
-      ? { key: "date_range", label: "range", value: dateRange, onRemove: () => updateFilter([["date_range", "24h"]]) }
+      ? { key: "date_range", label: "时间", value: dateRange, onRemove: () => updateFilter([["date_range", "24h"]]) }
       : null,
   ].filter(Boolean) as FilterChip[];
 
@@ -283,67 +284,55 @@ export function ObservabilityPage() {
       <Card title="筛选" description="仅存检索调试元数据（hash/len/chunk_ids/scores/timings），不存原文">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">app_id</div>
-            <Input
+            <div className="text-xs text-muted-foreground">应用ID</div>
+            <DebouncedInput
               value={appId}
-              onChange={(e) => {
-                updateFilter([["app_id", e.target.value]]);
-              }}
+              onChange={(v) => updateFilter([["app_id", v]])}
               placeholder="例如 app_default"
             />
           </div>
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">kb_id</div>
-            <Input
+            <div className="text-xs text-muted-foreground">知识库ID</div>
+            <DebouncedInput
               value={kbId}
-              onChange={(e) => {
-                updateFilter([["kb_id", e.target.value]]);
-              }}
+              onChange={(v) => updateFilter([["kb_id", v]])}
               placeholder="例如 default"
             />
           </div>
           <div className="space-y-1 lg:col-span-2">
-            <div className="text-xs text-muted-foreground">conversation_id</div>
-            <Input
+            <div className="text-xs text-muted-foreground">会话ID</div>
+            <DebouncedInput
               value={conversationId}
-              onChange={(e) => {
-                updateFilter([["conversation_id", e.target.value]]);
-              }}
+              onChange={(v) => updateFilter([["conversation_id", v]])}
               placeholder="精确匹配"
             />
           </div>
           <div className="space-y-1 lg:col-span-2">
-            <div className="text-xs text-muted-foreground">message_id</div>
-            <Input
+            <div className="text-xs text-muted-foreground">消息ID</div>
+            <DebouncedInput
               value={messageId}
-              onChange={(e) => {
-                updateFilter([["message_id", e.target.value]]);
-              }}
+              onChange={(v) => updateFilter([["message_id", v]])}
               placeholder="精确匹配"
             />
           </div>
           <div className="space-y-1 lg:col-span-2">
-            <div className="text-xs text-muted-foreground">request_id</div>
-            <Input
+            <div className="text-xs text-muted-foreground">请求ID</div>
+            <DebouncedInput
               value={requestId}
-              onChange={(e) => {
-                updateFilter([["request_id", e.target.value]]);
-              }}
+              onChange={(v) => updateFilter([["request_id", v]])}
               placeholder="chatcmpl_xxx"
             />
           </div>
           <div className="space-y-1 lg:col-span-2">
-            <div className="text-xs text-muted-foreground">error_code</div>
-            <Input
+            <div className="text-xs text-muted-foreground">错误码</div>
+            <DebouncedInput
               value={errorCode}
-              onChange={(e) => {
-                updateFilter([["error_code", e.target.value]]);
-              }}
+              onChange={(v) => updateFilter([["error_code", v]])}
               placeholder="例如 prepare_timeout"
             />
           </div>
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">has_error</div>
+            <div className="text-xs text-muted-foreground">是否有错误</div>
             <Select
               value={hasError}
               onChange={(e) => {
@@ -351,21 +340,8 @@ export function ObservabilityPage() {
               }}
             >
               <option value="">全部</option>
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">时间范围</div>
-            <Select
-              value={dateRange}
-              onChange={(e) => {
-                updateFilter([["date_range", e.target.value]]);
-              }}
-            >
-              <option value="24h">24h</option>
-              <option value="7d">7d</option>
-              <option value="30d">30d</option>
+              <option value="true">是</option>
+              <option value="false">否</option>
             </Select>
           </div>
           <div className="flex items-end gap-2">
@@ -389,20 +365,20 @@ export function ObservabilityPage() {
       </Card>
 
       <Card title="列表" description="点击 event_id 查看详情（timings / chunk_ids / sources 等）">
-        {list.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
+        {list.isLoading ? <Loading /> : null}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-muted-foreground">
               <tr>
-                <th className="py-2">event_id</th>
+                <th className="py-2">事件ID</th>
                 <th className="py-2">时间</th>
-                <th className="py-2">app_id</th>
-                <th className="py-2">kb_ids</th>
-                <th className="py-2">request_id</th>
-                <th className="py-2">message_id</th>
-                <th className="py-2">total_ms</th>
-                <th className="py-2">error</th>
+                <th className="py-2">应用ID</th>
+                <th className="py-2">知识库</th>
+                <th className="py-2">请求ID</th>
+                <th className="py-2">消息ID</th>
+                <th className="py-2">总耗时</th>
+                <th className="py-2">错误</th>
               </tr>
             </thead>
             <tbody>

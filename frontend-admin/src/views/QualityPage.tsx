@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 
 import { Card } from "../components/Card";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { Loading } from "../components/Loading";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
@@ -149,7 +150,7 @@ export function QualityPage() {
         </div>
       </div>
 
-      {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
+      {q.isLoading ? <Loading /> : null}
       {q.error ? <ApiErrorBanner error={q.error} /> : null}
 
       {q.data ? (
@@ -182,18 +183,18 @@ export function QualityPage() {
                     中的 RETRIEVAL_EVENTS_ENABLED 等开关。
                   </div>
                 ) : null}
-                <Row k="requests" v={overall.requests} />
-                <Row k="errors" v={`${overall.errors} (${pct(overall.error_ratio)})`} />
-                <Row k="hits" v={`${overall.hits} (${pct(overall.hit_ratio)})`} />
-                <Row k="p95_prepare" v={ms(overall.p95_prepare_ms)} />
-                <Row k="avg_prepare" v={ms(overall.avg_prepare_ms)} />
-                <Row k="avg_retrieve" v={ms(overall.avg_retrieve_ms)} />
-                <Row k="avg_rerank" v={ms(overall.avg_rerank_ms)} />
-                <Row k="avg_chat" v={ms(overall.avg_chat_ms)} />
-                <Row k="avg_total" v={ms(overall.avg_total_ms)} />
-                <Row k="avg_retrieved" v={overall.avg_retrieved != null ? overall.avg_retrieved.toFixed(1) : "-"} />
-                <Row k="avg_topn" v={overall.avg_topn != null ? overall.avg_topn.toFixed(1) : "-"} />
-                <Row k="total_tokens" v={overall.total_tokens} />
+                <Row k="请求数" v={overall.requests} />
+                <Row k="错误数" v={`${overall.errors} (${pct(overall.error_ratio)})`} />
+                <Row k="命中数" v={`${overall.hits} (${pct(overall.hit_ratio)})`} />
+                <Row k="P95 准备耗时" v={ms(overall.p95_prepare_ms)} />
+                <Row k="平均准备耗时" v={ms(overall.avg_prepare_ms)} />
+                <Row k="平均检索耗时" v={ms(overall.avg_retrieve_ms)} />
+                <Row k="平均重排耗时" v={ms(overall.avg_rerank_ms)} />
+                <Row k="平均对话耗时" v={ms(overall.avg_chat_ms)} />
+                <Row k="平均总耗时" v={ms(overall.avg_total_ms)} />
+                <Row k="平均召回数" v={overall.avg_retrieved != null ? overall.avg_retrieved.toFixed(1) : "-"} />
+                <Row k="平均 TopN" v={overall.avg_topn != null ? overall.avg_topn.toFixed(1) : "-"} />
+                <Row k="总 Token 数" v={overall.total_tokens} />
               </div>
             ) : null}
           </Card>
@@ -215,10 +216,10 @@ export function QualityPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>model</TableHead>
-                  <TableHead className="text-right">requests</TableHead>
-                  <TableHead className="text-right">tokens</TableHead>
-                  <TableHead className="text-right">cost(USD)</TableHead>
+                  <TableHead>模型</TableHead>
+                  <TableHead className="text-right">请求数</TableHead>
+                  <TableHead className="text-right">Token 数</TableHead>
+                  <TableHead className="text-right">成本(USD)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,9 +250,9 @@ export function QualityPage() {
                   avg_delta 为 “-” 通常表示抽样不足或未启用 rerank；可扩大时间范围，或检查 <Link className="underline underline-offset-2" to="/settings">设置</Link> 中的 RERANK 配置。
                 </div>
               ) : null}
-              <Row k="sample_events" v={q.data.rerank_effect?.sample_events ?? 0} />
-              <Row k="sample_pairs" v={q.data.rerank_effect?.sample_pairs ?? 0} />
-              <Row k="avg_delta" v={q.data.rerank_effect?.avg_delta == null ? "-" : q.data.rerank_effect.avg_delta.toFixed(4)} />
+              <Row k="抽样事件数" v={q.data.rerank_effect?.sample_events ?? 0} />
+              <Row k="抽样对数" v={q.data.rerank_effect?.sample_pairs ?? 0} />
+              <Row k="平均提升 Delta" v={q.data.rerank_effect?.avg_delta == null ? "-" : q.data.rerank_effect.avg_delta.toFixed(4)} />
             </div>
           </Card>
 
@@ -259,12 +260,12 @@ export function QualityPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>app_id</TableHead>
-                  <TableHead className="text-right">req</TableHead>
-                  <TableHead className="text-right">err</TableHead>
-                  <TableHead className="text-right">hit</TableHead>
-                  <TableHead className="text-right">p95</TableHead>
-                  <TableHead className="text-right">avg_retrieved</TableHead>
+                  <TableHead>应用ID</TableHead>
+                  <TableHead className="text-right">请求</TableHead>
+                  <TableHead className="text-right">错误率</TableHead>
+                  <TableHead className="text-right">命中率</TableHead>
+                  <TableHead className="text-right">P95</TableHead>
+                  <TableHead className="text-right">平均召回</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -294,12 +295,12 @@ export function QualityPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>app_id</TableHead>
-                  <TableHead>kb_id</TableHead>
-                  <TableHead className="text-right">req</TableHead>
-                  <TableHead className="text-right">err</TableHead>
-                  <TableHead className="text-right">hit</TableHead>
-                  <TableHead className="text-right">avg_prepare</TableHead>
+                  <TableHead>应用ID</TableHead>
+                  <TableHead>知识库ID</TableHead>
+                  <TableHead className="text-right">请求</TableHead>
+                  <TableHead className="text-right">错误率</TableHead>
+                  <TableHead className="text-right">命中率</TableHead>
+                  <TableHead className="text-right">平均准备</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -330,8 +331,8 @@ export function QualityPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>code</TableHead>
-                  <TableHead className="text-right">count</TableHead>
+                  <TableHead>错误码</TableHead>
+                  <TableHead className="text-right">次数</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -368,8 +369,8 @@ export function QualityPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-right">retrieved</TableHead>
-                  <TableHead className="text-right">count</TableHead>
+                  <TableHead className="text-right">召回数</TableHead>
+                  <TableHead className="text-right">次数</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

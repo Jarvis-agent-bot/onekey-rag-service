@@ -245,12 +245,12 @@ export function DashboardPage() {
               <div className="text-sm font-medium">存在失败任务</div>
             </div>
             <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-100 hover:bg-amber-400/20">
-              <Link to="/jobs?status=failed">去处理</Link>
+              <Link to="/kbs">查看知识库</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <div className="text-xs text-amber-100/80">
-              failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（点击跳转到任务列表查看详情）
+              failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（请在对应知识库的「任务」Tab 查看详情）
             </div>
           </CardContent>
         </UiCard>
@@ -314,9 +314,9 @@ export function DashboardPage() {
           icon={<ListChecks className="h-4 w-4" />}
           title="失败任务"
           value={formatInt(jobsFailed)}
-          sub="点击查看 failed 任务"
-          help="口径：jobs 表中 status=failed 的任务数量（全类型）。"
-          to="/jobs?status=failed"
+          sub="在知识库详情查看"
+          help="口径：jobs 表中 status=failed 的任务数量（全类型）。点击进入知识库列表，在具体知识库的「任务」Tab 查看。"
+          to="/kbs"
         />
       </div>
 
@@ -344,47 +344,30 @@ export function DashboardPage() {
           ) : null}
         </Card>
 
-        <Card title="任务概览" description="按 type/status 聚合（点击下钻）">
+        <Card title="任务概览" description="按 status 聚合">
           <div className="space-y-2 text-sm">
+            <Row k="排队中" v={<span className="font-mono">{formatInt(jobsQueued)}</span>} />
             <Row
-              k="queued"
-              v={
-                <Link className="underline underline-offset-2" to="/jobs?status=queued">
-                  {formatInt(jobsQueued)}
-                </Link>
-              }
+              k="运行中"
+              v={<span className="font-mono text-blue-400">{formatInt(jobsRunning)}</span>}
             />
             <Row
-              k="running"
-              v={
-                <Link className="underline underline-offset-2" to="/jobs?status=running">
-                  {formatInt(jobsRunning)}
-                </Link>
-              }
+              k="失败"
+              v={<span className="font-mono text-destructive">{formatInt(jobsFailed)}</span>}
             />
             <Row
-              k="failed"
-              v={
-                <Link className="underline underline-offset-2" to="/jobs?status=failed">
-                  {formatInt(jobsFailed)}
-                </Link>
-              }
-            />
-            <Row
-              k="succeeded"
-              v={
-                <Link className="underline underline-offset-2" to="/jobs?status=succeeded">
-                  {formatInt(jobsSucceeded)}
-                </Link>
-              }
+              k="成功"
+              v={<span className="font-mono text-emerald-400">{formatInt(jobsSucceeded)}</span>}
             />
           </div>
-          <div className="pt-2 text-xs text-muted-foreground">提示：触发 crawl/index 可在“任务中心”操作。</div>
+          <div className="pt-2 text-xs text-muted-foreground">
+            提示：在 <Link className="underline underline-offset-2" to="/kbs">知识库详情</Link> 的「任务」Tab 查看具体任务。
+          </div>
         </Card>
 
         <Card title="内容规模" description="抓取/索引规模（按 workspace）">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Link to="/pages?changed=true" className="block rounded-md border bg-muted/30 p-3 transition-colors hover:bg-muted/40">
+            <Link to="/kbs" className="block rounded-md border bg-muted/30 p-3 transition-colors hover:bg-muted/40">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Database className="h-4 w-4 text-muted-foreground" />

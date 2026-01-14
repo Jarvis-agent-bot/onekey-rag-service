@@ -287,7 +287,7 @@ export function AppsPage() {
             <EmptyState
               description={
                 <div className="space-y-2">
-                  <div>快速开始（对标 Dify/FastGPT）：</div>
+                  <div>快速开始：</div>
                   <ol className="list-inside list-decimal text-left">
                     <li>新建 App</li>
                     <li>进入 App 详情绑定知识库（KB）</li>

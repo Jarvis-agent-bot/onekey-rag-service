@@ -6,9 +6,10 @@ import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { CopyableText } from "../components/CopyableText";
 import { EmptyState } from "../components/EmptyState";
 import { FilterChips, type FilterChip } from "../components/FilterChips";
+import { Loading } from "../components/Loading";
 import { Pagination } from "../components/Pagination";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { DebouncedInput } from "../components/DebouncedInput";
 import { Select } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { apiFetch } from "../lib/api";
@@ -54,12 +55,12 @@ export function AuditPage() {
 
   const chips: FilterChip[] = [
     dateRange && dateRange !== "24h"
-      ? { key: "date_range", label: "范围", value: dateRange, onRemove: () => updateFilter([["date_range", null]]) }
+      ? { key: "date_range", label: "时间", value: dateRange, onRemove: () => updateFilter([["date_range", null]]) }
       : null,
     actor ? { key: "actor", label: "操作者", value: actor, onRemove: () => updateFilter([["actor", null]]) } : null,
-    action ? { key: "action", label: "动作", value: action, onRemove: () => updateFilter([["action", null]]) } : null,
-    objectType ? { key: "object_type", label: "对象类型", value: objectType, onRemove: () => updateFilter([["object_type", null]]) } : null,
-    objectId ? { key: "object_id", label: "对象", value: objectId, onRemove: () => updateFilter([["object_id", null]]) } : null,
+    action ? { key: "action", label: "操作", value: action, onRemove: () => updateFilter([["action", null]]) } : null,
+    objectType ? { key: "object_type", label: "类型", value: objectType, onRemove: () => updateFilter([["object_type", null]]) } : null,
+    objectId ? { key: "object_id", label: "对象ID", value: objectId, onRemove: () => updateFilter([["object_id", null]]) } : null,
   ].filter(Boolean) as FilterChip[];
 
   const q = useQuery({
@@ -103,57 +104,44 @@ export function AuditPage() {
         </div>
       </div>
 
-      <Card title="筛选" description="用于追踪关键操作：删除/触发任务/修改配置等">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">时间范围</div>
-            <Select
-              value={dateRange}
-              onChange={(e) => {
-                updateFilter([["date_range", e.target.value]]);
-              }}
-            >
-              <option value="24h">24h</option>
-              <option value="7d">7d</option>
-              <option value="30d">30d</option>
-            </Select>
-          </div>
+      <Card title="筛选" description="用于追踪关键操作：删除、触发任务、修改配置等">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">操作者</div>
-            <Input
+            <DebouncedInput
               value={actor}
-              onChange={(e) => updateFilter([["actor", e.target.value]])}
-              placeholder="例如 admin"
+              onChange={(v) => updateFilter([["actor", v]])}
+              placeholder="如：admin"
             />
           </div>
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">动作</div>
-            <Input
+            <div className="text-xs text-muted-foreground">操作类型</div>
+            <DebouncedInput
               value={action}
-              onChange={(e) => updateFilter([["action", e.target.value]])}
-              placeholder="例如 page.delete / job.trigger"
+              onChange={(v) => updateFilter([["action", v]])}
+              placeholder="如：删除、创建、触发"
             />
           </div>
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">对象类型</div>
             <Select value={objectType} onChange={(e) => updateFilter([["object_type", e.target.value]])}>
               <option value="">全部</option>
-              <option value="kb">kb</option>
-              <option value="source">source</option>
-              <option value="app">app</option>
-              <option value="page">page</option>
-              <option value="job">job</option>
+              <option value="kb">知识库</option>
+              <option value="source">数据源</option>
+              <option value="app">应用</option>
+              <option value="page">内容</option>
+              <option value="job">任务</option>
             </Select>
           </div>
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">对象 ID</div>
-            <Input
+            <div className="text-xs text-muted-foreground">对象ID</div>
+            <DebouncedInput
               value={objectId}
-              onChange={(e) => updateFilter([["object_id", e.target.value]])}
-              placeholder="例如 kb_xxx / crawl_xxx"
+              onChange={(v) => updateFilter([["object_id", v]])}
+              placeholder="如：kb_xxx"
             />
           </div>
-          <div className="flex items-end gap-3">
+          <div className="flex items-end gap-2">
             <Button variant="outline" onClick={() => q.refetch()}>
               刷新
             </Button>
@@ -165,8 +153,8 @@ export function AuditPage() {
         <FilterChips items={chips} className="pt-3" />
       </Card>
 
-      <Card title="列表" description="按时间倒序；meta 支持复制">
-        {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
+      <Card title="操作记录" description="按时间倒序；点击详情可复制完整信息">
+        {q.isLoading ? <Loading /> : null}
         {q.error ? <ApiErrorBanner error={q.error} /> : null}
 
         <Table>
@@ -174,9 +162,9 @@ export function AuditPage() {
             <TableRow>
               <TableHead className="w-[190px]">时间</TableHead>
               <TableHead className="w-[120px]">操作者</TableHead>
-              <TableHead className="w-[180px]">动作</TableHead>
+              <TableHead className="w-[180px]">操作</TableHead>
               <TableHead className="w-[320px]">对象</TableHead>
-              <TableHead>meta</TableHead>
+              <TableHead>详情</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

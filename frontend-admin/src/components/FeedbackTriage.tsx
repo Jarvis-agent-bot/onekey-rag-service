@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Badge } from "./ui/badge";
@@ -51,6 +53,7 @@ export function FeedbackTriage(props: {
   status: string;
   attribution: string;
   tags: string[];
+  conversationId?: string;
 }) {
   const { workspaceId } = useWorkspace();
   const qc = useQueryClient();
@@ -80,6 +83,14 @@ export function FeedbackTriage(props: {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Badge variant={statusInfo.badgeVariant}>{statusInfo.label}</Badge>
+      {props.conversationId ? (
+        <Button type="button" variant="outline" size="sm" asChild>
+          <Link to={`/observability?conversation_id=${encodeURIComponent(props.conversationId)}`}>
+            <ExternalLink className="mr-1 h-3 w-3" />
+            对话
+          </Link>
+        </Button>
+      ) : null}
       <Dialog
         open={open}
         onOpenChange={(v) => {

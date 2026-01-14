@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
@@ -36,6 +37,7 @@ export function JobDetailPage() {
   const params = useParams();
   const jobId = params.jobId || "";
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const q = useQuery({
     queryKey: ["job", workspaceId, jobId],
@@ -70,25 +72,46 @@ export function JobDetailPage() {
 
   const actionError = requeue.error || cancel.error;
 
+  // 智能返回逻辑：优先返回 KB 详情页，否则返回上一页
+  const handleGoBack = () => {
+    if (q.data?.kb_id) {
+      navigate(`/kbs/${q.data.kb_id}?tab=jobs`);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/kbs");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="text-lg font-semibold">任务详情</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            <Link className="underline underline-offset-2" to="/jobs">
-              返回任务列表
-            </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={handleGoBack} className="gap-1 px-2">
+              <ArrowLeft className="h-4 w-4" />
+              返回
+            </Button>
+            <span className="text-lg font-semibold">任务详情</span>
+          </div>
+          <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
             {q.data?.kb_id ? (
-              <span className="ml-3">
-                <Link
-                  className="underline underline-offset-2"
-                  to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
-                >
-                  查看相关页面
+              <>
+                <Link className="hover:underline" to={`/kbs/${q.data.kb_id}`}>
+                  所属知识库
                 </Link>
-              </span>
-            ) : null}
+                <Link className="hover:underline" to={`/kbs/${q.data.kb_id}?tab=pages`}>
+                  查看内容
+                </Link>
+                <Link className="hover:underline" to={`/kbs/${q.data.kb_id}?tab=jobs`}>
+                  查看任务
+                </Link>
+              </>
+            ) : (
+              <Link className="hover:underline" to="/kbs">
+                知识库列表
+              </Link>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">

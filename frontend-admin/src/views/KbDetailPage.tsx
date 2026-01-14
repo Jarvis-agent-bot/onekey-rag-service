@@ -1,22 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { ChevronDown, ChevronRight, Database, FileText, Play, Plus, Settings2, Upload } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
-import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import { Input } from "../components/ui/input";
-import { Select } from "../components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Textarea } from "../components/ui/textarea";
-import { Card } from "../components/Card";
-import { JsonView } from "../components/JsonView";
+import { ActionCard } from "../components/ActionCard";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { Card } from "../components/Card";
+import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
+import { CopyableText } from "../components/CopyableText";
+import { EmptyState } from "../components/EmptyState";
+import { Loading } from "../components/Loading";
+import { Pagination } from "../components/Pagination";
+import { ProgressPill } from "../components/ProgressPill";
+import { SourceConfigForm, getDefaultSourceConfig, parseSourceConfig, sourceConfigToJson, type SourceConfig } from "../components/SourceConfigForm";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Progress } from "../components/ui/progress";
+import { Select } from "../components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Textarea } from "../components/ui/textarea";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
-import { Progress } from "../components/ui/progress";
 
 type KbDetail = {
   id: string;
@@ -34,17 +41,17 @@ type KbStats = {
   chunks: { total: number; with_embedding: number; embedding_coverage: number };
 };
 
-type SourcesResp = {
-  items: Array<{
-    id: string;
-    type: string;
-    name: string;
-    status: string;
-    config: Record<string, unknown>;
-    created_at: string | null;
-    updated_at: string | null;
-  }>;
+type SourceItem = {
+  id: string;
+  type: string;
+  name: string;
+  status: string;
+  config: Record<string, unknown>;
+  created_at: string | null;
+  updated_at: string | null;
 };
+
+type SourcesResp = { items: SourceItem[] };
 type ReferencedByResp = { total: number; items: Array<{ app_id: string; name: string; public_model_id: string }> };
 type FileBatchListResp = {
   items: Array<{
@@ -75,17 +82,40 @@ type FileBatchDetailResp = {
   }>;
 };
 
-function safeJsonParse(text: string): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
-  const raw = (text || "").trim();
-  if (!raw) return { ok: true, value: {} };
-  try {
-    const v = JSON.parse(raw);
-    if (v && typeof v === "object" && !Array.isArray(v)) return { ok: true, value: v as Record<string, unknown> };
-    return { ok: false, error: "必须是 JSON 对象（object）" };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  }
-}
+type PagesResp = {
+  page: number;
+  page_size: number;
+  total: number;
+  items: Array<{
+    id: number;
+    kb_id: string;
+    source_id: string;
+    url: string;
+    title: string;
+    http_status: number;
+    last_crawled_at: string | null;
+    indexed: boolean;
+    changed: boolean;
+  }>;
+};
+
+type JobsResp = {
+  page: number;
+  page_size: number;
+  total: number;
+  items: Array<{
+    id: string;
+    type: string;
+    status: string;
+    kb_id: string;
+    app_id: string;
+    source_id: string;
+    progress: Record<string, unknown>;
+    error: string;
+    started_at: string | null;
+    finished_at: string | null;
+  }>;
+};
 
 export function KbDetailPage() {
   const { workspaceId } = useWorkspace();
@@ -94,6 +124,7 @@ export function KbDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
+  // ======== 数据查询 ========
   const kb = useQuery({
     queryKey: ["kb", workspaceId, kbId],
     queryFn: () => apiFetch<KbDetail>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}`),
@@ -124,6 +155,26 @@ export function KbDetailPage() {
     enabled: !!workspaceId && !!kbId,
   });
 
+  // 获取最近任务（用于数据源列表显示状态）
+  const recentJobs = useQuery({
+    queryKey: ["kb-recent-jobs", workspaceId, kbId],
+    queryFn: () => apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?kb_id=${kbId}&page_size=20`),
+    enabled: !!workspaceId && !!kbId,
+    refetchInterval: 5000, // 每 5 秒刷新一次，跟踪进行中的任务
+  });
+
+  // 构建 source_id -> 最新任务 的映射
+  const latestJobBySource = useMemo(() => {
+    const map = new Map<string, JobsResp["items"][0]>();
+    if (!recentJobs.data?.items) return map;
+    for (const job of recentJobs.data.items) {
+      if (job.source_id && !map.has(job.source_id)) {
+        map.set(job.source_id, job);
+      }
+    }
+    return map;
+  }, [recentJobs.data]);
+
   const [expandedBatchId, setExpandedBatchId] = useState<string>("");
   const batchDetail = useQuery({
     queryKey: ["file-batch-detail", workspaceId, kbId, expandedBatchId],
@@ -131,46 +182,54 @@ export function KbDetailPage() {
     enabled: !!workspaceId && !!kbId && !!expandedBatchId,
   });
 
-  // ======== KB 编辑 ========
+  // ======== Tab 状态（支持 URL ?tab= 参数） ========
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabs = ["overview", "sources", "pages", "jobs"];
+  const initialTab = validTabs.includes(searchParams.get("tab") || "") ? searchParams.get("tab")! : "overview";
+  const [tab, setTab] = useState(initialTab);
+
+  // 同步 tab 到 URL
+  const handleTabChange = (newTab: string) => {
+    setTab(newTab);
+    if (newTab !== "overview") {
+      setSearchParams({ tab: newTab }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
+  const coveragePercent = Math.round((stats.data?.chunks.embedding_coverage || 0) * 100);
+
+  // ======== KB 编辑状态 ========
+  const [showKbConfig, setShowKbConfig] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState("active");
-  const [configText, setConfigText] = useState("{}");
-  const [configError, setConfigError] = useState("");
+  const [kbName, setKbName] = useState("");
+  const [kbDescription, setKbDescription] = useState("");
+  const [kbStatus, setKbStatus] = useState("active");
 
   useEffect(() => {
-    if (!kb.data) return;
-    if (draftLoaded) return;
+    if (!kb.data || draftLoaded) return;
     setDraftLoaded(true);
-    setName(kb.data.name || "");
-    setDescription(kb.data.description || "");
-    setStatus(kb.data.status || "active");
-    setConfigText(JSON.stringify(kb.data.config || {}, null, 2));
+    setKbName(kb.data.name || "");
+    setKbDescription(kb.data.description || "");
+    setKbStatus(kb.data.status || "active");
   }, [kb.data, draftLoaded]);
 
   const saveKb = useMutation({
     mutationFn: async () => {
-      const parsed = safeJsonParse(configText);
-      if (!parsed.ok) {
-        setConfigError(parsed.error);
-        throw new Error(parsed.error);
-      }
-      setConfigError("");
       return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name: name.trim() || undefined,
-          description: description || undefined,
-          status: status || undefined,
-          config: parsed.value,
+          name: kbName.trim() || undefined,
+          description: kbDescription || undefined,
+          status: kbStatus || undefined,
         }),
       });
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["kb", workspaceId, kbId] });
       await qc.invalidateQueries({ queryKey: ["kbs", workspaceId] });
-      toast.success("已保存知识库");
+      toast.success("已保存知识库配置");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "保存失败"),
   });
@@ -187,89 +246,69 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
-  const refreshBatches = () => {
-    void fileBatches.refetch();
-    if (expandedBatchId) void batchDetail.refetch();
-  };
+  // ======== 数据源状态 ========
+  const [showSourceForm, setShowSourceForm] = useState(false);
+  const [editingSourceId, setEditingSourceId] = useState<string>("");
+  const [sourceName, setSourceName] = useState("");
+  const [sourceStatus, setSourceStatus] = useState("active");
+  const [sourceConfig, setSourceConfig] = useState<SourceConfig>(getDefaultSourceConfig());
 
-  // ======== Source 创建 ========
-  const [newSourceType, setNewSourceType] = useState("crawler_site");
-  const [newSourceName, setNewSourceName] = useState("");
-  const [newSourceStatus, setNewSourceStatus] = useState("active");
-  const [newSourceConfigText, setNewSourceConfigText] = useState(
-    JSON.stringify(
-      {
-        base_url: "",
-        sitemap_url: "",
-        seed_urls: [],
-        include_patterns: [],
-        exclude_patterns: [],
-        max_pages: 2000,
-      },
-      null,
-      2
-    )
-  );
-  const [newSourceConfigError, setNewSourceConfigError] = useState("");
+  // 编辑时加载数据
+  useEffect(() => {
+    if (!editingSourceId) {
+      setSourceName("");
+      setSourceStatus("active");
+      setSourceConfig(getDefaultSourceConfig());
+      return;
+    }
+    const row = sources.data?.items.find((x) => x.id === editingSourceId);
+    if (!row) return;
+    setSourceName(row.name || "");
+    setSourceStatus(row.status || "active");
+    setSourceConfig(parseSourceConfig(row.config));
+  }, [editingSourceId, sources.data]);
 
   const createSource = useMutation({
     mutationFn: async () => {
-      const parsed = safeJsonParse(newSourceConfigText);
-      if (!parsed.ok) {
-        setNewSourceConfigError(parsed.error);
-        throw new Error(parsed.error);
+      if (!sourceConfig.base_url.trim()) {
+        throw new Error("请填写网站地址");
       }
-      setNewSourceConfigError("");
       return apiFetch<{ id: string }>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}/sources`, {
         method: "POST",
         body: JSON.stringify({
-          type: newSourceType,
-          name: newSourceName.trim(),
-          status: newSourceStatus,
-          config: parsed.value,
+          type: "crawler_site",
+          name: sourceName.trim(),
+          status: sourceStatus,
+          config: sourceConfigToJson(sourceConfig),
         }),
       });
     },
     onSuccess: async () => {
-      setNewSourceName("");
+      setShowSourceForm(false);
+      setSourceName("");
+      setSourceConfig(getDefaultSourceConfig());
       await qc.invalidateQueries({ queryKey: ["sources", workspaceId, kbId] });
       toast.success("已创建数据源");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "创建失败"),
   });
 
-  // ======== Source 编辑 ========
-  const [editingId, setEditingId] = useState<string>("");
-  const [editName, setEditName] = useState<string>("");
-  const [editStatus, setEditStatus] = useState<string>("active");
-  const [editConfigText, setEditConfigText] = useState<string>("{}");
-  const [editConfigError, setEditConfigError] = useState<string>("");
-
-  useEffect(() => {
-    if (!editingId) return;
-    const row = (sources.data?.items || []).find((x) => x.id === editingId);
-    if (!row) return;
-    setEditName(row.name || "");
-    setEditStatus(row.status || "active");
-    setEditConfigText(JSON.stringify(row.config || {}, null, 2));
-    setEditConfigError("");
-  }, [editingId, sources.data]);
-
   const updateSource = useMutation({
     mutationFn: async () => {
-      const parsed = safeJsonParse(editConfigText);
-      if (!parsed.ok) {
-        setEditConfigError(parsed.error);
-        throw new Error(parsed.error);
+      if (!sourceConfig.base_url.trim()) {
+        throw new Error("请填写网站地址");
       }
-      setEditConfigError("");
-      return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}/sources/${editingId}`, {
+      return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/kbs/${kbId}/sources/${editingSourceId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: editName.trim() || undefined, status: editStatus, config: parsed.value }),
+        body: JSON.stringify({
+          name: sourceName.trim() || undefined,
+          status: sourceStatus,
+          config: sourceConfigToJson(sourceConfig),
+        }),
       });
     },
     onSuccess: async () => {
-      setEditingId("");
+      setEditingSourceId("");
       await qc.invalidateQueries({ queryKey: ["sources", workspaceId, kbId] });
       toast.success("已保存数据源");
     },
@@ -287,469 +326,864 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
+  // ======== 触发抓取 ========
+  const triggerCrawl = useMutation({
+    mutationFn: async (sourceId: string) => {
+      return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/crawl`, {
+        method: "POST",
+        body: JSON.stringify({
+          kb_id: kbId,
+          source_id: sourceId,
+          mode: "full",
+        }),
+      });
+    },
+    onSuccess: async (data) => {
+      // 不自动跳转，显示 Toast 带操作按钮
+      toast.success("抓取任务已启动", {
+        description: `任务 ID: ${data.job_id}`,
+        action: {
+          label: "查看详情",
+          onClick: () => navigate(`/jobs/${data.job_id}`),
+        },
+      });
+      // 刷新数据源和任务列表
+      await qc.invalidateQueries({ queryKey: ["sources", workspaceId, kbId] });
+      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
+  });
+
+  // ======== 内容 (Pages) Tab ========
+  const [pagesPage, setPagesPage] = useState(1);
+  const [pagesSourceId, setPagesSourceId] = useState("");
+  const [pagesIndexed, setPagesIndexed] = useState("");
+  const [pagesQ, setPagesQ] = useState("");
+  const pagesPageSize = 10;
+
+  const pagesQuery = useQuery({
+    queryKey: ["kb-pages", workspaceId, kbId, pagesPage, pagesPageSize, pagesSourceId, pagesIndexed, pagesQ],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("page", String(pagesPage));
+      params.set("page_size", String(pagesPageSize));
+      params.set("kb_id", kbId);
+      if (pagesSourceId) params.set("source_id", pagesSourceId);
+      if (pagesIndexed === "true") params.set("indexed", "true");
+      if (pagesIndexed === "false") params.set("indexed", "false");
+      if (pagesQ) params.set("q", pagesQ);
+      return apiFetch<PagesResp>(`/admin/api/workspaces/${workspaceId}/pages?${params.toString()}`);
+    },
+    enabled: !!workspaceId && !!kbId && tab === "pages",
+  });
+
+  const recrawlPage = useMutation({
+    mutationFn: async (pageId: number) => {
+      return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/pages/${pageId}/recrawl`, { method: "POST" });
+    },
+    onSuccess: async (data) => {
+      await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
+      toast.success("已触发 recrawl");
+      navigate(`/jobs/${data.job_id}`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
+  });
+
+  // ======== 任务 (Jobs) Tab ========
+  const [jobsPage, setJobsPage] = useState(1);
+  const [jobsType, setJobsType] = useState("");
+  const [jobsStatus, setJobsStatus] = useState("");
+  const [expandedJobId, setExpandedJobId] = useState<string>("");
+  const jobsPageSize = 10;
+
+  const jobsQuery = useQuery({
+    queryKey: ["kb-jobs", workspaceId, kbId, jobsPage, jobsPageSize, jobsType, jobsStatus],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("page", String(jobsPage));
+      params.set("page_size", String(jobsPageSize));
+      params.set("kb_id", kbId);
+      if (jobsType) params.set("type", jobsType);
+      if (jobsStatus) params.set("status", jobsStatus);
+      return apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?${params.toString()}`);
+    },
+    enabled: !!workspaceId && !!kbId && tab === "jobs",
+  });
+
+  const requeueJob = useMutation({
+    mutationFn: async (jobId: string) => {
+      return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/jobs/${jobId}/requeue`, { method: "POST" });
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
+      toast.success("已重新入队");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "操作失败"),
+  });
+
   const actionError = saveKb.error || deleteKb.error || createSource.error || updateSource.error || deleteSource.error;
-  const [tab, setTab] = useState("overview");
-  const coveragePercent = Math.round((stats.data?.chunks.embedding_coverage || 0) * 100);
+  const hasNoSources = !sources.data?.items?.length;
+  const hasNoContent = !stats.data?.pages.total;
 
   return (
     <div className="space-y-6">
+      {/* 页面头部 */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/60 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Knowledge Detail</div>
-            <div className="text-2xl font-semibold text-foreground">{kb.data?.name || "知识库详情"}</div>
+            <div className="text-xs tracking-wider text-primary">知识库详情</div>
+            <div className="text-2xl font-semibold text-foreground">{kb.data?.name || "加载中..."}</div>
             <div className="font-mono text-[11px] text-muted-foreground">{kbId}</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(`/pages?kb_id=${encodeURIComponent(kbId)}`)}>
-              页面/片段
-            </Button>
-            <Button variant="outline" onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(kbId)}`)}>
-              任务中心
-            </Button>
             <Button variant="outline" asChild>
               <Link to="/kbs">返回列表</Link>
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <span>状态：{kb.data?.status || "-"}</span>
-          <span>创建：{kb.data?.created_at || "-"}</span>
-          <span>更新：{kb.data?.updated_at || "-"}</span>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <Badge variant={kb.data?.status === "active" ? "default" : "secondary"}>{kb.data?.status || "-"}</Badge>
+          <span>创建于 {kb.data?.created_at?.slice(0, 10) || "-"}</span>
         </div>
       </div>
 
       {actionError ? <ApiErrorBanner error={actionError} /> : null}
-      {kb.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
+      {kb.isLoading ? <Loading /> : null}
       {kb.error ? <ApiErrorBanner error={kb.error} /> : null}
 
-      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+      {/* Tab 导航 - 精简为 4 个 */}
+      <Tabs value={tab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="w-full justify-start gap-2 overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-2">
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="sources">数据源</TabsTrigger>
-          <TabsTrigger value="files">文件批次</TabsTrigger>
-          <TabsTrigger value="config">配置</TabsTrigger>
-          <TabsTrigger value="debug">调试</TabsTrigger>
+          <TabsTrigger value="pages">内容</TabsTrigger>
+          <TabsTrigger value="jobs">任务</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
+        {/* ============ 概览 Tab ============ */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* 快速操作区域 - 根据状态显示不同引导 */}
+          {hasNoSources ? (
+            <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-6">
+              <div className="text-center">
+                <Database className="mx-auto h-10 w-10 text-primary/60" />
+                <div className="mt-3 text-lg font-medium">开始配置知识库</div>
+                <div className="mt-1 text-sm text-muted-foreground">添加数据源后，就可以开始抓取和索引内容了</div>
+                <Button className="mt-4" onClick={() => { handleTabChange("sources"); setShowSourceForm(true); }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  添加数据源
+                </Button>
+              </div>
+            </div>
+          ) : hasNoContent ? (
+            <div className="rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 p-6">
+              <div className="text-center">
+                <Play className="mx-auto h-10 w-10 text-amber-500/60" />
+                <div className="mt-3 text-lg font-medium">数据源已就绪</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  已配置 {sources.data?.items.length || 0} 个数据源，前往数据源页面启动抓取任务
+                </div>
+                <Button className="mt-4" onClick={() => handleTabChange("sources")}>
+                  <Play className="mr-2 h-4 w-4" />
+                  前往数据源页面
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <ActionCard
+                icon={Plus}
+                title="添加数据源"
+                description="配置新的网站爬虫或上传文件"
+                onClick={() => { handleTabChange("sources"); setShowSourceForm(true); }}
+              />
+              <ActionCard
+                icon={Play}
+                title="启动抓取"
+                description={`当前 ${sources.data?.items.length || 0} 个数据源可用`}
+                onClick={() => handleTabChange("sources")}
+                variant="primary"
+              />
+              <ActionCard
+                icon={FileText}
+                title="查看内容"
+                description={`已索引 ${stats.data?.pages.total || 0} 个页面`}
+                onClick={() => handleTabChange("pages")}
+                variant="success"
+              />
+            </div>
+          )}
+
+          {/* 统计数据 */}
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card title="运行概览" description="覆盖率、最近抓取/索引">
-              {stats.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
+            <Card title="索引状态" description="页面数量与向量覆盖率">
+              {stats.isLoading ? <Loading size="sm" /> : null}
               {stats.error ? <ApiErrorBanner error={stats.error} /> : null}
               {stats.data ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="space-y-2 rounded-xl border border-border/70 bg-background/50 p-3">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Embedding 覆盖率</span>
+                      <span>向量覆盖率</span>
                       <span className="font-mono text-foreground">{coveragePercent}%</span>
                     </div>
                     <Progress value={coveragePercent} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <div className="text-xs text-muted-foreground">页面</div>
-                      <div className="font-mono">{stats.data.pages.total}</div>
-                      <div className="text-[11px] text-muted-foreground">最近抓取 {stats.data.pages.last_crawled_at || "-"}</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border border-border/50 bg-background/30 p-3">
+                      <div className="text-2xl font-semibold">{stats.data.pages.total}</div>
+                      <div className="text-xs text-muted-foreground">页面总数</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">片段</div>
-                      <div className="font-mono">{stats.data.chunks.total}</div>
-                      <div className="text-[11px] text-muted-foreground">with_embedding {stats.data.chunks.with_embedding}</div>
+                    <div className="rounded-lg border border-border/50 bg-background/30 p-3">
+                      <div className="text-2xl font-semibold">{stats.data.chunks.total}</div>
+                      <div className="text-xs text-muted-foreground">文档片段</div>
                     </div>
                   </div>
+                  {stats.data.pages.last_crawled_at && (
+                    <div className="text-xs text-muted-foreground">
+                      最近抓取：{stats.data.pages.last_crawled_at}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </Card>
-            <Card title="采集链路" description="数据源 → 抓取 → 索引 → 覆盖率">
-              <div className="space-y-3 text-sm">
-                <div className="rounded-lg border border-border/70 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">数据源</div>
-                  <div className="font-semibold text-foreground">{sources.data?.items.length || 0} 个</div>
-                  <div className="text-[11px] text-muted-foreground">确保至少 1 个可用数据源</div>
-                </div>
-                <div className="rounded-lg border border-border/70 bg-background/40 p-3">
-                  <div className="text-xs text-muted-foreground">最近任务</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    在任务中心查看抓取/索引进度，失败请重试或检查配置
-                  </div>
-                  <Button size="sm" variant="outline" className="mt-2" onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(kbId)}`)}>
-                    查看任务
-                  </Button>
-                </div>
-              </div>
-            </Card>
-            <Card title="引用与提醒" description="被应用引用 / 风险提示">
-              {referencedBy.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-              {referencedBy.error ? <ApiErrorBanner error={referencedBy.error} /> : null}
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/40 p-3">
-                  <div>
-                    <div className="text-xs text-muted-foreground">引用应用</div>
-                    <div className="text-lg font-semibold text-foreground">{referencedBy.data?.total || 0}</div>
-                  </div>
-                  <Badge variant={(referencedBy.data?.total || 0) > 0 ? "default" : "secondary"}>
-                    {(referencedBy.data?.total || 0) > 0 ? "已引用" : "未引用"}
-                  </Badge>
-                </div>
-                {(referencedBy.data?.items || []).slice(0, 4).map((a) => (
-                  <div key={a.app_id} className="rounded-md border border-border/60 bg-background/40 p-2 text-xs">
-                    <div className="font-semibold text-foreground">{a.name || a.app_id}</div>
-                    <div className="font-mono text-[11px] text-muted-foreground">{a.public_model_id || "-"}</div>
+
+            <Card title="数据源" description="已配置的内容来源">
+              <div className="space-y-2">
+                {sources.data?.items.slice(0, 3).map((s) => (
+                  <div key={s.id} className="flex items-center justify-between rounded-lg border border-border/50 bg-background/30 p-3">
+                    <div>
+                      <div className="font-medium">{s.name || "未命名"}</div>
+                      <div className="text-xs text-muted-foreground">{s.type}</div>
+                    </div>
+                    <Badge variant={s.status === "active" ? "default" : "secondary"}>{s.status}</Badge>
                   </div>
                 ))}
-                {(referencedBy.data?.total || 0) > 4 ? (
-                  <div className="text-[11px] text-muted-foreground">其余 {referencedBy.data!.total - 4} 个省略</div>
-                ) : null}
-              </div>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="sources" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="数据源列表" description="网站爬虫（原 crawler_site）等连接器">
-              {sources.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-              {sources.error ? <ApiErrorBanner error={sources.error} /> : null}
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[200px]">ID</TableHead>
-                    <TableHead>名称</TableHead>
-                    <TableHead className="w-[120px]">类型</TableHead>
-                    <TableHead className="w-[120px]">状态</TableHead>
-                    <TableHead className="w-[160px]">更新时间</TableHead>
-                    <TableHead className="w-[200px]">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(sources.data?.items || []).map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-mono text-xs">{s.id}</TableCell>
-                      <TableCell>{s.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{s.type}</TableCell>
-                      <TableCell>{s.status}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{s.updated_at || "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => setEditingId(s.id)}>
-                            编辑
-                          </Button>
-                          <ConfirmDangerDialog
-                            trigger={
-                              <Button variant="outline" size="sm" disabled={deleteSource.isPending}>
-                                删除
-                              </Button>
-                            }
-                            title="确认删除数据源？"
-                            description={
-                              <>
-                                将删除 source_id=<span className="font-mono">{s.id}</span>（不影响已抓取的页面/片段）。
-                              </>
-                            }
-                            confirmLabel="继续删除"
-                            confirmVariant="destructive"
-                            confirmText={s.id}
-                            confirmPlaceholder="输入 source_id 确认"
-                            confirmDisabled={deleteSource.isPending}
-                            onConfirm={() => deleteSource.mutateAsync(s.id)}
-                          />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {!sources.data?.items?.length ? (
-                    <TableRow>
-                      <TableCell className="text-sm text-muted-foreground" colSpan={6}>
-                        暂无数据源
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </Card>
-
-            <Card title="新建/编辑数据源" description="表单分组 + JSON 预览（网站爬虫已更名）">
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">类型</div>
-                    <Select value={newSourceType} onChange={(e) => setNewSourceType(e.target.value)}>
-                      <option value="crawler_site">网站爬虫</option>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">状态</div>
-                    <Select value={newSourceStatus} onChange={(e) => setNewSourceStatus(e.target.value)}>
-                      <option value="active">active</option>
-                      <option value="disabled">disabled</option>
-                    </Select>
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <div className="text-xs text-muted-foreground">名称</div>
-                    <Input
-                      value={newSourceName}
-                      onChange={(e) => setNewSourceName(e.target.value)}
-                      placeholder="例如 OneKey Docs 爬虫"
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <div className="text-xs text-muted-foreground">配置（JSON）</div>
-                    <Textarea
-                      value={newSourceConfigText}
-                      onChange={(e) => setNewSourceConfigText(e.target.value)}
-                      className="min-h-[160px] font-mono text-xs"
-                    />
-                    {newSourceConfigError ? <div className="text-xs text-destructive">{newSourceConfigError}</div> : null}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button disabled={!newSourceName.trim() || createSource.isPending} onClick={() => createSource.mutate()}>
-                    {createSource.isPending ? "创建中..." : "创建"}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setEditingId("")}>
-                    重置编辑
-                  </Button>
-                </div>
-                {editingId ? (
-                  <div className="rounded-lg border border-border/60 bg-background/50 p-3">
-                    <div className="text-sm font-semibold">
-                      编辑中的数据源：<span className="font-mono text-xs">{editingId}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground">名称</div>
-                        <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground">状态</div>
-                        <Select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
-                          <option value="active">active</option>
-                          <option value="disabled">disabled</option>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="mt-2 space-y-1">
-                      <div className="text-xs text-muted-foreground">配置（JSON）</div>
-                      <Textarea
-                        value={editConfigText}
-                        onChange={(e) => setEditConfigText(e.target.value)}
-                        className="min-h-[180px] font-mono text-xs"
-                      />
-                      {editConfigError ? <div className="text-xs text-destructive">{editConfigError}</div> : null}
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <Button disabled={updateSource.isPending} onClick={() => updateSource.mutate()}>
-                        {updateSource.isPending ? "保存中..." : "保存"}
-                      </Button>
-                      <Button variant="outline" onClick={() => setEditingId("")}>
-                        取消编辑
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">从左侧列表选择数据源后可编辑</div>
+                {!sources.data?.items?.length && (
+                  <div className="py-4 text-center text-sm text-muted-foreground">暂无数据源</div>
+                )}
+                {(sources.data?.items?.length || 0) > 3 && (
+                  <div className="text-xs text-muted-foreground">还有 {sources.data!.items.length - 3} 个...</div>
                 )}
               </div>
             </Card>
+
+            <Card title="引用应用" description="使用此知识库的应用">
+              {referencedBy.isLoading ? <Loading size="sm" /> : null}
+              {referencedBy.error ? <ApiErrorBanner error={referencedBy.error} /> : null}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-lg border border-border/50 bg-background/30 p-3">
+                  <div>
+                    <div className="text-2xl font-semibold">{referencedBy.data?.total || 0}</div>
+                    <div className="text-xs text-muted-foreground">个应用引用</div>
+                  </div>
+                  <Badge variant={(referencedBy.data?.total || 0) > 0 ? "default" : "secondary"}>
+                    {(referencedBy.data?.total || 0) > 0 ? "已绑定" : "未绑定"}
+                  </Badge>
+                </div>
+                {referencedBy.data?.items.slice(0, 2).map((a) => (
+                  <div key={a.app_id} className="rounded-md border border-border/50 bg-background/30 p-2 text-xs">
+                    <Link to={`/apps/${a.app_id}`} className="font-medium hover:underline">{a.name || a.app_id}</Link>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* 知识库配置（可折叠） */}
+          <div className="rounded-xl border border-border/70 bg-card/50">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/30"
+              onClick={() => setShowKbConfig(!showKbConfig)}
+            >
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">知识库配置</span>
+              </div>
+              {showKbConfig ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+            {showKbConfig && (
+              <div className="border-t border-border/50 p-4">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">名称</label>
+                      <Input value={kbName} onChange={(e) => setKbName(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">状态</label>
+                      <Select value={kbStatus} onChange={(e) => setKbStatus(e.target.value)}>
+                        <option value="active">启用</option>
+                        <option value="disabled">禁用</option>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground">描述</label>
+                      <Textarea value={kbDescription} onChange={(e) => setKbDescription(e.target.value)} className="min-h-[80px]" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => saveKb.mutate()} disabled={saveKb.isPending}>
+                      {saveKb.isPending ? "保存中..." : "保存配置"}
+                    </Button>
+                    <ConfirmDangerDialog
+                      trigger={<Button variant="outline" disabled={deleteKb.isPending}>删除知识库</Button>}
+                      title="确认删除知识库？"
+                      description={
+                        <>
+                          <div>将删除 KB=<span className="font-mono">{kbId}</span> 的记录与数据源（不会清理已抓取的页面/片段）。</div>
+                          {referencedBy.data?.total ? (
+                            <div className="mt-2 text-amber-500">
+                              警告：当前被 {referencedBy.data.total} 个应用引用！
+                            </div>
+                          ) : null}
+                        </>
+                      }
+                      confirmLabel="继续删除"
+                      confirmVariant="destructive"
+                      confirmText={kbId}
+                      confirmPlaceholder="输入 kb_id 确认"
+                      confirmDisabled={deleteKb.isPending}
+                      onConfirm={() => deleteKb.mutateAsync()}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
-        <TabsContent value="files" className="space-y-4">
+        {/* ============ 数据源 Tab ============ */}
+        <TabsContent value="sources" className="space-y-4">
+          {/* 数据源列表 */}
           <Card
-            title="文件批次"
-            description="文件导入 → 解析 → 分段 → 索引。支持查看批次进度与失败文件。"
+            title="数据源列表"
+            description="管理网站爬虫和文件上传"
             actions={
-              <Button variant="outline" size="sm" onClick={refreshBatches} disabled={fileBatches.isFetching}>
-                {fileBatches.isFetching ? "刷新中..." : "刷新批次"}
+              <Button size="sm" onClick={() => { setEditingSourceId(""); setShowSourceForm(true); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                添加数据源
               </Button>
             }
           >
-            {fileBatches.error ? <ApiErrorBanner error={fileBatches.error} /> : null}
-            <Table className="mt-2">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[160px]">批次 ID</TableHead>
-                  <TableHead className="w-[120px]">状态</TableHead>
-                  <TableHead className="w-[160px]">进度</TableHead>
-                  <TableHead className="w-[140px]">失败</TableHead>
-                  <TableHead className="w-[200px]">时间</TableHead>
-                  <TableHead className="w-[120px]">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(fileBatches.data?.items || []).map((b) => {
-                  const percent = b.total ? Math.round(((b.done || 0) / Math.max(1, b.total)) * 100) : 0;
-                  const isExpanded = expandedBatchId === b.id;
-                  return (
-                    <TableRow key={b.id}>
-                      <TableCell className="font-mono text-xs">{b.id}</TableCell>
-                      <TableCell>{b.status}</TableCell>
-                      <TableCell className="text-xs">
-                        <div className="font-mono text-[11px]">
-                          {b.done}/{b.total} ({percent}%)
-                        </div>
-                        <Progress value={percent} className="mt-1" />
-                      </TableCell>
-                      <TableCell className="text-xs text-destructive">
-                        {b.failed ? `${b.failed} 个失败` : "0"}
-                        {b.error ? <div className="mt-1 text-[11px] text-destructive/80">{b.error}</div> : null}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        <div>{b.created_at || "-"}</div>
-                        <div>{b.updated_at || "-"}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(isExpanded ? "" : b.id)}>
-                          {isExpanded ? "收起" : "查看文件"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {!fileBatches.data?.items?.length ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>
-                      <div className="text-sm text-muted-foreground">暂无文件批次</div>
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
+            {sources.isLoading ? <Loading size="sm" /> : null}
+            {sources.error ? <ApiErrorBanner error={sources.error} /> : null}
 
-            {expandedBatchId ? (
-              <div className="mt-3 rounded-md border border-border/70 bg-background/60 p-3">
-                <div className="text-sm font-semibold">
-                  批次详情 <span className="font-mono text-xs">{expandedBatchId}</span>
-                </div>
-                {batchDetail.isLoading ? <div className="text-xs text-muted-foreground">加载中...</div> : null}
-                {batchDetail.error ? <ApiErrorBanner error={batchDetail.error} /> : null}
-                {batchDetail.data?.items?.length ? (
-                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                    {batchDetail.data.items.map((it) => (
-                      <div key={it.id} className="rounded-md border border-border/60 bg-card/70 p-2 text-xs">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate font-mono">{it.filename}</span>
-                          <span className={it.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{it.status}</span>
-                        </div>
-                        <div className="text-muted-foreground">size={Math.round((it.size_bytes || 0) / 1024)} KB</div>
-                        {it.chunk_count != null ? <div className="text-muted-foreground">chunks={it.chunk_count}</div> : null}
-                        {it.error ? <div className="text-destructive">{it.error}</div> : null}
-                        {it.chunk_preview ? (
-                          <div className="mt-1 rounded bg-background/80 p-2 font-mono text-[11px] text-muted-foreground">
-                            {it.chunk_preview.length > 260 ? `${it.chunk_preview.slice(0, 260)}...` : it.chunk_preview}
+            {sources.data?.items?.length ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>名称</TableHead>
+                    <TableHead className="w-[100px]">类型</TableHead>
+                    <TableHead className="w-[80px]">状态</TableHead>
+                    <TableHead className="w-[180px]">网站地址</TableHead>
+                    <TableHead className="w-[140px]">最近任务</TableHead>
+                    <TableHead className="w-[180px]">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sources.data.items.map((s) => {
+                    const latestJob = latestJobBySource.get(s.id);
+                    const jobProgress = latestJob?.progress as { done?: number; total?: number } | undefined;
+                    const jobPercent = jobProgress?.total ? Math.round(((jobProgress.done || 0) / jobProgress.total) * 100) : 0;
+
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell>
+                          <div className="font-medium">{s.name || "未命名"}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">{s.id}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{s.type === "crawler_site" ? "网站爬虫" : s.type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={s.status === "active" ? "default" : "secondary"}>
+                            {s.status === "active" ? "启用" : "禁用"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[180px]">
+                          <div className="truncate text-xs text-muted-foreground">
+                            {(s.config as { base_url?: string }).base_url || "-"}
                           </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
+                        </TableCell>
+                        <TableCell>
+                          {latestJob ? (
+                            <Link to={`/jobs/${latestJob.id}`} className="block hover:underline">
+                              {latestJob.status === "running" ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                                  <span className="text-xs text-blue-500">运行中 {jobPercent}%</span>
+                                </div>
+                              ) : latestJob.status === "queued" ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                                  <span className="text-xs text-amber-500">排队中</span>
+                                </div>
+                              ) : latestJob.status === "succeeded" ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                                  <span className="text-xs text-emerald-500">成功</span>
+                                </div>
+                              ) : latestJob.status === "failed" ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                                  <span className="text-xs text-red-500">失败</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">{latestJob.status}</span>
+                              )}
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => triggerCrawl.mutate(s.id)}
+                              disabled={triggerCrawl.isPending || s.status !== "active"}
+                            >
+                              <Play className="mr-1 h-3 w-3" />
+                              抓取
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => { setEditingSourceId(s.id); setShowSourceForm(true); }}>
+                              编辑
+                            </Button>
+                            <ConfirmDangerDialog
+                              trigger={<Button variant="outline" size="sm">删除</Button>}
+                              title="确认删除数据源？"
+                              description={<>将删除 <span className="font-mono">{s.name || s.id}</span>（不影响已抓取的页面）。</>}
+                              confirmLabel="删除"
+                              confirmVariant="destructive"
+                              confirmText={s.id}
+                              confirmPlaceholder="输入 source_id 确认"
+                              onConfirm={() => deleteSource.mutateAsync(s.id)}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                icon={<Database className="h-10 w-10" />}
+                title="暂无数据源"
+                description="添加数据源后，可以开始抓取和索引内容"
+                action={
+                  <Button onClick={() => setShowSourceForm(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    添加数据源
+                  </Button>
+                }
+              />
+            )}
+          </Card>
+
+          {/* 创建/编辑数据源表单 */}
+          {showSourceForm && (
+            <Card
+              title={editingSourceId ? "编辑数据源" : "新建数据源"}
+              description={editingSourceId ? `正在编辑 ${editingSourceId}` : "配置网站爬虫参数"}
+              actions={
+                <Button variant="ghost" size="sm" onClick={() => { setShowSourceForm(false); setEditingSourceId(""); }}>
+                  取消
+                </Button>
+              }
+            >
+              <SourceConfigForm
+                name={sourceName}
+                onNameChange={setSourceName}
+                status={sourceStatus}
+                onStatusChange={setSourceStatus}
+                config={sourceConfig}
+                onConfigChange={setSourceConfig}
+              />
+              <div className="mt-4 flex items-center gap-2">
+                {editingSourceId ? (
+                  <Button onClick={() => updateSource.mutate()} disabled={updateSource.isPending}>
+                    {updateSource.isPending ? "保存中..." : "保存修改"}
+                  </Button>
                 ) : (
-                  <div className="mt-2 text-xs text-muted-foreground">无文件信息</div>
+                  <Button onClick={() => createSource.mutate()} disabled={createSource.isPending || !sourceName.trim()}>
+                    {createSource.isPending ? "创建中..." : "创建数据源"}
+                  </Button>
                 )}
-                <div className="mt-3 text-[11px] text-muted-foreground">Chunk 预览来自首段文本，便于快速验证解析效果。</div>
+                <Button variant="outline" onClick={() => { setShowSourceForm(false); setEditingSourceId(""); }}>
+                  取消
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* 文件批次（合并到数据源 Tab） */}
+          <Card
+            title="文件上传"
+            description="通过文件导入内容到知识库"
+            actions={
+              <Button variant="outline" size="sm" onClick={() => fileBatches.refetch()} disabled={fileBatches.isFetching}>
+                刷新
+              </Button>
+            }
+          >
+            <div className="rounded-lg border border-dashed border-border/70 bg-background/30 p-6 text-center">
+              <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+              <div className="mt-2 text-sm text-muted-foreground">拖拽文件到这里或点击上传</div>
+              <div className="mt-1 text-xs text-muted-foreground">支持 PDF、Markdown、TXT 等格式</div>
+              <Button variant="outline" size="sm" className="mt-3" disabled>
+                选择文件（开发中）
+              </Button>
+            </div>
+
+            {fileBatches.data?.items?.length ? (
+              <div className="mt-4">
+                <div className="mb-2 text-sm font-medium">上传历史</div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>批次 ID</TableHead>
+                      <TableHead className="w-[100px]">状态</TableHead>
+                      <TableHead className="w-[120px]">进度</TableHead>
+                      <TableHead className="w-[100px]">失败</TableHead>
+                      <TableHead className="w-[100px]">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {fileBatches.data.items.slice(0, 5).map((b) => {
+                      const percent = b.total ? Math.round(((b.done || 0) / Math.max(1, b.total)) * 100) : 0;
+                      return (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-mono text-xs">{b.id}</TableCell>
+                          <TableCell>
+                            <Badge variant={b.status === "done" ? "default" : "secondary"}>{b.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-xs">{b.done}/{b.total} ({percent}%)</div>
+                            <Progress value={percent} className="mt-1 h-1" />
+                          </TableCell>
+                          <TableCell className="text-xs text-destructive">{b.failed || 0}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === b.id ? "" : b.id)}>
+                              {expandedBatchId === b.id ? "收起" : "详情"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+
+                {expandedBatchId && batchDetail.data && (
+                  <div className="mt-3 rounded-lg border border-border/50 bg-background/30 p-3">
+                    <div className="text-sm font-medium">批次文件详情</div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {batchDetail.data.items.map((it) => (
+                        <div key={it.id} className="rounded border border-border/50 bg-card/50 p-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="truncate font-mono">{it.filename}</span>
+                            <Badge variant={it.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">{it.status}</Badge>
+                          </div>
+                          {it.error && <div className="mt-1 text-destructive">{it.error}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
           </Card>
         </TabsContent>
 
-        <TabsContent value="config" className="space-y-4">
+        {/* ============ 内容 Tab ============ */}
+        <TabsContent value="pages" className="space-y-4">
           <Card
-            title="知识库配置"
-            description="表单化配置，JSON 仅用于高级字段；删除不会自动清理历史页面/片段。"
+            title="内容列表"
+            description="该知识库下的所有文档页面"
             actions={
-              <ConfirmDangerDialog
-                trigger={
-                  <Button variant="outline" size="sm" disabled={deleteKb.isPending}>
-                    删除知识库
-                  </Button>
-                }
-                title="确认删除知识库？"
-                description={
-                  <>
-                    <div>
-                      将删除 KB=<span className="font-mono">{kbId}</span> 的记录与数据源/绑定关系（不会自动清理 pages/chunks）。
-                    </div>
-                    {referencedBy.isLoading ? (
-                      <div className="mt-2 text-xs">引用信息加载中...</div>
-                    ) : referencedBy.error ? (
-                      <div className="mt-2 text-xs">引用信息加载失败，请稍后重试。</div>
-                    ) : referencedBy.data?.total ? (
-                      <div className="mt-2">
-                        <div>
-                          当前被 <span className="font-mono">{referencedBy.data.total}</span> 个应用引用：
-                        </div>
-                        <ul className="mt-1 list-inside list-disc">
-                          {(referencedBy.data.items || []).slice(0, 8).map((a) => (
-                            <li key={a.app_id}>
-                              <span className="font-medium">{a.name || a.app_id}</span>{" "}
-                              <span className="font-mono">({a.public_model_id || "-"})</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <div className="mt-2 text-xs">当前未被应用引用。</div>
-                    )}
-                  </>
-                }
-                confirmLabel="继续删除"
-                confirmVariant="destructive"
-                confirmText={kbId}
-                confirmPlaceholder="输入 kb_id 确认"
-                confirmDisabled={deleteKb.isPending}
-                onConfirm={() => deleteKb.mutateAsync()}
-              />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => pagesQuery.refetch()} disabled={pagesQuery.isFetching}>
+                  刷新
+                </Button>
+              </div>
             }
           >
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">名称</div>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">状态</div>
-                  <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-                    <option value="active">active</option>
-                    <option value="disabled">disabled</option>
-                  </Select>
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <div className="text-xs text-muted-foreground">描述</div>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-[80px]" />
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <div className="text-xs text-muted-foreground">配置（JSON，高级模式）</div>
-                  <Textarea
-                    value={configText}
-                    onChange={(e) => setConfigText(e.target.value)}
-                    className="min-h-[140px] font-mono text-xs"
-                  />
-                  {configError ? <div className="text-xs text-destructive">{configError}</div> : null}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button disabled={saveKb.isPending} onClick={() => saveKb.mutate()}>
-                  {saveKb.isPending ? "保存中..." : "保存"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDraftLoaded(false);
-                    setConfigError("");
-                  }}
+            <div className="grid grid-cols-1 gap-3 pb-3 md:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">数据源</label>
+                <Select
+                  value={pagesSourceId}
+                  onChange={(e) => { setPagesSourceId(e.target.value); setPagesPage(1); }}
                 >
-                  重置为服务端
-                </Button>
+                  <option value="">全部</option>
+                  {sources.data?.items.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name || s.id}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">已索引</label>
+                <Select
+                  value={pagesIndexed}
+                  onChange={(e) => { setPagesIndexed(e.target.value); setPagesPage(1); }}
+                >
+                  <option value="">全部</option>
+                  <option value="true">是</option>
+                  <option value="false">否</option>
+                </Select>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-xs text-muted-foreground">搜索（URL/标题）</label>
+                <Input
+                  value={pagesQ}
+                  onChange={(e) => { setPagesQ(e.target.value); setPagesPage(1); }}
+                  placeholder="输入关键词搜索"
+                />
               </div>
             </div>
+
+            {pagesQuery.isLoading ? <Loading size="sm" /> : null}
+            {pagesQuery.error ? <ApiErrorBanner error={pagesQuery.error} /> : null}
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[60px]">ID</TableHead>
+                  <TableHead>标题</TableHead>
+                  <TableHead>URL</TableHead>
+                  <TableHead className="w-[60px]">HTTP</TableHead>
+                  <TableHead className="w-[70px]">已索引</TableHead>
+                  <TableHead className="w-[140px]">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagesQuery.data?.items?.length ? (
+                  pagesQuery.data.items.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs">
+                        <Link className="hover:underline" to={`/pages/${p.id}`}>{p.id}</Link>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">{p.title || <span className="text-muted-foreground">-</span>}</TableCell>
+                      <TableCell className="max-w-[300px]">
+                        <CopyableText text={p.url} href={p.url} />
+                      </TableCell>
+                      <TableCell>
+                        <span className={p.http_status >= 400 ? "text-red-400" : ""}>{p.http_status || "-"}</span>
+                      </TableCell>
+                      <TableCell>
+                        {p.indexed ? <span className="text-emerald-400">是</span> : <span className="text-muted-foreground">否</span>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/pages/${p.id}`)}>详情</Button>
+                          <Button variant="outline" size="sm" disabled={recrawlPage.isPending} onClick={() => recrawlPage.mutate(p.id)}>
+                            重新抓取
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      <EmptyState description="暂无内容，请先配置数据源并触发抓取任务" />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            <Pagination
+              page={pagesQuery.data?.page || pagesPage}
+              pageSize={pagesQuery.data?.page_size || pagesPageSize}
+              total={pagesQuery.data?.total || 0}
+              onPageChange={setPagesPage}
+            />
           </Card>
         </TabsContent>
 
-        <TabsContent value="debug">
-          <Card title="调试（只读）" description="服务端返回原始 JSON，便于排查">
-            <JsonView value={{ kb: kb.data, stats: stats.data, sources: sources.data }} defaultCollapsed />
+        {/* ============ 任务 Tab ============ */}
+        <TabsContent value="jobs" className="space-y-4">
+          <Card
+            title="任务历史"
+            description="该知识库的抓取和索引任务记录"
+            actions={
+              <Button variant="outline" size="sm" onClick={() => jobsQuery.refetch()} disabled={jobsQuery.isFetching}>
+                刷新
+              </Button>
+            }
+          >
+            <div className="grid grid-cols-1 gap-3 pb-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">任务类型</label>
+                <Select
+                  value={jobsType}
+                  onChange={(e) => { setJobsType(e.target.value); setJobsPage(1); }}
+                >
+                  <option value="">全部</option>
+                  <option value="crawl">抓取</option>
+                  <option value="index">索引</option>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">状态</label>
+                <Select
+                  value={jobsStatus}
+                  onChange={(e) => { setJobsStatus(e.target.value); setJobsPage(1); }}
+                >
+                  <option value="">全部</option>
+                  <option value="queued">排队中</option>
+                  <option value="running">运行中</option>
+                  <option value="succeeded">成功</option>
+                  <option value="failed">失败</option>
+                </Select>
+              </div>
+            </div>
+
+            {jobsQuery.isLoading ? <Loading size="sm" /> : null}
+            {jobsQuery.error ? <ApiErrorBanner error={jobsQuery.error} /> : null}
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]" />
+                  <TableHead className="w-[140px]">任务 ID</TableHead>
+                  <TableHead className="w-[80px]">类型</TableHead>
+                  <TableHead className="w-[80px]">状态</TableHead>
+                  <TableHead>进度</TableHead>
+                  <TableHead className="w-[140px]">开始时间</TableHead>
+                  <TableHead className="w-[100px]">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobsQuery.data?.items?.length ? (
+                  jobsQuery.data.items.map((j) => {
+                    const isExpanded = expandedJobId === j.id;
+                    const progress = j.progress as { done?: number; total?: number; indexed?: number; failed?: number } | undefined;
+                    const sourceName = sources.data?.items.find((s) => s.id === j.source_id)?.name;
+
+                    return (
+                      <Fragment key={j.id}>
+                        <TableRow
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setExpandedJobId(isExpanded ? "" : j.id)}
+                        >
+                          <TableCell className="w-[40px] px-2">
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{j.id}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{j.type === "crawl" ? "抓取" : j.type === "index" ? "索引" : j.type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={j.status === "failed" ? "destructive" : j.status === "succeeded" ? "default" : "secondary"}>
+                              {j.status === "queued" ? "排队中" : j.status === "running" ? "运行中" : j.status === "succeeded" ? "成功" : j.status === "failed" ? "失败" : j.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <ProgressPill type={j.type} status={j.status} progress={j.progress} />
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{j.started_at?.slice(0, 16) || "-"}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={requeueJob.isPending || j.status === "running"}
+                              onClick={(e) => { e.stopPropagation(); requeueJob.mutate(j.id); }}
+                            >
+                              重试
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow key={`${j.id}-detail`} className="bg-muted/30">
+                            <TableCell colSpan={7} className="p-4">
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-3">
+                                  <div className="text-sm font-medium">任务详情</div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="text-muted-foreground">任务 ID</div>
+                                    <div className="font-mono">{j.id}</div>
+                                    <div className="text-muted-foreground">类型</div>
+                                    <div>{j.type === "crawl" ? "抓取" : j.type === "index" ? "索引" : j.type}</div>
+                                    <div className="text-muted-foreground">数据源</div>
+                                    <div>{sourceName || j.source_id || "-"}</div>
+                                    <div className="text-muted-foreground">开始时间</div>
+                                    <div>{j.started_at || "-"}</div>
+                                    <div className="text-muted-foreground">结束时间</div>
+                                    <div>{j.finished_at || "-"}</div>
+                                  </div>
+                                </div>
+                                <div className="space-y-3">
+                                  <div className="text-sm font-medium">进度信息</div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="text-muted-foreground">已完成</div>
+                                    <div>{progress?.done ?? "-"}</div>
+                                    <div className="text-muted-foreground">总数</div>
+                                    <div>{progress?.total ?? "-"}</div>
+                                    {progress?.indexed !== undefined && (
+                                      <>
+                                        <div className="text-muted-foreground">已索引</div>
+                                        <div>{progress.indexed}</div>
+                                      </>
+                                    )}
+                                    {progress?.failed !== undefined && progress.failed > 0 && (
+                                      <>
+                                        <div className="text-muted-foreground">失败数</div>
+                                        <div className="text-red-500">{progress.failed}</div>
+                                      </>
+                                    )}
+                                  </div>
+                                  {j.error && (
+                                    <div className="mt-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
+                                      <div className="font-medium">错误信息</div>
+                                      <div className="mt-1">{j.error}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-4 flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${j.id}`)}>
+                                  查看完整详情
+                                </Button>
+                                {j.source_id && sources.data?.items.find((s) => s.id === j.source_id) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      handleTabChange("sources");
+                                      setEditingSourceId(j.source_id);
+                                      setShowSourceForm(true);
+                                    }}
+                                  >
+                                    查看数据源
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7}>
+                      <EmptyState description="暂无任务记录" />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            <Pagination
+              page={jobsQuery.data?.page || jobsPage}
+              pageSize={jobsQuery.data?.page_size || jobsPageSize}
+              total={jobsQuery.data?.total || 0}
+              onPageChange={setJobsPage}
+            />
           </Card>
         </TabsContent>
       </Tabs>

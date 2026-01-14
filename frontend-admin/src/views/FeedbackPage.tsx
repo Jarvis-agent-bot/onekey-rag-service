@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { DebouncedInput } from "../components/DebouncedInput";
 import { Select } from "../components/ui/select";
 import { Card } from "../components/Card";
+import { Loading } from "../components/Loading";
 import { Pagination } from "../components/Pagination";
 import { EmptyState } from "../components/EmptyState";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
@@ -65,11 +66,11 @@ export function FeedbackPage() {
   }
 
   const chips: FilterChip[] = [
-    appId ? { key: "app_id", label: "App", value: appId, onRemove: () => updateFilter([["app_id", null]]) } : null,
-    rating ? { key: "rating", label: "rating", value: rating, onRemove: () => updateFilter([["rating", null]]) } : null,
-    reason ? { key: "reason", label: "reason", value: reason, onRemove: () => updateFilter([["reason", null]]) } : null,
+    appId ? { key: "app_id", label: "应用", value: appId, onRemove: () => updateFilter([["app_id", null]]) } : null,
+    rating ? { key: "rating", label: "评分", value: rating === "up" ? "好评" : rating === "down" ? "差评" : rating, onRemove: () => updateFilter([["rating", null]]) } : null,
+    reason ? { key: "reason", label: "原因", value: reason, onRemove: () => updateFilter([["reason", null]]) } : null,
     dateRange && dateRange !== "24h"
-      ? { key: "date_range", label: "range", value: dateRange, onRemove: () => updateFilter([["date_range", "24h"]]) }
+      ? { key: "date_range", label: "时间", value: dateRange, onRemove: () => updateFilter([["date_range", "24h"]]) }
       : null,
   ].filter(Boolean) as FilterChip[];
 
@@ -113,10 +114,10 @@ export function FeedbackPage() {
         </div>
       </div>
 
-      <Card title="筛选" description="rating/reason/app 过滤；message_id 通常可用于关联检索事件（request_id）">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
+      <Card title="筛选" description="按应用、评分、原因分类筛选反馈记录">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">App</div>
+            <div className="text-xs text-muted-foreground">应用</div>
             <Select
               value={appId}
               onChange={(e) => {
@@ -132,7 +133,7 @@ export function FeedbackPage() {
             </Select>
           </div>
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">rating</div>
+            <div className="text-xs text-muted-foreground">评分</div>
             <Select
               value={rating}
               onChange={(e) => {
@@ -140,40 +141,24 @@ export function FeedbackPage() {
               }}
             >
               <option value="">全部</option>
-              <option value="up">up</option>
-              <option value="down">down</option>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">时间范围</div>
-            <Select
-              value={dateRange}
-              onChange={(e) => {
-                updateFilter([["date_range", e.target.value]]);
-              }}
-            >
-              <option value="24h">24h</option>
-              <option value="7d">7d</option>
-              <option value="30d">30d</option>
+              <option value="up">好评</option>
+              <option value="down">差评</option>
             </Select>
           </div>
           <div className="space-y-1 lg:col-span-2">
-            <div className="text-xs text-muted-foreground">reason（精确匹配）</div>
-            <Input
+            <div className="text-xs text-muted-foreground">原因分类</div>
+            <DebouncedInput
               value={reason}
-              onChange={(e) => {
-                updateFilter([["reason", e.target.value]]);
-              }}
-              placeholder="例如 hallucination / not_helpful"
+              onChange={(v) => updateFilter([["reason", v]])}
+              placeholder="如：幻觉、答非所问、不够详细"
             />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
             <Button variant="outline" onClick={() => list.refetch()}>
               刷新
             </Button>
             <Button
               variant="outline"
-              className="ml-2"
               onClick={() => {
                 setSp(new URLSearchParams(), { replace: true });
               }}
@@ -185,8 +170,8 @@ export function FeedbackPage() {
         <FilterChips items={chips} className="pt-3" />
       </Card>
 
-      <Card title="列表" description="后续可扩展：标注、归因、运营看板、评测集回归">
-        {list.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
+      <Card title="反馈列表" description="点击会话ID或消息ID可跳转到观测页查看完整上下文">
+        {list.isLoading ? <Loading /> : null}
         {list.error ? <ApiErrorBanner error={list.error} /> : null}
 
         <div className="overflow-x-auto">
@@ -194,15 +179,15 @@ export function FeedbackPage() {
             <thead className="text-muted-foreground">
               <tr>
                 <th className="py-2">时间</th>
-                <th className="py-2">App</th>
-                <th className="py-2">rating</th>
-                <th className="py-2">reason</th>
-                <th className="py-2">comment</th>
+                <th className="py-2">应用</th>
+                <th className="py-2">评分</th>
+                <th className="py-2">原因</th>
+                <th className="py-2">用户评论</th>
                 <th className="py-2">状态</th>
                 <th className="py-2">归因</th>
-                <th className="py-2">tags</th>
-                <th className="py-2">conversation_id</th>
-                <th className="py-2">message_id</th>
+                <th className="py-2">标签</th>
+                <th className="py-2">会话ID</th>
+                <th className="py-2">消息ID</th>
               </tr>
             </thead>
             <tbody>
@@ -217,7 +202,7 @@ export function FeedbackPage() {
                     <td className="py-2">{it.reason || <span className="text-muted-foreground">-</span>}</td>
                     <td className="py-2 max-w-[260px] break-words">{it.comment || <span className="text-muted-foreground">-</span>}</td>
                     <td className="py-2">
-                      <FeedbackTriage feedbackId={it.id} status={it.status} attribution={it.attribution} tags={it.tags || []} />
+                      <FeedbackTriage feedbackId={it.id} status={it.status} attribution={it.attribution} tags={it.tags || []} conversationId={it.conversation_id} />
                     </td>
                     <td className="py-2 font-mono text-xs">{it.attribution || <span className="text-muted-foreground">-</span>}</td>
                     <td className="py-2 max-w-[220px] break-words text-xs">

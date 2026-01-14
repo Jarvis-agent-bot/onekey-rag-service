@@ -22,9 +22,7 @@ import {
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
-import { Progress } from "../components/ui/progress";
 import { Separator } from "../components/ui/separator";
-import { Tabs, TabsContent, TabsList } from "../components/ui/tabs";
 import { apiFetch } from "../lib/api";
 import { cn } from "../lib/utils";
 import { useWorkspace } from "../lib/workspace";
@@ -107,7 +105,6 @@ export function KbsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
-  const [view, setView] = useState<"cards" | "table">("cards");
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -145,16 +142,10 @@ export function KbsPage() {
             <div className="text-xs uppercase tracking-[0.15em] text-primary">Knowledge</div>
             <div className="text-2xl font-semibold text-foreground">知识库</div>
             <div className="text-sm text-muted-foreground">
-              统一管理数据源 / 抓取 / 索引。支持文件导入与网站爬虫（已更名）。
+              统一管理数据源、抓取与索引。支持文件导入与网站爬虫。
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant={view === "cards" ? "default" : "outline"} onClick={() => setView("cards")}>
-              卡片视图
-            </Button>
-            <Button variant={view === "table" ? "default" : "outline"} onClick={() => setView("table")}>
-              表格视图
-            </Button>
             <Dialog open={createOpen} onOpenChange={(open) => (setCreateOpen(open), open || setWizardStep(1))}>
               <DialogTrigger asChild>
                 <Button className="bg-primary text-primary-foreground hover:bg-primary/90">新建知识库</Button>
@@ -236,7 +227,7 @@ export function KbsPage() {
                       </div>
                       <div className="space-y-1 rounded-xl border border-border/70 bg-card/60 p-3">
                         <Label className="text-xs text-muted-foreground">语言/编码</Label>
-                        <Select value={language} onValueChange={(v) => setLanguage(v)}>
+                        <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
                           <option value="auto">自动检测</option>
                           <option value="zh">中文</option>
                           <option value="en">英文</option>
@@ -300,7 +291,7 @@ export function KbsPage() {
                 ) : null}
                 <DialogFooter className="flex items-center justify-between">
                   <div className="text-xs text-muted-foreground">
-                    支持的格式：MD / PDF / DOCX / TXT / CSV / HTML。网站爬虫为“网站爬虫”类型。
+                    支持 MD / PDF / DOCX / TXT / CSV / HTML 格式
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" disabled={wizardStep === 1} onClick={() => setWizardStep((p) => (p === 1 ? 1 : ((p - 1) as any)))}>
@@ -343,7 +334,7 @@ export function KbsPage() {
 
       <Card
         title="知识库列表"
-        description="卡片展示覆盖率、最近抓取与索引，按名称/ID 搜索。"
+        description="管理知识库及其数据源，按名称或 ID 搜索。"
         actions={
           <Input
             placeholder="按名称 / ID 搜索"
@@ -365,148 +356,60 @@ export function KbsPage() {
               </Button>
             }
           />
-        ) : view === "cards" ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((it) => {
-              const coverage = Math.round((it.stats?.chunks?.embedding_coverage || 0) * 100);
-              return (
-                <div
-                  key={it.id}
-                  className="relative flex flex-col gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 to-background/60 p-4 shadow-md shadow-black/30"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{it.name}</div>
-                      <div className="font-mono text-[11px] text-muted-foreground">{it.id}</div>
-                    </div>
-                    <Badge variant={it.status === "active" ? "default" : "secondary"}>{it.status}</Badge>
-                  </div>
-                  <div className="space-y-2 rounded-xl border border-border/70 bg-background/40 p-3">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>覆盖率</span>
-                      <span className="font-mono text-foreground">{coverage}%</span>
-                    </div>
-                    <Progress value={coverage} />
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <div className="text-muted-foreground">页面</div>
-                        <div className="font-mono text-foreground">{it.stats?.pages?.total ?? 0}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          最近抓取 {it.stats?.pages?.last_crawled_at || "-"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">片段</div>
-                        <div className="font-mono text-foreground">{it.stats?.chunks?.total ?? 0}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          最近索引 {it.stats?.chunks?.last_indexed_at || "-"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <div>引用应用：{it.referenced_by?.total || 0}</div>
-                    <div>更新：{it.updated_at || "-"}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="default" onClick={() => navigate(`/kbs/${it.id}`)}>
-                      详情
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(it.id)}`)}>
-                      最近任务
-                    </Button>
-                    <ConfirmDangerDialog
-                      trigger={
-                        <Button variant="ghost" size="sm" className="ml-auto" disabled={del.isPending}>
-                          删除
-                        </Button>
-                      }
-                      title="确认删除知识库？"
-                      description={
-                        <>
-                          <div>
-                            将删除知识库 <span className="font-mono">{it.id}</span> 的记录与数据源绑定。历史 pages/chunks 不会自动清理。
-                          </div>
-                          {it.referenced_by?.total ? (
-                            <div className="mt-2 text-xs">
-                              当前被 {it.referenced_by.total} 个应用引用，删除前请确认关联。
-                            </div>
-                          ) : null}
-                        </>
-                      }
-                      confirmLabel="继续删除"
-                      confirmVariant="destructive"
-                      confirmText={it.id}
-                      confirmPlaceholder="输入 kb_id 确认"
-                      confirmDisabled={del.isPending}
-                      onConfirm={() => del.mutateAsync(it.id)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         ) : (
-          <div className="rounded-xl border border-border/70">
-            <Tabs value="table">
-              <TabsList className="hidden" />
-              <TabsContent value="table">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
-                      <tr>
-                        <th className="px-4 py-2 text-left">名称 / ID</th>
-                        <th className="px-4 py-2 text-left">统计</th>
-                        <th className="px-4 py-2 text-left">状态</th>
-                        <th className="px-4 py-2 text-left">更新时间</th>
-                        <th className="px-4 py-2 text-left">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((it) => (
-                        <tr key={it.id} className="border-t border-border/60">
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-foreground">{it.name}</div>
-                            <div className="font-mono text-[11px] text-muted-foreground">{it.id}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <KbStatsSummary
-                              pages={it.stats?.pages || { total: 0, last_crawled_at: null }}
-                              chunks={
-                                it.stats?.chunks || {
-                                  total: 0,
-                                  with_embedding: 0,
-                                  embedding_coverage: 0,
-                                  last_indexed_at: null,
-                                }
-                              }
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={it.status === "active" ? "default" : "secondary"}>{it.status}</Badge>
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{it.updated_at || "-"}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => navigate(`/kbs/${it.id}`)}>
-                                详情
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(it.id)}`)}
-                              >
-                                最近任务
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </TabsContent>
-            </Tabs>
+          <div className="overflow-x-auto rounded-xl border border-border/70">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 text-left">名称 / ID</th>
+                  <th className="px-4 py-2 text-left">统计</th>
+                  <th className="px-4 py-2 text-left">状态</th>
+                  <th className="px-4 py-2 text-left">更新时间</th>
+                  <th className="px-4 py-2 text-left">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((it) => (
+                  <tr key={it.id} className="border-t border-border/60">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-foreground">{it.name}</div>
+                      <div className="font-mono text-[11px] text-muted-foreground">{it.id}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <KbStatsSummary
+                        pages={it.stats?.pages || { total: 0, last_crawled_at: null }}
+                        chunks={
+                          it.stats?.chunks || {
+                            total: 0,
+                            with_embedding: 0,
+                            embedding_coverage: 0,
+                            last_indexed_at: null,
+                          }
+                        }
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={it.status === "active" ? "default" : "secondary"}>{it.status}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{it.updated_at || "-"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/kbs/${it.id}`)}>
+                          详情
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(it.id)}`)}
+                        >
+                          最近任务
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>

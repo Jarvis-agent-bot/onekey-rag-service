@@ -216,9 +216,10 @@ services:
     image: node:20-alpine
     profiles: ["frontend"]
     working_dir: /app
-    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev -- --host 0.0.0.0"]
+    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev"]
     environment:
       VITE_API_PROXY_TARGET: http://api:8000
+      NODE_OPTIONS: "--max-old-space-size=2048"
     ports:
       - "5173:5173"
     volumes:
@@ -232,9 +233,10 @@ services:
     image: node:20-alpine
     profiles: ["frontend"]
     working_dir: /app
-    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev -- --host 0.0.0.0 --port 5174"]
+    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev"]
     environment:
       VITE_ADMIN_API_PROXY_TARGET: http://api:8000
+      NODE_OPTIONS: "--max-old-space-size=4096"
     ports:
       - "5174:5174"
     volumes:
@@ -322,7 +324,7 @@ services:
   # Web3 Transaction Analyzer Frontend
   frontend-tx-analyzer:
     image: node:20-alpine
-    profiles: ["frontend", "tx-analyzer"]
+    profiles: ["tx-analyzer"]
     working_dir: /app
     command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev -- --host 0.0.0.0"]
     environment:
