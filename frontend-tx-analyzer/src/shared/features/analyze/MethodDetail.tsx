@@ -9,10 +9,34 @@ import { copyToClipboard } from '@/lib/utils'
 interface MethodDetailProps {
   method: DecodedMethod | null
   inputData: string
+  diagnostics?: {
+    method?: { status?: string; reason?: string; selector?: string }
+    abi?: { status?: string; reason?: string; source?: string; ref?: string; error?: string }
+  }
 }
 
-export function MethodDetail({ method, inputData }: MethodDetailProps) {
+export function MethodDetail({ method, inputData, diagnostics }: MethodDetailProps) {
   const [copied, setCopied] = useState(false)
+
+  const formatReason = (value?: string) => {
+    if (!value) return ''
+    const map: Record<string, string> = {
+      not_verified: '合约未验证',
+      missing_api_key: '缺少 Etherscan API Key',
+      contract_creation: '合约创建交易',
+      abi_missing: '缺少 ABI',
+      rate_limited: 'Etherscan 限流（429）',
+      timeout: 'Etherscan 请求超时',
+      http_error: 'Etherscan HTTP 错误',
+      network_error: 'Etherscan 网络错误',
+      api_error: 'Etherscan 接口错误',
+      signature_not_found: '签名库未命中',
+      decode_failed: '解码失败',
+      empty_input: '无调用数据',
+      error: '调用异常',
+    }
+    return map[value] || value
+  }
 
   const handleCopy = async () => {
     await copyToClipboard(inputData)
@@ -21,6 +45,11 @@ export function MethodDetail({ method, inputData }: MethodDetailProps) {
   }
 
   if (!method) {
+    const reason = diagnostics?.method?.reason
+    const abiReason = diagnostics?.abi?.reason
+    const abiSource = diagnostics?.abi?.source
+    const abiError = diagnostics?.abi?.error
+    const selector = diagnostics?.method?.selector
     return (
       <Card>
         <CardHeader>
@@ -31,9 +60,14 @@ export function MethodDetail({ method, inputData }: MethodDetailProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Could not decode the method call.
-            </p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>无法解析方法。</p>
+              {selector && <p>Selector: {selector}</p>}
+              {reason && <p>原因: {formatReason(reason)}</p>}
+              {abiSource && <p>ABI 来源: {abiSource}</p>}
+              {abiReason && <p>ABI 原因: {formatReason(abiReason)}</p>}
+              {abiError && <p>ABI 错误: {abiError}</p>}
+            </div>
             {inputData && inputData !== '0x' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

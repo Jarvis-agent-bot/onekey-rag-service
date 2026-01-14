@@ -4,6 +4,7 @@ from typing import Any
 
 from config import Settings, ChainConfig
 from integrations import RPCClient, EtherscanClient, SignatureDB
+from integrations.etherscan_client import EtherscanError
 from app_logging import Tracer, get_logger
 from storage import RedisCache
 
@@ -118,6 +119,9 @@ class TxParser:
         abi = None
         abi_source = "unknown"
         abi_ref = ""
+        abi_error = ""
+        abi_status = "skipped"
+        abi_reason = ""
 
         if to_address:
             with tracer.step("fetch_abi", {"contract": to_address}) as step:
@@ -128,6 +132,7 @@ class TxParser:
                         abi = cached_abi.get("abi")
                         abi_source = cached_abi.get("source", "cache")
                         abi_ref = cached_abi.get("source_url", "")
+                        abi_status = "ok"
                         step.set_output({"source": "cache", "method_count": len(abi) if abi else 0})
 
                 # 从 Etherscan 获取
@@ -137,6 +142,7 @@ class TxParser:
                         if abi:
                             abi_source = "explorer"
                             abi_ref = f"{chain_config.explorer_base_url}?module=contract&action=getabi&address={to_address}"
+                            abi_status = "ok"
 
                             # 缓存 ABI
                             if self.cache:
@@ -149,14 +155,29 @@ class TxParser:
 
                             step.set_output({"source": "explorer", "method_count": len(abi)})
                         else:
-                            step.set_output({"source": "none", "reason": "not_verified"})
+                            abi_status = "unverified"
+                            abi_reason = "not_verified"
+                            if not chain_config.explorer_api_key:
+                                abi_reason = "missing_api_key"
+                            step.set_output({"source": "none", "reason": abi_reason})
                     except Exception as e:
                         logger.warning("fetch_abi_error", address=to_address, error=str(e))
-                        step.set_output({"source": "none", "error": str(e)})
+                        abi_status = "error"
+                        abi_error = str(e)
+                        if isinstance(e, EtherscanError):
+                            abi_reason = e.code or "api_error"
+                        step.set_output({"source": "none", "error": abi_error})
+        else:
+            abi_reason = "contract_creation"
 
         # 4. 解码方法
         input_data = tx.get("input", "0x")
         method: DecodedMethod | None = None
+        method_status = "unknown"
+        method_reason = ""
+        method_selector = input_data[:10] if input_data else ""
+        signature_checked = False
+        signature_found = False
 
         if input_data and input_data != "0x":
             with tracer.step("decode_input", {"selector": input_data[:10] if len(input_data) >= 10 else input_data}) as step:
@@ -166,8 +187,10 @@ class TxParser:
                 # 如果 ABI 解码失败，尝试从签名库获取
                 if decoded and not decoded.get("name"):
                     selector = input_data[:10].lower()
+                    signature_checked = True
                     signatures = await self.signature_db.lookup_signature(selector)
                     if signatures:
+                        signature_found = True
                         # 尝试用签名解码
                         decoded = self.abi_decoder.decode_function_input(
                             input_data,
@@ -184,16 +207,29 @@ class TxParser:
                         abi_source=abi_source,
                         abi_ref=abi_ref,
                     )
+                    method_status = "decoded"
                     step.set_output({
                         "method": method.name,
                         "selector": method.selector,
                         "args_count": len(method.inputs),
                     })
                 else:
+                    method_status = "failed"
+                    if not abi:
+                        method_reason = "abi_missing"
+                    elif signature_checked and not signature_found:
+                        method_reason = "signature_not_found"
+                    else:
+                        method_reason = "decode_failed"
                     step.set_output({"decoded": False})
+        else:
+            method_status = "none"
+            method_reason = "empty_input"
 
         # 5. 解码事件
         events: list[DecodedEvent] = []
+        events_status = "unknown"
+        events_reason = ""
 
         if logs:
             with tracer.step("decode_events", {"logs_count": len(logs)}) as step:
@@ -205,11 +241,19 @@ class TxParser:
 
                 events = self.event_classifier.classify_events(logs, decoded_events)
 
+                if events:
+                    events_status = "decoded"
+                else:
+                    events_status = "failed"
+                    events_reason = "abi_missing" if not abi else "decode_failed"
                 event_names = [e.name for e in events if e.name]
                 step.set_output({
                     "decoded_count": len(events),
                     "events": list(set(event_names)),
                 })
+        else:
+            events_status = "none"
+            events_reason = "no_logs"
 
         # 6. 分析行为
         with tracer.step("analyze_behavior") as step:
@@ -262,6 +306,26 @@ class TxParser:
 
         status = "success" if receipt.get("status") == "0x1" or receipt.get("status") == 1 else "failed"
 
+        diagnostics = {
+            "abi": {
+                "status": abi_status,
+                "reason": abi_reason,
+                "source": abi_source,
+                "ref": abi_ref,
+                "error": abi_error,
+            },
+            "method": {
+                "status": method_status,
+                "reason": method_reason,
+                "selector": method_selector,
+            },
+            "events": {
+                "status": events_status,
+                "reason": events_reason,
+                "logs_count": len(logs),
+            },
+        }
+
         result = TxParseResult(
             version=self.VERSION,
             tx_hash=tx_hash,
@@ -289,6 +353,7 @@ class TxParser:
                 logs=f"logs[{len(logs)}]",
                 abi=abi_ref or "none",
             ),
+            diagnostics=diagnostics,
         )
 
         # 缓存结果

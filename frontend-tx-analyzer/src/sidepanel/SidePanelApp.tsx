@@ -285,12 +285,14 @@ export function SidePanelApp() {
                     <MethodDetail
                       method={result.parse_result.method}
                       inputData={result.parse_result.input}
+                      diagnostics={result.parse_result.diagnostics}
                     />
                   </TabsContent>
                   <TabsContent value="events">
                     <EventList
                       events={result.parse_result.events}
                       chainId={result.parse_result.chain_id}
+                      diagnostics={result.parse_result.diagnostics}
                     />
                   </TabsContent>
                   <TabsContent value="explanation">

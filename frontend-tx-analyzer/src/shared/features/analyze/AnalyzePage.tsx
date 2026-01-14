@@ -112,18 +112,20 @@ export function AnalyzePage() {
               <TabsTrigger value="explanation">解释</TabsTrigger>
               <TabsTrigger value="trace">Trace</TabsTrigger>
             </TabsList>
-            <TabsContent value="method">
-              <MethodDetail
-                method={result.parse_result.method}
-                inputData={result.parse_result.input}
-              />
-            </TabsContent>
-            <TabsContent value="events">
-              <EventList
-                events={result.parse_result.events}
-                chainId={result.parse_result.chain_id}
-              />
-            </TabsContent>
+              <TabsContent value="method">
+                <MethodDetail
+                  method={result.parse_result.method}
+                  inputData={result.parse_result.input}
+                  diagnostics={result.parse_result.diagnostics}
+                />
+              </TabsContent>
+              <TabsContent value="events">
+                <EventList
+                  events={result.parse_result.events}
+                  chainId={result.parse_result.chain_id}
+                  diagnostics={result.parse_result.diagnostics}
+                />
+              </TabsContent>
             <TabsContent value="explanation">
               <RagExplanation explanation={result.explanation} />
             </TabsContent>

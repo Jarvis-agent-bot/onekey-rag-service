@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 RAG_BASE_URL = "http://api:8000"
 RAG_MODEL = "tx-analyzer"
 RAG_API_KEY = ""
-RAG_TIMEOUT_S = 60.0
+RAG_TIMEOUT_S = 90.0
 
 
 class ChainConfig:

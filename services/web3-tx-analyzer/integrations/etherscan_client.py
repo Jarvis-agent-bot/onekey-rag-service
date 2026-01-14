@@ -15,9 +15,10 @@ logger = get_logger(__name__)
 class EtherscanError(Exception):
     """Etherscan API 错误"""
 
-    def __init__(self, message: str, status: str | None = None):
+    def __init__(self, message: str, status: str | None = None, code: str | None = None):
         super().__init__(message)
         self.status = status
+        self.code = code or ""
 
 
 class EtherscanClient:
@@ -53,10 +54,20 @@ class EtherscanClient:
         if self.api_key:
             params["apikey"] = self.api_key
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(self.base_url, params=params)
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(self.base_url, params=params)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.TimeoutException as e:
+            raise EtherscanError("timeout", code="timeout") from e
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response else None
+            if status_code == 429:
+                raise EtherscanError("rate_limited", status=str(status_code), code="rate_limited") from e
+            raise EtherscanError("http_error", status=str(status_code), code="http_error") from e
+        except httpx.RequestError as e:
+            raise EtherscanError("network_error", code="network_error") from e
 
         # 检查 API 响应状态
         status = data.get("status")
@@ -70,7 +81,7 @@ class EtherscanClient:
             if "not verified" in str(result).lower():
                 logger.debug("contract_not_verified", result=result)
                 return {"status": "0", "message": "Contract source code not verified", "result": None}
-            raise EtherscanError(message=str(result), status=status)
+            raise EtherscanError(message=str(result), status=status, code="api_error")
 
         return data
 

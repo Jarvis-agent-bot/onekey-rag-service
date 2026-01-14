@@ -83,6 +83,13 @@ class SourcesInfo(BaseModel):
     abi: str = ""
 
 
+class DiagnosticsInfo(BaseModel):
+    """诊断信息"""
+    abi: dict[str, Any] = Field(default_factory=dict)
+    method: dict[str, Any] = Field(default_factory=dict)
+    events: dict[str, Any] = Field(default_factory=dict)
+
+
 class TxParseResult(BaseModel):
     """交易解析结果"""
     version: str = "1.0.0"
@@ -117,6 +124,9 @@ class TxParseResult(BaseModel):
 
     # 来源信息
     sources: SourcesInfo = Field(default_factory=SourcesInfo)
+
+    # 诊断信息
+    diagnostics: DiagnosticsInfo = Field(default_factory=DiagnosticsInfo)
 
     # Trace 信息（可选）
     trace: TraceInfo | None = None

@@ -18,7 +18,7 @@ class ApiError extends Error {
   }
 }
 
-const REQUEST_TIMEOUT_MS = 30000
+const REQUEST_TIMEOUT_MS = 60000
 
 async function getApiBase(): Promise<string> {
   const settings = await getSettings()

@@ -97,6 +97,26 @@ export interface SourcesInfo {
   abi: string
 }
 
+export interface DiagnosticsInfo {
+  abi: {
+    status: string
+    reason?: string
+    source?: string
+    ref?: string
+    error?: string
+  }
+  method: {
+    status: string
+    reason?: string
+    selector?: string
+  }
+  events: {
+    status: string
+    reason?: string
+    logs_count?: number
+  }
+}
+
 // Parse result
 export interface ParseResult {
   version: string
@@ -117,6 +137,7 @@ export interface ParseResult {
   behavior: BehaviorResult
   risk_flags: RiskFlag[]
   sources?: SourcesInfo
+  diagnostics?: DiagnosticsInfo
 }
 
 // RAG explanation result

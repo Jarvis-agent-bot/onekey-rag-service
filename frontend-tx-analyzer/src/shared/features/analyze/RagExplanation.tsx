@@ -1,9 +1,19 @@
-import { Bot, BookOpen } from 'lucide-react'
+import { Bot, BookOpen, ExternalLink } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { ExplanationResult } from '@/api/types'
+
+function getSourceHost(value: unknown) {
+  if (!value) return ''
+  try {
+    const url = new URL(String(value))
+    return url.host
+  } catch {
+    return ''
+  }
+}
 
 interface RagExplanationProps {
   explanation: ExplanationResult | null
@@ -66,29 +76,57 @@ export function RagExplanation({ explanation }: RagExplanationProps) {
         {/* Sources */}
         {explanation.sources && explanation.sources.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium flex items-center gap-2">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
               Sources
               <Badge variant="secondary" className="ml-1">
                 {explanation.sources.length}
               </Badge>
             </p>
-            <div className="space-y-2">
+            <div className="divide-y rounded-md border border-muted/60 bg-background">
               {explanation.sources.map((source, index) => (
                 <div
                   key={index}
-                  className="rounded-md border p-3 text-sm"
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
                 >
                   {typeof source === 'string' ? (
-                    source
+                    <div className="flex items-center justify-between w-full gap-3">
+                      <div className="truncate text-xs text-muted-foreground">
+                        {getSourceHost(source) || '来源'}
+                      </div>
+                      <a
+                        className="inline-flex items-center gap-1 text-xs text-primary"
+                        href={source}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        查看
+                      </a>
+                    </div>
                   ) : (
-                    <div className="space-y-1">
-                      {Object.entries(source).map(([key, value]) => (
-                        <div key={key} className="flex gap-2">
-                          <span className="text-muted-foreground">{key}:</span>
-                          <span>{String(value)}</span>
+                    <div className="flex items-center justify-between w-full gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">
+                          {String(source.title || source.url || '来源')}
                         </div>
-                      ))}
+                        {source.url && (
+                          <div className="text-xs text-muted-foreground">
+                            {getSourceHost(source.url)}
+                          </div>
+                        )}
+                      </div>
+                      {source.url && (
+                        <a
+                          className="inline-flex items-center gap-1 text-xs text-primary"
+                          href={String(source.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          查看
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>

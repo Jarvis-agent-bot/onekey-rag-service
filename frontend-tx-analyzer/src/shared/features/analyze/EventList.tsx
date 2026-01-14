@@ -7,6 +7,10 @@ import type { DecodedEvent } from '@/api/types'
 interface EventListProps {
   events: DecodedEvent[]
   chainId: number
+  diagnostics?: {
+    events?: { status?: string; reason?: string; logs_count?: number }
+    abi?: { status?: string; reason?: string; source?: string; ref?: string; error?: string }
+  }
 }
 
 const eventTypeColors: Record<string, string> = {
@@ -22,8 +26,31 @@ const eventTypeColors: Record<string, string> = {
   withdrawal: 'bg-indigo-500/10 text-indigo-600',
 }
 
-export function EventList({ events, chainId }: EventListProps) {
+export function EventList({ events, chainId, diagnostics }: EventListProps) {
   if (events.length === 0) {
+    const formatReason = (value?: string) => {
+      if (!value) return ''
+      const map: Record<string, string> = {
+        no_logs: '交易无日志',
+        abi_missing: '缺少 ABI',
+        decode_failed: '解码失败',
+        not_verified: '合约未验证',
+        missing_api_key: '缺少 Etherscan API Key',
+        rate_limited: 'Etherscan 限流（429）',
+        timeout: 'Etherscan 请求超时',
+        http_error: 'Etherscan HTTP 错误',
+        network_error: 'Etherscan 网络错误',
+        api_error: 'Etherscan 接口错误',
+        error: '调用异常',
+      }
+      return map[value] || value
+    }
+
+    const reason = diagnostics?.events?.reason
+    const logsCount = diagnostics?.events?.logs_count
+    const abiReason = diagnostics?.abi?.reason
+    const abiSource = diagnostics?.abi?.source
+    const abiError = diagnostics?.abi?.error
     return (
       <Card>
         <CardHeader>
@@ -33,9 +60,14 @@ export function EventList({ events, chainId }: EventListProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No events emitted by this transaction.
-          </p>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>未解析到事件。</p>
+            {typeof logsCount === 'number' && <p>日志数量: {logsCount}</p>}
+            {reason && <p>原因: {formatReason(reason)}</p>}
+            {abiSource && <p>ABI 来源: {abiSource}</p>}
+            {abiReason && <p>ABI 原因: {formatReason(abiReason)}</p>}
+            {abiError && <p>ABI 错误: {abiError}</p>}
+          </div>
         </CardContent>
       </Card>
     )
