@@ -92,6 +92,17 @@ server {
     proxy_buffering off;  # 支持流式响应
   }
 
+  # TX Analyzer API（无前缀 /api）
+  location ^~ /api/ {
+    proxy_pass http://127.0.0.1:8001/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;  # 支持流式响应
+  }
+
   # TX Analyzer 前端（开发模式，生产可改为静态文件）
   # ^~ 修饰符阻止后续正则规则（如 .js/.css 缓存）匹配此路径下的请求
   location ^~ /tx-analyzer/ {
