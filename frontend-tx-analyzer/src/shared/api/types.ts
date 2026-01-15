@@ -143,12 +143,20 @@ export interface ParseResult {
 // RAG explanation result
 export type RiskLevel = 'low' | 'medium' | 'high' | 'unknown'
 
+export interface SourceInfo {
+  url: string
+  title: string
+  section_path?: string
+  snippet?: string
+  ref?: number | null
+}
+
 export interface ExplanationResult {
   summary: string
   risk_level: RiskLevel
   risk_reasons: string[]
   actions: Array<Record<string, unknown>>
-  sources: Array<Record<string, unknown>>
+  sources: SourceInfo[]
 }
 
 // Trace step

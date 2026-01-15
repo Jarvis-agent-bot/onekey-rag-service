@@ -237,6 +237,28 @@ def _build_context(chunks: list[RetrievedChunk], *, max_chars: int = 12_000) -> 
     return "\n\n".join(parts).strip()
 
 
+def _normalize_sources(raw_sources: list[dict] | None) -> list[dict]:
+    sources: list[dict] = []
+    for s in raw_sources or []:
+        if not isinstance(s, dict):
+            continue
+        url = s.get("url")
+        title = s.get("title")
+        section_path = s.get("section_path")
+        snippet = s.get("snippet")
+        ref = s.get("ref")
+        sources.append(
+            {
+                "url": str(url) if url else "",
+                "title": str(title) if title else "",
+                "section_path": str(section_path) if section_path else "",
+                "snippet": str(snippet) if snippet else "",
+                "ref": int(ref) if isinstance(ref, int) else None,
+            }
+        )
+    return sources
+
+
 def _safe_render(template: str, variables: dict[str, Any]) -> str:
     class _SafeDict(dict):
         def __missing__(self, key: str):
@@ -608,7 +630,7 @@ async def answer_with_rag(
             meta=prepared.meta,
         )
 
-    sources = prepared.sources
+    sources = _normalize_sources(prepared.sources)
 
     if not chat:
         # 降级：无上游模型时，返回可用片段的摘要式回答（确保服务可运行）
