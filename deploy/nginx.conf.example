@@ -69,6 +69,28 @@ server {
 
   # ==================== 反向代理 ====================
 
+  # ==================== 开发模式（可选，生产环境注释掉）====================
+  # 前端开发服务器代理，仅用于本地开发调试
+  # 生产环境中 frontend-chat 和 frontend-admin 已打包到主 API 镜像的静态目录
+
+  # Frontend Chat 开发服务器（生产环境注释掉）
+  # location ^~ /dev/chat/ {
+  #   proxy_pass http://127.0.0.1:5173/;
+  #   proxy_http_version 1.1;
+  #   proxy_set_header Host $host;
+  #   proxy_set_header Upgrade $http_upgrade;
+  #   proxy_set_header Connection "upgrade";
+  # }
+
+  # Frontend Admin 开发服务器（生产环境注释掉）
+  # location ^~ /dev/admin/ {
+  #   proxy_pass http://127.0.0.1:5174/;
+  #   proxy_http_version 1.1;
+  #   proxy_set_header Host $host;
+  #   proxy_set_header Upgrade $http_upgrade;
+  #   proxy_set_header Connection "upgrade";
+  # }
+
   # Langfuse 前缀反代
   location /langfuse/ {
     proxy_pass http://127.0.0.1:5177/;
@@ -103,10 +125,11 @@ server {
     proxy_buffering off;  # 支持流式响应
   }
 
-  # TX Analyzer 前端（开发模式，生产可改为静态文件）
-  # ^~ 修饰符阻止后续正则规则（如 .js/.css 缓存）匹配此路径下的请求
+  # TX Analyzer 前端（支持网页部署和 Chrome 扩展两种方式）
+  # 网页模式：通过 nginx 代理访问
+  # 扩展模式：在 Chrome 中加载 dist 目录作为未打包扩展
   location ^~ /tx-analyzer/ {
-    proxy_pass http://127.0.0.1:5175;
+    proxy_pass http://127.0.0.1:5175/;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

@@ -118,11 +118,11 @@ OneKey 开发者文档覆盖 SDK/API/集成指南/故障排查等内容。为了
 
 ### 9.2 前端工程（同仓库，独立构建）
 
-前端源码位于 `frontend/` 与 `frontend-admin/`，前后端构建解耦：
+前端源码位于 `frontend-chat/` 与 `frontend-admin/`，前后端构建解耦：
 - 后端镜像不再构建前端静态资源
 - 前端可本地运行或单独构建并部署
 - 本地开发：
-  - `cd frontend && corepack enable && pnpm install`
+  - `cd frontend-chat && corepack enable && pnpm install`
   - `pnpm dev`
   - `cd frontend-admin && corepack enable && pnpm install`
   - `pnpm dev`

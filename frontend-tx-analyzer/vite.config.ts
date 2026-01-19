@@ -28,13 +28,30 @@ export default defineConfig({
       host: 'localhost',
       port: 5175,
     },
+    proxy: {
+      // Proxy API requests to TX Analyzer backend
+      '/tx-analyzer/api': {
+        target: process.env.VITE_TX_ANALYZER_API_URL || 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tx-analyzer\/api/, ''),
+      },
+      // Also support /api path for direct API access
+      '/api': {
+        target: process.env.VITE_TX_ANALYZER_API_URL || 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
   build: {
     rollupOptions: {
       input: {
+        // Chrome Extension pages
         popup: 'src/popup/index.html',
         sidepanel: 'src/sidepanel/index.html',
         options: 'src/options/index.html',
+        // Web App (standalone web deployment)
+        web: 'src/web/index.html',
       },
     },
   },

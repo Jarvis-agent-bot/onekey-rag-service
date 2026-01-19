@@ -5,10 +5,10 @@ WORKDIR /build
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend-chat/package.json frontend-chat/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY frontend/ ./
+COPY frontend-chat/ ./
 RUN pnpm build
 
 # ==================== Stage 2: Build Admin UI ====================

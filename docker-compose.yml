@@ -328,7 +328,10 @@ services:
     working_dir: /app
     command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev -- --host 0.0.0.0"]
     environment:
+      # For Vite proxy (server-side, inside Docker network)
       VITE_TX_ANALYZER_API_URL: http://web3-tx-analyzer:8001
+      # For browser direct API calls (client-side, uses exposed port)
+      VITE_TX_ANALYZER_WEB_API_URL: http://localhost:8001
     ports:
       - "5175:5175"
     volumes:
