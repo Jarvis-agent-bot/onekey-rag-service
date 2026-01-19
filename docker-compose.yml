@@ -330,8 +330,6 @@ services:
     environment:
       # Increase Node.js memory limit to prevent OOM
       NODE_OPTIONS: "--max-old-space-size=4096"
-      # Web mode: disable crxjs plugin for web deployment
-      VITE_WEB_MODE: "true"
       # For Vite proxy (server-side, inside Docker network)
       VITE_TX_ANALYZER_API_URL: http://web3-tx-analyzer:8001
       # For browser direct API calls (client-side, uses exposed port)
