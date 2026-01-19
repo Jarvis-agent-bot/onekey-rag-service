@@ -153,45 +153,45 @@ services:
       postgres:
         condition: service_healthy
 
-  langfuse:
-    image: langfuse/langfuse:${LANGFUSE_VERSION:-latest}
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://postgres:replace-me@postgres:5432/langfuse}
-      REDIS_URL: ${LANGFUSE_REDIS_URL:-redis://langfuse-redis:6379/0}
-      CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://default:replace-me@clickhouse:8123/langfuse}
-      CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://default:replace-me@clickhouse:9000/langfuse}
-      SECRET_KEY_BASE: ${LANGFUSE_SECRET_KEY_BASE:-changeme}
-      LANGFUSE_API_KEY: ${LANGFUSE_API_KEY:-changeme}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme}
-      NEXT_PUBLIC_LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://localhost:5177}
-      SEARCH_BACKEND: ${LANGFUSE_SEARCH_BACKEND:-none}
-      MSEARCH_URL: ${LANGFUSE_MSEARCH_URL:-}
-      STORAGE_BACKEND: ${LANGFUSE_STORAGE_BACKEND:-}
-      STORAGE_ENDPOINT: ${LANGFUSE_STORAGE_ENDPOINT:-}
-      STORAGE_ACCESS_KEY_ID: ${LANGFUSE_STORAGE_ACCESS_KEY_ID:-}
-      STORAGE_SECRET_ACCESS_KEY: ${LANGFUSE_STORAGE_SECRET_ACCESS_KEY:-}
-    ports:
-      # 仅宿主机访问，供本机 Nginx 反代 Langfuse
-      - "127.0.0.1:5177:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      langfuse-redis:
-        condition: service_started
-      clickhouse:
-        condition: service_healthy
-    restart: unless-stopped
+  # langfuse:
+  #   image: langfuse/langfuse:${LANGFUSE_VERSION:-latest}
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://postgres:replace-me@postgres:5432/langfuse}
+  #     REDIS_URL: ${LANGFUSE_REDIS_URL:-redis://langfuse-redis:6379/0}
+  #     CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://default:replace-me@clickhouse:8123/langfuse}
+  #     CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://default:replace-me@clickhouse:9000/langfuse}
+  #     SECRET_KEY_BASE: ${LANGFUSE_SECRET_KEY_BASE:-changeme}
+  #     LANGFUSE_API_KEY: ${LANGFUSE_API_KEY:-changeme}
+  #     LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  #     LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  #     NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme}
+  #     NEXT_PUBLIC_LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://localhost:5177}
+  #     SEARCH_BACKEND: ${LANGFUSE_SEARCH_BACKEND:-none}
+  #     MSEARCH_URL: ${LANGFUSE_MSEARCH_URL:-}
+  #     STORAGE_BACKEND: ${LANGFUSE_STORAGE_BACKEND:-}
+  #     STORAGE_ENDPOINT: ${LANGFUSE_STORAGE_ENDPOINT:-}
+  #     STORAGE_ACCESS_KEY_ID: ${LANGFUSE_STORAGE_ACCESS_KEY_ID:-}
+  #     STORAGE_SECRET_ACCESS_KEY: ${LANGFUSE_STORAGE_SECRET_ACCESS_KEY:-}
+  #   ports:
+  #     # 仅宿主机访问，供本机 Nginx 反代 Langfuse
+  #     - "127.0.0.1:5177:3000"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     langfuse-redis:
+  #       condition: service_started
+  #     clickhouse:
+  #       condition: service_healthy
+  #   restart: unless-stopped
 
-  langfuse-redis:
-    image: redis:7
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - langfuse-redis:/data
-    restart: unless-stopped
+  # langfuse-redis:
+  #   image: redis:7
+  #   command: ["redis-server", "--appendonly", "yes"]
+  #   volumes:
+  #     - langfuse-redis:/data
+  #   restart: unless-stopped
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.3
