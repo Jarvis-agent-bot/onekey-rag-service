@@ -193,24 +193,24 @@ services:
   #     - langfuse-redis:/data
   #   restart: unless-stopped
 
-  clickhouse:
-    image: clickhouse/clickhouse-server:24.3
-    environment:
-      CLICKHOUSE_DB: langfuse
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-replace-me}
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
-      - ./deploy/clickhouse/remote_servers.xml:/etc/clickhouse-server/config.d/remote_servers.xml:ro
-      - ./deploy/clickhouse/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
-      - ./deploy/clickhouse/macros.xml:/etc/clickhouse-server/config.d/macros.xml:ro
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
+  # clickhouse:
+  #   image: clickhouse/clickhouse-server:24.3
+  #   environment:
+  #     CLICKHOUSE_DB: langfuse
+  #     CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+  #     CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-replace-me}
+  #     CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+  #   volumes:
+  #     - clickhouse-data:/var/lib/clickhouse
+  #     - ./deploy/clickhouse/remote_servers.xml:/etc/clickhouse-server/config.d/remote_servers.xml:ro
+  #     - ./deploy/clickhouse/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
+  #     - ./deploy/clickhouse/macros.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #   restart: unless-stopped
 
   frontend-chat:
     image: node:20-alpine
