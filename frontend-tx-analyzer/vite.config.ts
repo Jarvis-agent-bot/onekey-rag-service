@@ -50,6 +50,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
+        // Main web entry (root index.html)
+        main: 'index.html',
         // Chrome Extension pages
         popup: 'src/popup/index.html',
         sidepanel: 'src/sidepanel/index.html',
