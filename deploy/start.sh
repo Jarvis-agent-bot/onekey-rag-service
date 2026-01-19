@@ -4,6 +4,7 @@
 # 示例:
 #   ./deploy/start.sh                    # 启动基础服务
 #   ./deploy/start.sh tx-analyzer        # 启动 TX Analyzer
+#   ./deploy/start.sh defi-rating        # 启动 DeFi Rating
 #   ./deploy/start.sh frontend           # 启动前端开发服务
 #   ./deploy/start.sh all                # 启动所有服务
 
@@ -22,18 +23,21 @@ case "$PROFILE" in
   "tx-analyzer")
     docker compose --profile tx-analyzer up -d --build
     ;;
+  "defi-rating")
+    docker compose --profile defi-rating up -d --build
+    ;;
   "frontend")
     docker compose --profile frontend up -d --build
     ;;
   "all")
-    docker compose --profile frontend --profile tx-analyzer up -d --build
+    docker compose --profile frontend --profile tx-analyzer --profile defi-rating up -d --build
     ;;
   "")
     docker compose up -d --build
     ;;
   *)
     echo "❌ 未知的 profile: $PROFILE"
-    echo "可用选项: tx-analyzer, frontend, all, 或留空启动基础服务"
+    echo "可用选项: tx-analyzer, defi-rating, frontend, all, 或留空启动基础服务"
     exit 1
     ;;
 esac

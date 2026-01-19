@@ -167,7 +167,7 @@ services:
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme}
-      NEXT_PUBLIC_LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://localhost:5177}
       SEARCH_BACKEND: ${LANGFUSE_SEARCH_BACKEND:-none}
       MSEARCH_URL: ${LANGFUSE_MSEARCH_URL:-}
       STORAGE_BACKEND: ${LANGFUSE_STORAGE_BACKEND:-}
@@ -176,7 +176,7 @@ services:
       STORAGE_SECRET_ACCESS_KEY: ${LANGFUSE_STORAGE_SECRET_ACCESS_KEY:-}
     ports:
       # 仅宿主机访问，供本机 Nginx 反代 Langfuse
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:5177:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -212,7 +212,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-  frontend:
+  frontend-chat:
     image: node:20-alpine
     profiles: ["frontend"]
     working_dir: /app
@@ -223,8 +223,8 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend:/app
-      - frontend-node-modules:/app/node_modules
+      - ./frontend-chat:/app
+      - frontend-chat-node-modules:/app/node_modules
     depends_on:
       api:
         condition: service_started
@@ -339,12 +339,65 @@ services:
         condition: service_started
 
 
+  # DeFi Rating Service
+  defi-rating:
+    build:
+      context: ./services/defi-rating
+      dockerfile: Dockerfile
+    profiles: ["defi-rating"]
+    container_name: defi-rating
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PORT: 8002
+
+      # Database (shared PostgreSQL, independent schema)
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:replace-me@postgres:5432/onekey_rag}
+      DATABASE_SCHEMA: ${DEFI_RATING_DATABASE_SCHEMA:-defi_rating}
+
+      # DefiLlama API
+      DEFILLAMA_BASE_URL: ${DEFILLAMA_BASE_URL:-https://api.llama.fi}
+      DEFILLAMA_TIMEOUT: ${DEFILLAMA_TIMEOUT:-30.0}
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/healthz"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # DeFi Rating Frontend
+  frontend-defi-rating:
+    image: node:20-alpine
+    profiles: ["defi-rating"]
+    working_dir: /app
+    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm dev -- --host 0.0.0.0"]
+    environment:
+      VITE_DEFI_RATING_API_URL: http://defi-rating:8002
+    ports:
+      - "5176:5176"
+    volumes:
+      - ./frontend-defi-rating:/app
+      - frontend-defi-rating-node-modules:/app/node_modules
+    depends_on:
+      defi-rating:
+        condition: service_started
+
+
 volumes:
   pgdata:
   hf_cache:
   langfuse-redis:
   clickhouse-data:
-  frontend-node-modules:
+  frontend-chat-node-modules:
   frontend-admin-node-modules:
   tx-analyzer-redis:
   frontend-tx-analyzer-node-modules:
+  frontend-defi-rating-node-modules:

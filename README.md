@@ -23,13 +23,13 @@
    - 后台任务：默认启用 `worker`（见 `JOBS_BACKEND`），抓取/索引会入队由 Worker 消费
 
 3. 前端本地开发（非 Docker）：
-   - `cd frontend && corepack enable && pnpm install`
+   - `cd frontend-chat && corepack enable && pnpm install`
    - `pnpm dev`（默认代理后端 `http://localhost:8000`）
    - 管理后台：`cd frontend-admin && corepack enable && pnpm install`
    - `pnpm dev`（默认代理后端 `http://localhost:8000`）
    - 如需一键拉起前后端（Docker）：`docker compose --profile frontend up -d --build`
    - 如需让后端同域提供静态页面：
-     - `cd frontend && pnpm build` → 产物在 `frontend/dist`
+     - `cd frontend-chat && pnpm build` → 产物在 `frontend-chat/dist`
      - `cd frontend-admin && pnpm build` → 产物在 `frontend-admin/dist`
      - 将产物分别拷贝到 `onekey_rag_service/static/widget` 与 `onekey_rag_service/static/admin`
 
@@ -233,9 +233,13 @@ docker compose --profile frontend up -d --build
 # 仅启动 TX Analyzer（后端 + Redis + 前端）
 docker compose --profile tx-analyzer up -d --build
 
+# ========== DeFi Rating 服务 ==========
+# 仅启动 DeFi Rating（后端 + 前端）
+docker compose --profile defi-rating up -d --build
+
 # ========== 完整服务 ==========
-# 启动所有服务（核心 + 前端 + TX Analyzer）
-docker compose --profile frontend --profile tx-analyzer up -d --build
+# 启动所有服务（核心 + 前端 + TX Analyzer + DeFi Rating）
+docker compose --profile frontend --profile tx-analyzer --profile defi-rating up -d --build
 
 # ========== 常用运维命令 ==========
 # 查看服务状态
@@ -266,8 +270,14 @@ docker compose --profile tx-analyzer restart web3-tx-analyzer
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| TX Analyzer API | 8001 | 后端 API 服务 |
-| TX Analyzer Frontend | 5175 | 前端 Web 界面 |
+| RAG API | 8000 | 主 RAG 后端 API |
+| TX Analyzer API | 8001 | 交易分析后端 API |
+| DeFi Rating API | 8002 | DeFi 评级后端 API |
+| frontend-chat | 5173 | 聊天 Widget 前端 |
+| frontend-admin | 5174 | 管理后台前端 |
+| frontend-tx-analyzer | 5175 | 交易分析前端 |
+| frontend-defi-rating | 5176 | DeFi 评级前端 |
+| Langfuse | 5177 | 可观测性平台 |
 
 ### API 端点
 
@@ -301,6 +311,45 @@ TX Analyzer 使用独立的数据库 schema（`tx_analyzer`）和 Redis 实例�
 - `TX_ANALYZER_RAG_BASE_URL`：RAG 服务地址（用于 AI 解释）
 - `ETH_RPC_URL`、`BSC_RPC_URL` 等：各链 RPC 端点
 - `ETHERSCAN_API_KEY` 等：区块链浏览器 API Key（用于获取 ABI）
+
+## DeFi Rating Service（可选服务）
+
+本仓库还包含一个独立的 DeFi 项目安全评级服务，用于评估和展示 DeFi 协议的安全风险。
+
+### 功能特性
+
+- **多维度评分**：合约安全、团队背景、代币经济、运营历史
+- **风险等级**：低/中/高/极高四级风险分类
+- **TVL 集成**：从 DefiLlama 获取实时 TVL 数据
+- **项目分类**：流动性质押、借贷、DEX、收益聚合等多种类别
+
+### 快速启动
+
+```bash
+# 启动 DeFi Rating 服务
+docker compose --profile defi-rating up -d --build
+
+# 查看服务状态
+docker compose --profile defi-rating ps
+```
+
+### API 端点
+
+- 健康检查：`GET http://localhost:8002/healthz`
+- 项目列表：`GET http://localhost:8002/v1/projects`
+- 项目详情：`GET http://localhost:8002/v1/projects/{slug}`
+- 分类列表：`GET http://localhost:8002/v1/categories`
+- 搜索项目：`GET http://localhost:8002/v1/search?q={keyword}`
+- 统计数据：`GET http://localhost:8002/v1/stats`
+
+### 配置说明
+
+DeFi Rating 使用独立的数据库 schema（`defi_rating`）。
+
+主要环境变量（见 `.env.example`）：
+- `DEFI_RATING_DATABASE_SCHEMA`：数据库 schema 名称（默认 `defi_rating`）
+- `DEFILLAMA_BASE_URL`：DefiLlama API 地址
+- `DEFILLAMA_TIMEOUT`：API 请求超时时间
 
 ## TODO（对标 Inkeep 的产品化差距）
 
