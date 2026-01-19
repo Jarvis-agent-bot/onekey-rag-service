@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import re
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from analyzer import TxParser
+from analyzer import TxParser, CalldataDecoder, CalldataContext, TxSimulator, SimulationRequest, SignatureParser
 from analyzer.schemas import TxParseResult, ExplanationResult as AnalyzerExplanation
 from clients import RAGClient
 from config import Settings, get_settings
 from app_logging import Tracer, get_logger, bind_context, clear_context
 from storage import RedisCache, get_db_context, ParseLog
+from integrations import SignatureDB
 
 from .schemas import (
     TxAnalyzeRequest,
@@ -19,6 +22,14 @@ from .schemas import (
     ExplanationResult,
     ChainInfo,
     HealthResponse,
+    DecodeCalldataRequest,
+    DecodeCalldataResponse,
+    SimulateRequest,
+    SimulateResponse,
+    DecodeSignatureRequest,
+    DecodeSignatureResponse,
+    SmartAnalyzeRequest,
+    SmartAnalyzeResponse,
 )
 
 logger = get_logger(__name__)
@@ -235,6 +246,322 @@ async def analyze_transaction(
 
     clear_context()
     return response
+
+
+# ==================== 新增 API 端点 ====================
+
+def get_calldata_decoder(request: Request) -> CalldataDecoder:
+    """获取 Calldata 解码器实例"""
+    parser = get_parser(request)
+    signature_db = getattr(request.app.state, "signature_db", None)
+    return CalldataDecoder(parser.abi_decoder, signature_db)
+
+
+def get_simulator(request: Request) -> TxSimulator:
+    """获取交易模拟器实例"""
+    parser = get_parser(request)
+    return TxSimulator(parser.rpc_clients)
+
+
+@router.post("/v1/decode", response_model=DecodeCalldataResponse)
+async def decode_calldata(
+    req: DecodeCalldataRequest,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> DecodeCalldataResponse:
+    """
+    解码 Calldata
+
+    解析未签名/未发送交易的 calldata 数据，返回：
+    - 函数名称和签名
+    - 解码后的参数
+    - 行为类型分析
+    - 风险评估
+    """
+    tracer = Tracer(chain_id=req.chain_id, tx_hash="decode")
+    bind_context(trace_id=tracer.trace_id, chain_id=req.chain_id)
+
+    try:
+        decoder = get_calldata_decoder(request)
+
+        # 构建上下文
+        context = CalldataContext(
+            chain_id=req.chain_id,
+            to_address=req.to_address,
+            from_address=req.from_address,
+            value=req.value,
+        )
+
+        # 如果有目标地址，尝试获取 ABI
+        abi = None
+        if req.to_address:
+            parser = get_parser(request)
+            with tracer.step("fetch_abi", {"address": req.to_address}) as step:
+                try:
+                    abi = await parser._get_abi(req.chain_id, req.to_address)
+                    step.set_output({"has_abi": abi is not None})
+                except Exception as e:
+                    step.set_output({"error": str(e)})
+
+        # 解码 calldata
+        with tracer.step("decode_calldata", {"length": len(req.calldata)}) as step:
+            result = await decoder.decode(req.calldata, context, abi)
+            step.set_output({
+                "function": result.function_name,
+                "behavior": result.behavior_type,
+                "risk_level": result.risk_level,
+            })
+
+        # 格式化显示
+        formatted = decoder.format_decoded_for_display(result)
+
+        return DecodeCalldataResponse(
+            trace_id=tracer.trace_id,
+            status="success",
+            result=result.to_dict(),
+            formatted=formatted,
+            timings=tracer.get_timings(),
+        )
+
+    except Exception as e:
+        logger.exception("decode_error", error=str(e))
+        return DecodeCalldataResponse(
+            trace_id=tracer.trace_id,
+            status="failed",
+            error=str(e),
+            timings=tracer.get_timings(),
+        )
+    finally:
+        clear_context()
+
+
+@router.post("/v1/simulate", response_model=SimulateResponse)
+async def simulate_transaction(
+    req: SimulateRequest,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> SimulateResponse:
+    """
+    模拟交易执行
+
+    在发送交易前模拟执行，预测：
+    - 交易是否会成功
+    - Gas 消耗估算
+    - 资产变化预览
+    - 风险提示
+    """
+    tracer = Tracer(chain_id=req.chain_id, tx_hash="simulate")
+    bind_context(trace_id=tracer.trace_id, chain_id=req.chain_id)
+
+    try:
+        simulator = get_simulator(request)
+
+        sim_request = SimulationRequest(
+            chain_id=req.chain_id,
+            from_address=req.from_address,
+            to_address=req.to_address,
+            data=req.data,
+            value=req.value,
+            gas_limit=req.gas_limit,
+        )
+
+        with tracer.step("simulate", {"to": req.to_address}) as step:
+            result = await simulator.simulate(sim_request)
+            step.set_output({
+                "success": result.success,
+                "gas_used": result.gas_used,
+                "transfers_count": len(result.token_transfers),
+            })
+
+        return SimulateResponse(
+            trace_id=tracer.trace_id,
+            status="success" if result.success else "failed",
+            result=result.to_dict(),
+            error=result.error_message if not result.success else None,
+            timings=tracer.get_timings(),
+        )
+
+    except Exception as e:
+        logger.exception("simulate_error", error=str(e))
+        return SimulateResponse(
+            trace_id=tracer.trace_id,
+            status="failed",
+            error=str(e),
+            timings=tracer.get_timings(),
+        )
+    finally:
+        clear_context()
+
+
+@router.post("/v1/signature/decode", response_model=DecodeSignatureResponse)
+async def decode_signature(
+    req: DecodeSignatureRequest,
+    request: Request,
+) -> DecodeSignatureResponse:
+    """
+    解析签名数据
+
+    解析 EIP-712 签名请求、Permit 签名等，返回：
+    - 签名类型识别
+    - 消息内容解析
+    - 授权详情（如果是 Permit）
+    - 风险评估
+    """
+    tracer = Tracer(chain_id=req.chain_id or 1, tx_hash="signature")
+    bind_context(trace_id=tracer.trace_id)
+
+    try:
+        parser = SignatureParser()
+
+        with tracer.step("parse_signature") as step:
+            result = parser.parse(req.data)
+            step.set_output({
+                "type": result.signature_type,
+                "primary_type": result.primary_type,
+                "risk_level": result.risk_level,
+            })
+
+        # 生成人类可读摘要
+        summary = parser.get_human_readable_summary(result)
+
+        return DecodeSignatureResponse(
+            trace_id=tracer.trace_id,
+            status="success",
+            result=result.to_dict(),
+            summary=summary,
+        )
+
+    except Exception as e:
+        logger.exception("signature_decode_error", error=str(e))
+        return DecodeSignatureResponse(
+            trace_id=tracer.trace_id,
+            status="failed",
+            error=str(e),
+        )
+    finally:
+        clear_context()
+
+
+@router.post("/v1/smart-analyze", response_model=SmartAnalyzeResponse)
+async def smart_analyze(
+    req: SmartAnalyzeRequest,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> SmartAnalyzeResponse:
+    """
+    智能分析 - 自动识别输入类型
+
+    自动识别输入是：
+    - 交易哈希 (0x + 64字符)
+    - Calldata (0x + 任意长度)
+    - 签名数据 (JSON 格式)
+
+    并调用相应的分析方法
+    """
+    tracer = Tracer(chain_id=req.chain_id, tx_hash="smart")
+    bind_context(trace_id=tracer.trace_id, chain_id=req.chain_id)
+
+    input_data = req.input.strip()
+    input_type = _detect_input_type(input_data)
+
+    response = SmartAnalyzeResponse(
+        trace_id=tracer.trace_id,
+        input_type=input_type,
+        status="success",
+    )
+
+    try:
+        if input_type == "tx_hash":
+            # 交易哈希分析
+            parser = get_parser(request)
+            parse_result = await parser.parse(
+                chain_id=req.chain_id,
+                tx_hash=input_data,
+                tracer=tracer,
+            )
+            response.tx_result = parse_result.to_dict()
+
+            # 可选：调用 RAG
+            if req.options.include_explanation:
+                rag_client = get_rag_client(request)
+                if rag_client:
+                    try:
+                        rag_result = await rag_client.explain(
+                            parse_result=parse_result.to_dict(),
+                            language=req.options.language,
+                            trace_id=tracer.trace_id,
+                        )
+                        response.explanation = ExplanationResult(
+                            summary=rag_result.get("summary", ""),
+                            risk_level=rag_result.get("risk_level", "unknown"),
+                            risk_reasons=rag_result.get("risk_reasons", []),
+                            actions=rag_result.get("actions", []),
+                            sources=rag_result.get("sources", []),
+                        )
+                    except Exception as e:
+                        logger.warning("rag_error", error=str(e))
+
+        elif input_type == "calldata":
+            # Calldata 解码
+            decoder = get_calldata_decoder(request)
+            context = CalldataContext(
+                chain_id=req.chain_id,
+                to_address=req.context.get("to_address"),
+                from_address=req.context.get("from_address"),
+                value=req.context.get("value", "0"),
+            )
+            result = await decoder.decode(input_data, context)
+            response.decode_result = result.to_dict()
+
+        elif input_type == "signature":
+            # 签名解析
+            sig_parser = SignatureParser()
+            try:
+                sig_data = json.loads(input_data)
+            except json.JSONDecodeError:
+                sig_data = input_data
+            result = sig_parser.parse(sig_data)
+            response.signature_result = result.to_dict()
+
+        else:
+            response.status = "failed"
+            response.error = "Unable to determine input type"
+
+    except Exception as e:
+        logger.exception("smart_analyze_error", error=str(e))
+        response.status = "failed"
+        response.error = str(e)
+
+    response.timings = tracer.get_timings()
+    clear_context()
+    return response
+
+
+def _detect_input_type(input_data: str) -> str:
+    """检测输入类型"""
+    input_data = input_data.strip()
+
+    # 尝试解析为 JSON (签名数据)
+    if input_data.startswith("{"):
+        try:
+            data = json.loads(input_data)
+            if "domain" in data and "message" in data:
+                return "signature"
+        except json.JSONDecodeError:
+            pass
+
+    # 检查是否是十六进制数据
+    if input_data.startswith("0x"):
+        hex_part = input_data[2:]
+        if re.match(r"^[a-fA-F0-9]+$", hex_part):
+            # 交易哈希: 64 字符
+            if len(hex_part) == 64:
+                return "tx_hash"
+            # Calldata: 至少 8 字符 (4 字节选择器)
+            elif len(hex_part) >= 8:
+                return "calldata"
+
+    return "unknown"
 
 
 def _save_parse_log(

@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { AnalyzeRequest, AnalyzeResponse } from './types'
+import type {
+  AnalyzeRequest,
+  AnalyzeResponse,
+  DecodeCalldataRequest,
+  SimulateRequest,
+  DecodeSignatureRequest,
+  SmartAnalyzeRequest,
+} from './types'
 
 // Query keys
 export const queryKeys = {
@@ -46,5 +53,41 @@ export function useParseTransaction() {
   return useMutation({
     mutationFn: ({ chainId, txHash }: { chainId: number; txHash: string }) =>
       api.parseTransaction(chainId, txHash),
+  })
+}
+
+// ==================== 新增 Hooks ====================
+
+// Decode calldata mutation
+export function useDecodeCalldata() {
+  return useMutation({
+    mutationFn: (request: DecodeCalldataRequest) => api.decodeCalldata(request),
+  })
+}
+
+// Simulate transaction mutation
+export function useSimulateTransaction() {
+  return useMutation({
+    mutationFn: (request: SimulateRequest) => api.simulateTransaction(request),
+  })
+}
+
+// Decode signature mutation
+export function useDecodeSignature() {
+  return useMutation({
+    mutationFn: (request: DecodeSignatureRequest) => api.decodeSignature(request),
+  })
+}
+
+// Smart analyze mutation (auto-detect input type)
+export function useSmartAnalyze() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: SmartAnalyzeRequest) => api.smartAnalyze(request),
+    onSuccess: (data) => {
+      // Cache the result
+      queryClient.setQueryData(['smart-analysis', data.trace_id], data)
+    },
   })
 }

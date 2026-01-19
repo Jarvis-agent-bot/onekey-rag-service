@@ -4,6 +4,14 @@ import type {
   ChainInfo,
   HealthResponse,
   ParseResponse,
+  DecodeCalldataRequest,
+  DecodeCalldataResponse,
+  SimulateRequest,
+  SimulateResponse,
+  DecodeSignatureRequest,
+  DecodeSignatureResponse,
+  SmartAnalyzeRequest,
+  SmartAnalyzeResponse,
 } from './types'
 
 const API_BASE = '/tx-analyzer/api'
@@ -70,6 +78,36 @@ export const api = {
   // Analyze transaction (with RAG)
   analyzeTransaction: (req: AnalyzeRequest) =>
     request<AnalyzeResponse>('/v1/tx/analyze', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // ==================== 新增 API ====================
+
+  // Decode calldata
+  decodeCalldata: (req: DecodeCalldataRequest) =>
+    request<DecodeCalldataResponse>('/v1/decode', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // Simulate transaction
+  simulateTransaction: (req: SimulateRequest) =>
+    request<SimulateResponse>('/v1/simulate', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // Decode signature
+  decodeSignature: (req: DecodeSignatureRequest) =>
+    request<DecodeSignatureResponse>('/v1/signature/decode', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  // Smart analyze (auto-detect input type)
+  smartAnalyze: (req: SmartAnalyzeRequest) =>
+    request<SmartAnalyzeResponse>('/v1/smart-analyze', {
       method: 'POST',
       body: JSON.stringify(req),
     }),

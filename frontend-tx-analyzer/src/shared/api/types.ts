@@ -216,3 +216,176 @@ export interface HistoryResponse {
   page: number
   page_size: number
 }
+
+// ==================== 新增：Calldata 解码 ====================
+
+export interface DecodeCalldataRequest {
+  calldata: string
+  chain_id?: number
+  to_address?: string
+  from_address?: string
+  value?: string
+}
+
+export interface DecodedCalldata {
+  selector: string
+  raw_data: string
+  function_name: string
+  function_signature: string
+  inputs: MethodInput[]
+  behavior_type: BehaviorType
+  risk_level: RiskLevel
+  risk_flags: RiskFlag[]
+  warnings: string[]
+  possible_signatures: string[]
+  contract_type: string | null
+}
+
+export interface FormattedCalldata {
+  function: {
+    name: string
+    selector: string
+    signature: string
+  }
+  parameters: Array<{
+    name: string
+    type: string
+    value: unknown
+    display?: string
+  }>
+  analysis: {
+    behavior: string
+    risk_level: string
+    warnings: string[]
+  }
+}
+
+export interface DecodeCalldataResponse {
+  trace_id: string
+  status: 'success' | 'partial' | 'failed'
+  result: DecodedCalldata | null
+  formatted: FormattedCalldata | null
+  error: string | null
+  timings: Record<string, number>
+}
+
+// ==================== 新增：交易模拟 ====================
+
+export interface SimulateRequest {
+  chain_id: number
+  from_address: string
+  to_address: string
+  data: string
+  value?: string
+  gas_limit?: number
+}
+
+export interface TokenTransfer {
+  token_address: string
+  from_address: string
+  to_address: string
+  amount: string
+  symbol: string
+  decimals: number
+  formatted_amount: string
+}
+
+export interface AssetChange {
+  address: string
+  token: string
+  symbol: string
+  decimals: number
+  change: string
+  formatted_change: string
+  direction: 'in' | 'out'
+}
+
+export interface SimulationResult {
+  success: boolean
+  gas_used: number
+  return_data: string
+  error_message: string
+  token_transfers: TokenTransfer[]
+  asset_changes: AssetChange[]
+  risk_flags: RiskFlag[]
+  warnings: string[]
+}
+
+export interface SimulateResponse {
+  trace_id: string
+  status: 'success' | 'failed'
+  result: SimulationResult | null
+  error: string | null
+  timings: Record<string, number>
+}
+
+// ==================== 新增：签名解析 ====================
+
+export interface DecodeSignatureRequest {
+  data: Record<string, unknown> | string
+  chain_id?: number
+}
+
+export interface EIP712Domain {
+  name: string
+  version: string
+  chain_id: number | null
+  verifying_contract: string
+  salt: string
+}
+
+export interface SignatureAnalysis {
+  signature_type: 'eip712' | 'personal_sign' | 'eth_sign' | 'unknown'
+  primary_type: string
+  domain: EIP712Domain | null
+  message: Record<string, unknown>
+  formatted_message: string
+  action_type: string
+  action_description: string
+  affected_assets: Array<{
+    type: string
+    token?: string
+    spender?: string
+    amount?: string
+  }>
+  risk_level: RiskLevel
+  risk_flags: RiskFlag[]
+  warnings: string[]
+  expires_at: string | null
+  spender: string
+}
+
+export interface DecodeSignatureResponse {
+  trace_id: string
+  status: 'success' | 'failed'
+  result: SignatureAnalysis | null
+  summary: string | null
+  error: string | null
+}
+
+// ==================== 新增：智能分析 ====================
+
+export type InputType = 'tx_hash' | 'calldata' | 'signature' | 'unknown'
+
+export interface SmartAnalyzeRequest {
+  input: string
+  chain_id?: number
+  context?: {
+    to_address?: string
+    from_address?: string
+    value?: string
+  }
+  options?: AnalyzeOptions
+}
+
+export interface SmartAnalyzeResponse {
+  trace_id: string
+  input_type: InputType
+  status: AnalyzeStatus
+  tx_result: ParseResult | null
+  decode_result: DecodedCalldata | null
+  signature_result: SignatureAnalysis | null
+  explanation: ExplanationResult | null
+  error: string | null
+  timings: Record<string, number>
+}
