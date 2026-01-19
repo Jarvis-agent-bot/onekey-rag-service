@@ -5,7 +5,7 @@ import ProjectDetail from './pages/ProjectDetail'
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/defi-rating">
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1">
