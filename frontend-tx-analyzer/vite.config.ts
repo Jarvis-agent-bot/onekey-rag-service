@@ -8,12 +8,14 @@ import manifest from './src/manifest.json'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Web mode: disable crxjs plugin (causes allowedHosts issues)
+const isWebMode = process.env.VITE_WEB_MODE === 'true'
+
 export default defineConfig({
   base: '/',
-  plugins: [
-    react(),
-    crx({ manifest }),
-  ],
+  plugins: isWebMode
+    ? [react()]
+    : [react(), crx({ manifest })],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src/shared'),
