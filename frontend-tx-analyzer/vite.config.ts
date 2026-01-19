@@ -24,7 +24,7 @@ export default defineConfig({
     port: 5175,
     strictPort: true,
     origin: 'http://localhost:5175',
-    allowedHosts: ['localhost', 'exwxyzi.cn'],
+    allowedHosts: true,
     watch: {
       ignored: ['**/.pnpm-store/**', '**/node_modules/**'],
     },
