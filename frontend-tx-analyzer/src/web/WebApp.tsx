@@ -1,21 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Search, History, Shield, Loader2, ExternalLink, Zap } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { History, Shield, ExternalLink, Zap } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CHAIN_INFO } from '@/lib/constants'
-import type { AnalyzeResponse, SmartAnalyzeResponse, InputType } from '@/api/types'
+import type { SmartAnalyzeResponse, InputType } from '@/api/types'
 
 // Import existing analysis components
 import { ResultOverview } from '@/features/analyze/ResultOverview'
@@ -30,10 +19,11 @@ import { SmartInput } from '@/features/analyze/SmartInput'
 import { CalldataResult } from '@/features/analyze/CalldataResult'
 import { SignatureResult } from '@/features/analyze/SignatureResult'
 
-// API base URL - uses relative path for nginx proxy, or direct URL for development
-// In production: /tx-analyzer/api proxies to TX Analyzer API
-// In development: can set VITE_TX_ANALYZER_WEB_API_URL to direct API URL
-const API_BASE_URL = import.meta.env.VITE_TX_ANALYZER_WEB_API_URL || '/tx-analyzer/api'
+// API base URL - always use relative path for production (nginx proxy)
+// In development mode only, can use VITE_TX_ANALYZER_WEB_API_URL for direct API calls
+const API_BASE_URL = import.meta.env.MODE === 'development'
+  ? (import.meta.env.VITE_TX_ANALYZER_WEB_API_URL || '/tx-analyzer/api')
+  : '/tx-analyzer/api'
 
 const HISTORY_KEY = 'tx_analyzer_web_history'
 
@@ -44,13 +34,7 @@ interface HistoryItem {
 }
 
 export function WebApp() {
-  const [mode, setMode] = useState<'smart' | 'classic'>('smart')
-  const [chainId, setChainId] = useState<string>('1')
-  const [txHash, setTxHash] = useState('')
-  const [includeExplanation, setIncludeExplanation] = useState(true)
-  const [includeTrace, setIncludeTrace] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [result, setResult] = useState<AnalyzeResponse | null>(null)
   const [smartResult, setSmartResult] = useState<SmartAnalyzeResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
@@ -58,18 +42,6 @@ export function WebApp() {
   // Load history on mount
   useEffect(() => {
     loadHistory()
-
-    // Check URL params for direct analysis
-    const params = new URLSearchParams(window.location.search)
-    const urlTxHash = params.get('tx') || params.get('txHash')
-    const urlChainId = params.get('chain') || params.get('chainId')
-
-    if (urlTxHash) {
-      setTxHash(urlTxHash)
-      if (urlChainId) {
-        setChainId(urlChainId)
-      }
-    }
   }, [])
 
   const loadHistory = () => {
@@ -97,67 +69,6 @@ export function WebApp() {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(updated))
     } catch (e) {
       console.error('Failed to save history:', e)
-    }
-  }
-
-  const handleAnalyze = async () => {
-    if (!txHash.trim()) {
-      setError('请输入交易哈希')
-      return
-    }
-
-    if (!/^0x[a-fA-F0-9]{64}$/.test(txHash.trim())) {
-      setError('交易哈希格式不正确')
-      return
-    }
-
-    setError(null)
-    setIsLoading(true)
-    setResult(null)
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/v1/tx/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chain_id: parseInt(chainId),
-          tx_hash: txHash.trim(),
-          include_explanation: includeExplanation,
-          include_trace: includeTrace,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || `HTTP ${response.status}`)
-      }
-
-      const data: AnalyzeResponse = await response.json()
-      setResult(data)
-      saveToHistory(parseInt(chainId), txHash.trim())
-
-      // Update URL for sharing
-      const newUrl = new URL(window.location.href)
-      newUrl.searchParams.set('tx', txHash.trim())
-      newUrl.searchParams.set('chain', chainId)
-      window.history.replaceState({}, '', newUrl.toString())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '分析失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleHistoryClick = (item: HistoryItem) => {
-    setChainId(String(item.chainId))
-    setTxHash(item.txHash)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !isLoading) {
-      handleAnalyze()
     }
   }
 
@@ -241,117 +152,19 @@ export function WebApp() {
 
       {/* Main Content */}
       <div className="flex-1 container max-w-4xl mx-auto px-4 py-6">
-        {/* Mode Tabs */}
-        <Tabs value={mode} onValueChange={(v) => {
-          setMode(v as 'smart' | 'classic')
-          setResult(null)
-          setSmartResult(null)
-          setError(null)
-        }} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-            <TabsTrigger value="smart" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              智能分析
-            </TabsTrigger>
-            <TabsTrigger value="classic" className="flex items-center gap-2">
-              <Search className="h-4 w-4" />
-              交易哈希
-            </TabsTrigger>
-          </TabsList>
+        {/* Smart Input */}
+        <SmartInput onSubmit={handleSmartAnalyze} isLoading={isLoading} />
 
-          {/* Smart Analyze Mode */}
-          <TabsContent value="smart" className="mt-4">
-            <SmartInput onSubmit={handleSmartAnalyze} isLoading={isLoading} />
-          </TabsContent>
+        {/* Error */}
+        {error && (
+          <div className="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        )}
 
-          {/* Classic Mode - TX Hash Only */}
-          <TabsContent value="classic" className="mt-4">
-            <div className="bg-card rounded-lg border p-4 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="chain">链</Label>
-                  <Select value={chainId} onValueChange={setChainId}>
-                    <SelectTrigger id="chain">
-                      <SelectValue placeholder="Select chain" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CHAIN_INFO).map(([id, info]) => (
-                        <SelectItem key={id} value={id}>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="h-2 w-2 rounded-full"
-                              style={{ backgroundColor: info.color }}
-                            />
-                            {info.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="txHash">交易哈希</Label>
-                  <Input
-                    id="txHash"
-                    placeholder="0x..."
-                    value={txHash}
-                    onChange={(e) => {
-                      setTxHash(e.target.value)
-                      setError(null)
-                    }}
-                    onKeyDown={handleKeyDown}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-6">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="explanation"
-                    checked={includeExplanation}
-                    onCheckedChange={(checked) => setIncludeExplanation(checked === true)}
-                  />
-                  <Label htmlFor="explanation" className="text-sm font-normal text-muted-foreground">
-                    包含 RAG 解释
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="trace"
-                    checked={includeTrace}
-                    onCheckedChange={(checked) => setIncludeTrace(checked === true)}
-                  />
-                  <Label htmlFor="trace" className="text-sm font-normal text-muted-foreground">
-                    包含 Trace 追踪
-                  </Label>
-                </div>
-              </div>
-
-              {error && mode === 'classic' && <p className="text-sm text-destructive">{error}</p>}
-
-              <Button className="w-full" onClick={handleAnalyze} disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    分析中...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-4 w-4" />
-                    分析交易
-                  </>
-                )}
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Results */}
+        {/* Loading */}
         {isLoading && (
-          <div className="space-y-4">
+          <div className="mt-6 space-y-4">
             <Skeleton className="h-[200px] w-full" />
             <Skeleton className="h-[150px] w-full" />
           </div>
@@ -359,7 +172,7 @@ export function WebApp() {
 
         {/* Smart Analyze Results */}
         {smartResult && (
-          <div className="space-y-6">
+          <div className="mt-6 space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">分析结果</h2>
               <span className="text-xs text-muted-foreground">
@@ -426,7 +239,7 @@ export function WebApp() {
               <SignatureResult result={smartResult.signature_result} summary={null} />
             )}
 
-            {/* Error */}
+            {/* Error from API */}
             {smartResult.error && (
               <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
                 <p className="text-sm text-yellow-600">{smartResult.error}</p>
@@ -435,65 +248,9 @@ export function WebApp() {
           </div>
         )}
 
-        {/* Classic Mode Results */}
-        {result && result.parse_result && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">解析结果</h2>
-              <span className="text-xs text-muted-foreground">
-                Trace ID: {result.trace_id}
-              </span>
-            </div>
-
-            <Separator />
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <RiskAssessment
-                explanation={result.explanation}
-                riskFlags={result.parse_result.risk_flags}
-              />
-              <ResultOverview result={result.parse_result} />
-            </div>
-
-            <Tabs defaultValue="method" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="method">方法详情</TabsTrigger>
-                <TabsTrigger value="events">
-                  事件 ({result.parse_result.events.length})
-                </TabsTrigger>
-                <TabsTrigger value="explanation">RAG 解释</TabsTrigger>
-                <TabsTrigger value="trace">Trace 追踪</TabsTrigger>
-              </TabsList>
-              <TabsContent value="method" className="mt-4">
-                <MethodDetail
-                  method={result.parse_result.method}
-                  inputData={result.parse_result.input}
-                  diagnostics={result.parse_result.diagnostics}
-                />
-              </TabsContent>
-              <TabsContent value="events" className="mt-4">
-                <EventList
-                  events={result.parse_result.events}
-                  chainId={result.parse_result.chain_id}
-                  diagnostics={result.parse_result.diagnostics}
-                />
-              </TabsContent>
-              <TabsContent value="explanation" className="mt-4">
-                <RagExplanation explanation={result.explanation} />
-              </TabsContent>
-              <TabsContent value="trace" className="mt-4">
-                <TraceTimeline
-                  steps={result.trace_log}
-                  timings={result.timings}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-
         {/* History */}
-        {!isLoading && !result && !smartResult && history.length > 0 && (
-          <div className="space-y-4">
+        {!isLoading && !smartResult && history.length > 0 && (
+          <div className="mt-6 space-y-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <History className="h-4 w-4" />
               <span className="font-medium">最近分析</span>
@@ -503,7 +260,18 @@ export function WebApp() {
                 <button
                   key={i}
                   className="text-left p-4 rounded-lg border hover:bg-accent transition-colors"
-                  onClick={() => handleHistoryClick(item)}
+                  onClick={() => {
+                    // Trigger smart analyze with the history item
+                    handleSmartAnalyze({
+                      input: item.txHash,
+                      inputType: 'tx_hash',
+                      chainId: item.chainId,
+                      options: {
+                        includeExplanation: true,
+                        includeTrace: false,
+                      },
+                    })
+                  }}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <span
@@ -524,7 +292,7 @@ export function WebApp() {
         )}
 
         {/* Empty State */}
-        {!isLoading && !result && !smartResult && history.length === 0 && (
+        {!isLoading && !smartResult && history.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Zap className="h-16 w-16 text-muted-foreground/50 mb-6" />
             <h3 className="text-lg font-medium mb-2">开始智能分析</h3>

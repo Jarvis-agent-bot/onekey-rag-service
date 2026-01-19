@@ -330,10 +330,10 @@ services:
     environment:
       # Increase Node.js memory limit to prevent OOM
       NODE_OPTIONS: "--max-old-space-size=4096"
-      # For Vite proxy (server-side, inside Docker network)
+      # For Vite dev server proxy (server-side, inside Docker network)
       VITE_TX_ANALYZER_API_URL: http://web3-tx-analyzer:8001
-      # For browser direct API calls (client-side, uses exposed port)
-      VITE_TX_ANALYZER_WEB_API_URL: http://localhost:8001
+      # NOTE: VITE_TX_ANALYZER_WEB_API_URL is only used in dev mode
+      # Production builds always use relative path /tx-analyzer/api (proxied by nginx)
     ports:
       - "5175:5175"
     volumes:
