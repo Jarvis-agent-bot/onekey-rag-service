@@ -1,42 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 同步 Nginx 配置并热加载
-# 用法：./nginx_sync.sh [source_path] [target_name]
-# 默认：从项目 deploy/nginx.conf.example 同步到 onekey-rag.conf
+# Nginx 配置同步脚本 - 直接在服务器上运行
+# 用法：cd /opt/onekey-rag-service && bash deploy/sync_nginx.sh
 
-# 自动检测项目根目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${SCRIPT_DIR%/.claude/skills/nginx-deploy/scripts}"
-
-# 如果脚本不在 .claude 目录下，尝试常见路径
-if [[ ! -d "$PROJECT_ROOT/deploy" ]]; then
-  if [[ -d "/opt/onekey-rag-service/deploy" ]]; then
-    PROJECT_ROOT="/opt/onekey-rag-service"
-  elif [[ -d "./deploy" ]]; then
-    PROJECT_ROOT="$(pwd)"
-  fi
-fi
-
-SOURCE_PATH="${1:-$PROJECT_ROOT/deploy/nginx.conf.example}"
-TARGET_NAME="${2:-onekey-rag.conf}"
+PROJECT_ROOT="/opt/onekey-rag-service"
+SOURCE_PATH="$PROJECT_ROOT/deploy/nginx.conf.example"
+TARGET_NAME="onekey-rag.conf"
+TARGET_PATH="/etc/nginx/sites-available/${TARGET_NAME}"
+LINK_PATH="/etc/nginx/sites-enabled/${TARGET_NAME}"
+BACKUP_PATH="${TARGET_PATH}.bak.$(date +%Y%m%d%H%M%S)"
 
 echo "=========================================="
 echo "  Nginx 配置同步脚本"
 echo "=========================================="
-echo "项目目录: $PROJECT_ROOT"
-echo "源文件:   $SOURCE_PATH"
-echo "目标名称: $TARGET_NAME"
+echo "源文件: $SOURCE_PATH"
+echo "目标:   $TARGET_PATH"
 echo ""
 
+# 检查源文件
 if [[ ! -f "$SOURCE_PATH" ]]; then
   echo "[ERROR] 未找到配置文件: $SOURCE_PATH" >&2
   exit 1
 fi
-
-TARGET_PATH="/etc/nginx/sites-available/${TARGET_NAME}"
-LINK_PATH="/etc/nginx/sites-enabled/${TARGET_NAME}"
-BACKUP_PATH="${TARGET_PATH}.bak.$(date +%Y%m%d%H%M%S)"
 
 # 备份现有配置
 if [[ -f "$TARGET_PATH" ]]; then
