@@ -2,6 +2,12 @@
 Calldata 解码模块
 
 支持解码未签名/未发送交易的 calldata 数据
+
+ABI 获取优先级:
+1. 用户提供的 ABI
+2. 本地合约注册表 (已知协议)
+3. Etherscan API (链上验证)
+4. 4bytes 签名数据库 (函数签名)
 """
 from __future__ import annotations
 
@@ -10,11 +16,30 @@ from dataclasses import dataclass, field
 
 from eth_utils import to_checksum_address
 
-from app_logging import get_logger
+from app_logging import get_logger, Tracer
 from .abi_decoder import ABIDecoder
 from .schemas import RiskFlag
+from .asset_predictor import AssetPredictor, AssetChange, get_asset_predictor
+from integrations.contract_registry import ContractRegistry, ContractInfo, get_contract_registry
+from integrations.token_service import get_token_service
 
 logger = get_logger(__name__)
+
+
+class _NoOpTracerContext:
+    """No-op tracer context for when tracer is not provided"""
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+    def set_output(self, output: dict):
+        pass
+
+
+class _NoOpTracer:
+    """No-op tracer for when tracer is not provided"""
+    def step(self, name: str, input_data: dict | None = None, metadata: dict | None = None):
+        return _NoOpTracerContext()
 
 
 # 已知的危险函数选择器
@@ -85,6 +110,23 @@ KNOWN_CONTRACT_PATTERNS: dict[str, list[str]] = {
 
 
 @dataclass
+class ProtocolInfo:
+    """协议信息"""
+    protocol: str
+    name: str
+    type: str
+    website: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "protocol": self.protocol,
+            "name": self.name,
+            "type": self.type,
+            "website": self.website,
+        }
+
+
+@dataclass
 class DecodedCalldata:
     """解码后的 calldata 结果"""
     # 基础信息
@@ -106,6 +148,15 @@ class DecodedCalldata:
     possible_signatures: list[str] = field(default_factory=list)
     contract_type: str | None = None
 
+    # 协议信息 (新增)
+    protocol_info: ProtocolInfo | None = None
+
+    # 资产变化预测 (新增)
+    asset_changes: list[AssetChange] = field(default_factory=list)
+
+    # ABI 来源 (新增)
+    abi_source: str = "unknown"  # user_provided, local_registry, etherscan, 4bytes, none
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "selector": self.selector,
@@ -119,6 +170,9 @@ class DecodedCalldata:
             "warnings": self.warnings,
             "possible_signatures": self.possible_signatures,
             "contract_type": self.contract_type,
+            "protocol_info": self.protocol_info.to_dict() if self.protocol_info else None,
+            "asset_changes": [ac.to_dict() for ac in self.asset_changes],
+            "abi_source": self.abi_source,
         }
 
 
@@ -142,28 +196,48 @@ class CalldataContext:
 class CalldataDecoder:
     """Calldata 解码器"""
 
-    def __init__(self, abi_decoder: ABIDecoder, signature_db: Any = None):
+    def __init__(
+        self,
+        abi_decoder: ABIDecoder,
+        signature_db: Any = None,
+        etherscan_client_factory: Any = None,  # Callable[[int], EtherscanClient] - chain_id -> client
+        contract_registry: ContractRegistry | None = None,
+        asset_predictor: AssetPredictor | None = None,
+    ):
         self.abi_decoder = abi_decoder
         self.signature_db = signature_db
+        self.etherscan_client_factory = etherscan_client_factory  # 根据 chain_id 创建 client
+        self.contract_registry = contract_registry or get_contract_registry()
+        self.asset_predictor = asset_predictor or get_asset_predictor()
+        self.token_service = get_token_service()
 
     async def decode(
         self,
         calldata: str,
         context: CalldataContext | None = None,
         abi: list[dict[str, Any]] | None = None,
+        tracer: Tracer | None = None,
     ) -> DecodedCalldata:
         """
         解码 calldata
+
+        ABI 获取优先级:
+        1. 用户提供的 ABI
+        2. 本地合约注册表 (已知协议)
+        3. Etherscan API (链上验证)
+        4. 4bytes 签名数据库 (函数签名)
 
         Args:
             calldata: 原始 calldata (0x 开头)
             context: 解码上下文 (链ID, 目标地址等)
             abi: 可选的合约 ABI
+            tracer: 可选的追踪器，用于记录解码步骤
 
         Returns:
             DecodedCalldata: 解码结果
         """
         context = context or CalldataContext()
+        tracer = tracer or _NoOpTracer()
 
         # 清理输入
         calldata = calldata.strip()
@@ -184,20 +258,125 @@ class CalldataDecoder:
             raw_data=calldata,
         )
 
-        # 1. 尝试从 ABI 解码
-        decoded = None
-        if abi:
-            decoded = self.abi_decoder.decode_function_input(calldata, abi=abi)
-
-        # 2. 如果没有 ABI，尝试从签名数据库查询
-        if not decoded or not decoded.get("name"):
-            signatures = await self._lookup_signature(selector)
-            if signatures:
-                result.possible_signatures = signatures
-                # 尝试用第一个签名解码
-                decoded = self.abi_decoder.decode_function_input(
-                    calldata, signature=signatures[0]
+        # 0. 识别合约 (如果有目标地址)
+        contract_info: ContractInfo | None = None
+        if context.to_address:
+            with tracer.step("identify_contract", {"address": context.to_address, "chain_id": context.chain_id}) as step:
+                contract_info = self.contract_registry.identify_contract(
+                    context.chain_id, context.to_address
                 )
+                if contract_info:
+                    result.protocol_info = ProtocolInfo(
+                        protocol=contract_info.protocol,
+                        name=contract_info.name,
+                        type=contract_info.type,
+                        website=contract_info.website,
+                    )
+                    result.contract_type = contract_info.type
+                    step.set_output({
+                        "found": True,
+                        "protocol": contract_info.protocol,
+                        "name": contract_info.name,
+                        "type": contract_info.type,
+                    })
+                    logger.debug(
+                        "contract_identified",
+                        address=context.to_address,
+                        protocol=contract_info.protocol,
+                        name=contract_info.name,
+                    )
+                else:
+                    step.set_output({"found": False})
+
+        # ABI 获取和解码流程
+        decoded = None
+        abi_source = "none"
+
+        # 1. 尝试用用户提供的 ABI 解码
+        if abi:
+            with tracer.step("user_abi_decode", {"has_abi": True}) as step:
+                decoded = self.abi_decoder.decode_function_input(calldata, abi=abi)
+                if decoded and decoded.get("name"):
+                    abi_source = "user_provided"
+                    step.set_output({"success": True, "function": decoded.get("name")})
+                    logger.debug("decoded_with_user_abi", function=decoded.get("name"))
+                else:
+                    step.set_output({"success": False})
+
+        # 2. 尝试从本地合约注册表获取 ABI
+        if (not decoded or not decoded.get("name")) and contract_info:
+            with tracer.step("local_abi_lookup", {"protocol": contract_info.protocol, "name": contract_info.name}) as step:
+                local_abi = self.contract_registry.get_local_abi(contract_info)
+                if local_abi:
+                    decoded = self.abi_decoder.decode_function_input(calldata, abi=local_abi)
+                    if decoded and decoded.get("name"):
+                        abi_source = "local_registry"
+                        step.set_output({"success": True, "function": decoded.get("name"), "protocol": contract_info.protocol})
+                        logger.debug(
+                            "decoded_with_local_abi",
+                            function=decoded.get("name"),
+                            protocol=contract_info.protocol,
+                        )
+                    else:
+                        step.set_output({"success": False, "reason": "decode_failed"})
+                else:
+                    step.set_output({"success": False, "reason": "no_local_abi"})
+
+        # 3. 尝试从 Etherscan 获取 ABI
+        if (not decoded or not decoded.get("name")) and self.etherscan_client_factory and context.to_address:
+            with tracer.step("etherscan_abi_lookup", {"address": context.to_address, "chain_id": context.chain_id}) as step:
+                try:
+                    etherscan_client = self.etherscan_client_factory(context.chain_id)
+                    if etherscan_client:
+                        etherscan_abi = await etherscan_client.get_abi(context.to_address)
+                        if etherscan_abi:
+                            decoded = self.abi_decoder.decode_function_input(calldata, abi=etherscan_abi)
+                            if decoded and decoded.get("name"):
+                                abi_source = "etherscan"
+                                step.set_output({"success": True, "function": decoded.get("name")})
+                                logger.debug(
+                                    "decoded_with_etherscan_abi",
+                                    function=decoded.get("name"),
+                                    address=context.to_address,
+                                )
+                            else:
+                                step.set_output({"success": False, "reason": "decode_failed", "has_abi": True})
+                        else:
+                            step.set_output({"success": False, "reason": "no_abi_found"})
+                    else:
+                        step.set_output({"success": False, "reason": "no_client"})
+                except Exception as e:
+                    step.set_output({"success": False, "error": str(e)})
+                    logger.warning("etherscan_abi_error", error=str(e), address=context.to_address)
+
+        # 4. 如果还没解码成功，尝试从签名数据库查询
+        if not decoded or not decoded.get("name"):
+            with tracer.step("signature_lookup", {"selector": selector}) as step:
+                signatures = await self._lookup_signature(selector)
+                if signatures:
+                    result.possible_signatures = signatures
+                    # 尝试用第一个签名解码
+                    decoded = self.abi_decoder.decode_function_input(
+                        calldata, signature=signatures[0]
+                    )
+                    if decoded and decoded.get("name"):
+                        abi_source = "4bytes"
+                        step.set_output({
+                            "success": True,
+                            "function": decoded.get("name"),
+                            "candidates_count": len(signatures),
+                        })
+                        logger.debug(
+                            "decoded_with_4bytes",
+                            function=decoded.get("name"),
+                            selector=selector,
+                        )
+                    else:
+                        step.set_output({"success": False, "candidates_count": len(signatures), "reason": "decode_failed"})
+                else:
+                    step.set_output({"success": False, "candidates_count": 0, "reason": "no_signatures_found"})
+
+        result.abi_source = abi_source
 
         # 3. 填充解码结果
         if decoded:
@@ -205,19 +384,57 @@ class CalldataDecoder:
             result.function_signature = decoded.get("signature", "")
             result.inputs = decoded.get("inputs", [])
 
-        # 4. 分析行为类型
-        result.behavior_type = self._analyze_behavior(selector, result.function_name)
+        # 4. 分析行为类型 - 优先使用资产预测器的结果
+        # 5. 预测资产变化
+        if result.function_name:
+            with tracer.step("predict_assets", {"function": result.function_name, "protocol": contract_info.protocol if contract_info else None}) as step:
+                params = self._inputs_to_params(result.inputs)
+                asset_changes, predicted_behavior = self.asset_predictor.predict(
+                    contract_info=contract_info,
+                    function_name=result.function_name,
+                    params=params,
+                    chain_id=context.chain_id,
+                    value=context.value,
+                    to_address=context.to_address,
+                )
+                result.asset_changes = asset_changes
+                if predicted_behavior != "unknown":
+                    result.behavior_type = predicted_behavior
+                else:
+                    result.behavior_type = self._analyze_behavior(selector, result.function_name)
+                step.set_output({
+                    "behavior_type": result.behavior_type,
+                    "asset_changes_count": len(asset_changes),
+                    "pay_count": len([a for a in asset_changes if a.direction == "out"]),
+                    "receive_count": len([a for a in asset_changes if a.direction == "in"]),
+                })
+        else:
+            result.behavior_type = self._analyze_behavior(selector, result.function_name)
 
-        # 5. 检测风险
+        # 6. 检测风险
         risk_result = self._detect_risks(result, context)
         result.risk_level = risk_result["level"]
         result.risk_flags = risk_result["flags"]
         result.warnings = risk_result["warnings"]
 
-        # 6. 识别合约类型
-        result.contract_type = self._identify_contract_type(selector)
+        # 7. 如果没有通过合约识别获得类型，尝试通过选择器识别
+        if not result.contract_type:
+            result.contract_type = self._identify_contract_type(selector)
 
         return result
+
+    def _inputs_to_params(self, inputs: list[dict[str, Any]]) -> dict[str, Any]:
+        """将 inputs 列表转换为参数字典"""
+        params = {}
+        for inp in inputs:
+            name = inp.get("name", "")
+            value = inp.get("value")
+            if name:
+                params[name] = value
+            # 也支持 argN 格式
+            elif "arg" in str(name).lower():
+                params[name] = value
+        return params
 
     async def _lookup_signature(self, selector: str) -> list[str]:
         """查询函数签名"""
@@ -457,7 +674,31 @@ class CalldataDecoder:
                 "risk_level": decoded.risk_level,
                 "warnings": decoded.warnings,
             },
+            "abi_source": decoded.abi_source,
         }
+
+        # 添加协议信息
+        if decoded.protocol_info:
+            result["protocol"] = decoded.protocol_info.to_dict()
+
+        # 添加资产变化
+        if decoded.asset_changes:
+            result["asset_changes"] = {
+                "pay": [],
+                "receive": [],
+            }
+            for change in decoded.asset_changes:
+                change_info = {
+                    "token": change.token_symbol,
+                    "name": change.token_name,
+                    "amount": change.amount_formatted,
+                    "address": change.token_address,
+                    "type": change.token_type,
+                }
+                if change.direction == "out":
+                    result["asset_changes"]["pay"].append(change_info)
+                else:
+                    result["asset_changes"]["receive"].append(change_info)
 
         # 格式化参数
         for inp in decoded.inputs:
@@ -472,6 +713,10 @@ class CalldataDecoder:
                 try:
                     param["value"] = to_checksum_address(inp.get("value", ""))
                     param["display"] = f"{param['value'][:6]}...{param['value'][-4:]}"
+                    # 尝试获取地址的名称
+                    token_info = self.token_service.get_token_info(1, param["value"])
+                    if token_info:
+                        param["display"] = f"{token_info.symbol} ({param['value'][:6]}...{param['value'][-4:]})"
                 except Exception:
                     pass
             elif inp.get("type") == "uint256":

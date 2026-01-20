@@ -138,10 +138,19 @@ export function SmartAnalyzePage() {
           )}
 
           {result.input_type === 'calldata' && result.decode_result && (
-            <CalldataResult
-              result={result.decode_result}
-              formatted={null}
-            />
+            <>
+              {/* Calldata 解码也显示查询流程 */}
+              {result.trace_log && result.trace_log.length > 0 && (
+                <QueryPipeline
+                  steps={result.trace_log}
+                  timings={result.timings}
+                />
+              )}
+              <CalldataResult
+                result={result.decode_result}
+                formatted={null}
+              />
+            </>
           )}
 
           {result.input_type === 'signature' && result.signature_result && (
@@ -169,15 +178,8 @@ export function SmartAnalyzePage() {
 function TransactionResult({ result }: { result: SmartAnalyzeResponse }) {
   if (!result.tx_result) return null
 
-  // 转换 trace_log 为正确的类型
-  const traceSteps: TraceStep[] | null = result.trace_log?.map((step) => ({
-    name: step.name as string,
-    start_time: step.started_at as string,
-    end_time: (step.ended_at as string) || null,
-    duration_ms: (step.duration_ms as number) ?? null,
-    input: (step.input as Record<string, unknown>) || {},
-    output: (step.output as Record<string, unknown>) || null,
-  })) ?? null
+  // trace_log 已经是正确的类型，直接使用
+  const traceSteps: TraceStep[] | null = result.trace_log ?? null
 
   return (
     <>

@@ -1,10 +1,10 @@
-import { AlertTriangle, CheckCircle2, Code, Copy, Info } from 'lucide-react'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle2, Code, Copy, ExternalLink, Info, Database } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { copyToClipboard } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
-import type { DecodedCalldata, FormattedCalldata } from '@/api/types'
+import type { DecodedCalldata, FormattedCalldata, AbiSource } from '@/api/types'
 
 interface CalldataResultProps {
   result: DecodedCalldata
@@ -27,6 +27,8 @@ const BEHAVIOR_LABELS: Record<string, string> = {
   approve: 'Approve 授权',
   stake: 'Stake 质押',
   unstake: 'Unstake 解除质押',
+  deposit: 'Deposit 存入',
+  withdraw: 'Withdraw 取出',
   liquidity_add: 'Add Liquidity 添加流动性',
   liquidity_remove: 'Remove Liquidity 移除流动性',
   mint: 'Mint 铸造',
@@ -38,6 +40,15 @@ const BEHAVIOR_LABELS: Record<string, string> = {
   wrap: 'Wrap 包装',
   unwrap: 'Unwrap 解包装',
   unknown: 'Unknown 未知',
+}
+
+// ABI 来源显示
+const ABI_SOURCE_LABELS: Record<AbiSource, { label: string; color: string }> = {
+  user_provided: { label: 'User ABI', color: 'bg-blue-500/10 text-blue-500' },
+  local_registry: { label: 'Known Protocol', color: 'bg-green-500/10 text-green-500' },
+  etherscan: { label: 'Etherscan', color: 'bg-purple-500/10 text-purple-500' },
+  '4bytes': { label: '4bytes DB', color: 'bg-yellow-500/10 text-yellow-500' },
+  none: { label: 'Not Decoded', color: 'bg-gray-500/10 text-gray-500' },
 }
 
 export function CalldataResult({ result, formatted }: CalldataResultProps) {
@@ -75,6 +86,109 @@ export function CalldataResult({ result, formatted }: CalldataResultProps) {
         </Card>
       )}
 
+      {/* 协议信息 */}
+      {result.protocol_info && (
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Database className="h-5 w-5 text-blue-500" />
+                <div>
+                  <p className="font-medium text-blue-500">{result.protocol_info.protocol}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {result.protocol_info.name} ({result.protocol_info.type})
+                  </p>
+                </div>
+              </div>
+              {result.protocol_info.website && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                >
+                  <a href={result.protocol_info.website} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Website
+                  </a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 资产变化预测 (Pay/Receive) */}
+      {formatted?.asset_changes && (formatted.asset_changes.pay.length > 0 || formatted.asset_changes.receive.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Asset Changes Preview</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Pay (Out) */}
+            {formatted.asset_changes.pay.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-red-500 flex items-center gap-1">
+                  <ArrowUpRight className="h-4 w-4" />
+                  Pay
+                </p>
+                <div className="space-y-2">
+                  {formatted.asset_changes.pay.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-red-500/5 border border-red-500/20 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                          <span className="text-xs font-bold text-red-500">
+                            {item.token.slice(0, 2)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium">{item.token}</p>
+                          <p className="text-xs text-muted-foreground">{item.name}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono text-red-500">-{item.amount}</p>
+                        <p className="text-xs text-muted-foreground">{item.type}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Receive (In) */}
+            {formatted.asset_changes.receive.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-green-500 flex items-center gap-1">
+                  <ArrowDownLeft className="h-4 w-4" />
+                  Receive
+                </p>
+                <div className="space-y-2">
+                  {formatted.asset_changes.receive.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-green-500/5 border border-green-500/20 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                          <span className="text-xs font-bold text-green-500">
+                            {item.token.slice(0, 2)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium">{item.token}</p>
+                          <p className="text-xs text-muted-foreground">{item.name}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono text-green-500">+{item.amount}</p>
+                        <p className="text-xs text-muted-foreground">{item.type}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* 函数信息 */}
       <Card>
         <CardHeader className="pb-3">
@@ -83,7 +197,13 @@ export function CalldataResult({ result, formatted }: CalldataResultProps) {
               <Code className="h-5 w-5" />
               Function
             </CardTitle>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              {/* ABI 来源 */}
+              {result.abi_source && ABI_SOURCE_LABELS[result.abi_source] && (
+                <Badge variant="outline" className={ABI_SOURCE_LABELS[result.abi_source].color}>
+                  {ABI_SOURCE_LABELS[result.abi_source].label}
+                </Badge>
+              )}
               <Badge variant="outline" className={RISK_COLORS[result.risk_level]}>
                 Risk: {result.risk_level.toUpperCase()}
               </Badge>
@@ -249,8 +369,8 @@ export function CalldataResult({ result, formatted }: CalldataResultProps) {
         </Card>
       )}
 
-      {/* 合约类型识别 */}
-      {result.contract_type && (
+      {/* 合约类型识别 (仅在没有 protocol_info 时显示) */}
+      {result.contract_type && !result.protocol_info && (
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
@@ -258,6 +378,21 @@ export function CalldataResult({ result, formatted }: CalldataResultProps) {
               <span className="text-sm">
                 Recognized contract type:{' '}
                 <span className="font-medium">{result.contract_type}</span>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ABI 来源提示 (如果是 4bytes，提示可能不准确) */}
+      {result.abi_source === '4bytes' && (
+        <Card className="border-yellow-500/30">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+              <Info className="h-4 w-4" />
+              <span className="text-sm">
+                Function decoded from 4bytes signature database.
+                Multiple functions may share the same selector - verify with the actual contract ABI if available.
               </span>
             </div>
           </CardContent>

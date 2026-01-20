@@ -34,12 +34,14 @@ interface StepConfig {
 }
 
 const STEP_CONFIGS: Record<string, StepConfig> = {
+  // 缓存
   check_cache: {
     icon: Database,
     label: '缓存查询',
     description: '检查本地缓存是否有解析结果',
     color: 'text-purple-500',
   },
+  // 数据获取
   fetch_transaction: {
     icon: Server,
     label: 'RPC 查询',
@@ -58,9 +60,47 @@ const STEP_CONFIGS: Record<string, StepConfig> = {
     description: '从区块浏览器获取合约 ABI',
     color: 'text-green-500',
   },
-  decode_input: {
+  // Calldata 解码流程
+  decode_calldata: {
+    icon: Code,
+    label: 'Calldata 解码',
+    description: '解码交易调用数据，识别函数和参数',
+    color: 'text-orange-500',
+  },
+  identify_contract: {
+    icon: Database,
+    label: '合约识别',
+    description: '从本地注册表识别已知协议合约',
+    color: 'text-green-500',
+  },
+  local_abi_lookup: {
+    icon: Database,
+    label: '本地 ABI',
+    description: '查询本地协议 ABI 库',
+    color: 'text-green-500',
+  },
+  etherscan_abi_lookup: {
+    icon: FileSearch,
+    label: 'Etherscan ABI',
+    description: '从 Etherscan 获取已验证合约 ABI',
+    color: 'text-green-500',
+  },
+  signature_lookup: {
     icon: Code,
     label: '4bytes 查询',
+    description: '从签名数据库查询函数签名',
+    color: 'text-orange-500',
+  },
+  predict_assets: {
+    icon: Brain,
+    label: '资产预测',
+    description: '预测交易的资产变化 (Pay/Receive)',
+    color: 'text-cyan-500',
+  },
+  // 原有步骤
+  decode_input: {
+    icon: Code,
+    label: '输入解码',
     description: '解码函数调用，查询签名数据库',
     color: 'text-orange-500',
   },

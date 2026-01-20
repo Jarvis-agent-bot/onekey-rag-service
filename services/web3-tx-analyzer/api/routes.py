@@ -253,9 +253,20 @@ async def analyze_transaction(
 def get_calldata_decoder(request: Request) -> CalldataDecoder:
     """获取 Calldata 解码器实例"""
     parser = get_parser(request)
-    # 使用 parser 自带的 signature_db
-    signature_db = getattr(parser, "signature_db", None)
-    return CalldataDecoder(parser.abi_decoder, signature_db)
+
+    # 创建 etherscan_client_factory - 根据 chain_id 返回对应的 Etherscan 客户端
+    def etherscan_client_factory(chain_id: int):
+        try:
+            chain_config = parser._get_chain_config(chain_id)
+            return parser._get_etherscan_client(chain_config)
+        except Exception:
+            return None
+
+    return CalldataDecoder(
+        abi_decoder=parser.abi_decoder,
+        signature_db=parser.signature_db,
+        etherscan_client_factory=etherscan_client_factory,
+    )
 
 
 def get_simulator(request: Request) -> TxSimulator:
@@ -278,6 +289,13 @@ async def decode_calldata(
     - 解码后的参数
     - 行为类型分析
     - 风险评估
+    - 协议识别 (如果是已知协议)
+    - 资产变化预测 (Pay/Receive)
+
+    ABI 获取优先级:
+    1. 本地合约注册表 (已知协议如 Aave, Uniswap)
+    2. Etherscan API (链上验证的合约)
+    3. 4bytes 签名数据库 (函数签名)
     """
     tracer = Tracer(chain_id=req.chain_id, tx_hash="decode")
     bind_context(trace_id=tracer.trace_id, chain_id=req.chain_id)
@@ -293,25 +311,9 @@ async def decode_calldata(
             value=req.value,
         )
 
-        # 如果有目标地址，尝试获取 ABI
-        abi = None
-        if req.to_address:
-            parser = get_parser(request)
-            with tracer.step("fetch_abi", {"address": req.to_address}) as step:
-                try:
-                    abi = await parser._get_abi(req.chain_id, req.to_address)
-                    step.set_output({"has_abi": abi is not None})
-                except Exception as e:
-                    step.set_output({"error": str(e)})
-
-        # 解码 calldata
-        with tracer.step("decode_calldata", {"length": len(req.calldata)}) as step:
-            result = await decoder.decode(req.calldata, context, abi)
-            step.set_output({
-                "function": result.function_name,
-                "behavior": result.behavior_type,
-                "risk_level": result.risk_level,
-            })
+        # 解码 calldata (CalldataDecoder 内部处理 ABI 获取优先级)
+        # 直接传入 tracer，让 CalldataDecoder 内部记录详细步骤
+        result = await decoder.decode(req.calldata, context, tracer=tracer)
 
         # 格式化显示
         formatted = decoder.format_decoded_for_display(result)
@@ -503,28 +505,19 @@ async def smart_analyze(
                         logger.warning("rag_error", error=str(e))
 
         elif input_type == "calldata":
-            # Calldata 解码
+            # Calldata 解码 (CalldataDecoder 内部处理 ABI 优先级)
             decoder = get_calldata_decoder(request)
+            to_address = req.context.get("to_address")
             context = CalldataContext(
                 chain_id=req.chain_id,
-                to_address=req.context.get("to_address"),
+                to_address=to_address,
                 from_address=req.context.get("from_address"),
                 value=req.context.get("value", "0"),
             )
 
-            # 如果有目标地址，尝试获取 ABI
-            abi = None
-            to_address = req.context.get("to_address")
-            if to_address:
-                parser = get_parser(request)
-                with tracer.step("fetch_abi", {"address": to_address}) as step:
-                    try:
-                        abi = await parser._get_abi(req.chain_id, to_address)
-                        step.set_output({"has_abi": abi is not None})
-                    except Exception as e:
-                        step.set_output({"error": str(e)})
+            # 直接传入 tracer，让 CalldataDecoder 内部记录详细步骤
+            result = await decoder.decode(input_data, context, tracer=tracer)
 
-            result = await decoder.decode(input_data, context, abi)
             response.decode_result = result.to_dict()
 
             # 可选：调用 RAG 生成解释

@@ -80,8 +80,41 @@ class DecodeCalldataRequest(BaseModel):
     value: str = "0"  # wei
 
 
+class ProtocolInfo(BaseModel):
+    """协议信息 (用于已知协议的识别)"""
+    protocol: str  # 协议名称，如 "Aave V3", "Uniswap V2"
+    name: str  # 合约名称，如 "Pool", "Router02"
+    type: str  # 合约类型，如 "lending_pool", "dex_router"
+    website: str | None = None  # 协议官网
+
+
+class AssetChangeInfo(BaseModel):
+    """资产变化信息"""
+    direction: Literal["in", "out"]  # in=收入, out=支出
+    token_address: str
+    token_symbol: str
+    token_name: str
+    decimals: int
+    amount_raw: str  # 原始金额 (wei)
+    amount_formatted: str  # 格式化金额
+    token_type: str = "token"  # native, wrapped_native, stablecoin, atoken, token
+
+
 class DecodeCalldataResponse(BaseModel):
-    """Calldata 解码响应"""
+    """
+    Calldata 解码响应
+
+    result 包含:
+    - selector: 函数选择器
+    - function_name: 函数名
+    - function_signature: 完整签名
+    - inputs: 解码后的参数
+    - behavior_type: 行为类型 (approve, transfer, swap, etc.)
+    - risk_level: 风险等级 (low, medium, high)
+    - protocol_info: 协议信息 (如果是已知协议)
+    - asset_changes: 资产变化预测 (Pay/Receive)
+    - abi_source: ABI 来源 (local_registry, etherscan, 4bytes)
+    """
     trace_id: str
     status: Literal["success", "partial", "failed"] = "success"
     result: dict[str, Any] | None = None

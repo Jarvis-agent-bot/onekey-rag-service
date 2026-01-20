@@ -161,12 +161,15 @@ export interface ExplanationResult {
 
 // Trace step
 export interface TraceStep {
+  step?: number
   name: string
-  start_time: string
-  end_time: string | null
+  started_at: string  // 后端返回 started_at
+  ended_at?: string | null  // 后端返回 ended_at
   duration_ms: number | null
+  status?: string  // pending / success / failed / skipped
   input: Record<string, unknown>
   output: Record<string, unknown> | null
+  error?: string | null
 }
 
 // Analyze response
@@ -227,6 +230,29 @@ export interface DecodeCalldataRequest {
   value?: string
 }
 
+// 协议信息 (已知协议的识别结果)
+export interface ProtocolInfo {
+  protocol: string  // 协议名称，如 "Aave V3", "Uniswap V2"
+  name: string      // 合约名称，如 "Pool", "Router02"
+  type: string      // 合约类型，如 "lending_pool", "dex_router"
+  website?: string  // 协议官网
+}
+
+// 资产变化预测
+export interface PredictedAssetChange {
+  direction: 'in' | 'out'
+  token_address: string
+  token_symbol: string
+  token_name: string
+  decimals: number
+  amount_raw: string
+  amount_formatted: string
+  token_type: string  // native, wrapped_native, stablecoin, atoken, token
+}
+
+// ABI 来源
+export type AbiSource = 'user_provided' | 'local_registry' | 'etherscan' | '4bytes' | 'none'
+
 export interface DecodedCalldata {
   selector: string
   raw_data: string
@@ -239,6 +265,10 @@ export interface DecodedCalldata {
   warnings: string[]
   possible_signatures: string[]
   contract_type: string | null
+  // 新增字段
+  protocol_info?: ProtocolInfo | null
+  asset_changes?: PredictedAssetChange[]
+  abi_source?: AbiSource
 }
 
 export interface FormattedCalldata {
@@ -257,6 +287,25 @@ export interface FormattedCalldata {
     behavior: string
     risk_level: string
     warnings: string[]
+  }
+  abi_source?: AbiSource
+  // 新增字段
+  protocol?: ProtocolInfo
+  asset_changes?: {
+    pay: Array<{
+      token: string
+      name: string
+      amount: string
+      address: string
+      type: string
+    }>
+    receive: Array<{
+      token: string
+      name: string
+      amount: string
+      address: string
+      type: string
+    }>
   }
 }
 
