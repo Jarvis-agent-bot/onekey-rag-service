@@ -253,7 +253,8 @@ async def analyze_transaction(
 def get_calldata_decoder(request: Request) -> CalldataDecoder:
     """获取 Calldata 解码器实例"""
     parser = get_parser(request)
-    signature_db = getattr(request.app.state, "signature_db", None)
+    # 使用 parser 自带的 signature_db
+    signature_db = getattr(parser, "signature_db", None)
     return CalldataDecoder(parser.abi_decoder, signature_db)
 
 
@@ -510,8 +511,58 @@ async def smart_analyze(
                 from_address=req.context.get("from_address"),
                 value=req.context.get("value", "0"),
             )
-            result = await decoder.decode(input_data, context)
+
+            # 如果有目标地址，尝试获取 ABI
+            abi = None
+            to_address = req.context.get("to_address")
+            if to_address:
+                parser = get_parser(request)
+                with tracer.step("fetch_abi", {"address": to_address}) as step:
+                    try:
+                        abi = await parser._get_abi(req.chain_id, to_address)
+                        step.set_output({"has_abi": abi is not None})
+                    except Exception as e:
+                        step.set_output({"error": str(e)})
+
+            result = await decoder.decode(input_data, context, abi)
             response.decode_result = result.to_dict()
+
+            # 可选：调用 RAG 生成解释
+            if req.options.include_explanation:
+                rag_client = get_rag_client(request)
+                if rag_client:
+                    try:
+                        # 构建类似交易的 parse_result 用于 RAG 分析
+                        calldata_parse_result = {
+                            "method": {
+                                "name": result.function_name,
+                                "signature": result.function_signature,
+                                "selector": result.selector,
+                                "inputs": result.inputs,
+                            },
+                            "behavior": {
+                                "type": result.behavior_type,
+                            },
+                            "risk_flags": [rf.to_dict() if hasattr(rf, 'to_dict') else rf.__dict__ for rf in result.risk_flags],
+                            "chain_id": req.chain_id,
+                            "to": to_address,
+                            "from": req.context.get("from_address"),
+                            "value": req.context.get("value", "0"),
+                        }
+                        rag_result = await rag_client.explain(
+                            parse_result=calldata_parse_result,
+                            language=req.options.language,
+                            trace_id=tracer.trace_id,
+                        )
+                        response.explanation = ExplanationResult(
+                            summary=rag_result.get("summary", ""),
+                            risk_level=rag_result.get("risk_level", "unknown"),
+                            risk_reasons=rag_result.get("risk_reasons", []),
+                            actions=rag_result.get("actions", []),
+                            sources=rag_result.get("sources", []),
+                        )
+                    except Exception as e:
+                        logger.warning("rag_error_calldata", error=str(e))
 
         elif input_type == "signature":
             # 签名解析
@@ -522,6 +573,39 @@ async def smart_analyze(
                 sig_data = input_data
             result = sig_parser.parse(sig_data)
             response.signature_result = result.to_dict()
+
+            # 可选：调用 RAG 生成解释
+            if req.options.include_explanation:
+                rag_client = get_rag_client(request)
+                if rag_client:
+                    try:
+                        # 构建 parse_result 用于 RAG 分析
+                        sig_parse_result = {
+                            "signature_type": result.signature_type,
+                            "primary_type": result.primary_type,
+                            "domain": result.domain,
+                            "message": result.message,
+                            "risk_level": result.risk_level,
+                            "risk_reasons": result.risk_reasons,
+                            "behavior": {
+                                "type": "signature_request",
+                            },
+                            "chain_id": req.chain_id,
+                        }
+                        rag_result = await rag_client.explain(
+                            parse_result=sig_parse_result,
+                            language=req.options.language,
+                            trace_id=tracer.trace_id,
+                        )
+                        response.explanation = ExplanationResult(
+                            summary=rag_result.get("summary", ""),
+                            risk_level=rag_result.get("risk_level", "unknown"),
+                            risk_reasons=rag_result.get("risk_reasons", []),
+                            actions=rag_result.get("actions", []),
+                            sources=rag_result.get("sources", []),
+                        )
+                    except Exception as e:
+                        logger.warning("rag_error_signature", error=str(e))
 
         else:
             response.status = "failed"

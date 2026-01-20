@@ -231,12 +231,22 @@ export function WebApp() {
 
             {/* Calldata Result */}
             {smartResult.input_type === 'calldata' && smartResult.decode_result && (
-              <CalldataResult result={smartResult.decode_result} formatted={null} />
+              <>
+                <CalldataResult result={smartResult.decode_result} formatted={null} />
+                {smartResult.explanation && (
+                  <RagExplanation explanation={smartResult.explanation} />
+                )}
+              </>
             )}
 
             {/* Signature Result */}
             {smartResult.input_type === 'signature' && smartResult.signature_result && (
-              <SignatureResult result={smartResult.signature_result} summary={null} />
+              <>
+                <SignatureResult result={smartResult.signature_result} summary={null} />
+                {smartResult.explanation && (
+                  <RagExplanation explanation={smartResult.explanation} />
+                )}
+              </>
             )}
 
             {/* Error from API */}

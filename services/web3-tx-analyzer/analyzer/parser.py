@@ -67,6 +67,41 @@ class TxParser:
             rate_limit_per_min=self.settings.etherscan_rate_limit_per_min,
         )
 
+    async def _get_abi(self, chain_id: int, address: str) -> list[dict[str, Any]] | None:
+        """
+        获取合约 ABI
+
+        Args:
+            chain_id: 链 ID
+            address: 合约地址
+
+        Returns:
+            ABI 列表或 None
+        """
+        chain_config = self._get_chain_config(chain_id)
+        etherscan = self._get_etherscan_client(chain_config)
+
+        # 先检查缓存
+        if self.cache:
+            cached_abi = await self.cache.get_abi(chain_id, address)
+            if cached_abi:
+                return cached_abi.get("abi")
+
+        # 从 Etherscan 获取
+        try:
+            abi = await etherscan.get_abi(address)
+            if abi and self.cache:
+                await self.cache.set_abi(
+                    chain_id,
+                    address,
+                    {"abi": abi, "source": "explorer"},
+                    self.settings.abi_cache_ttl_seconds,
+                )
+            return abi
+        except Exception as e:
+            logger.warning("get_abi_error", address=address, error=str(e))
+            return None
+
     async def parse(
         self,
         chain_id: int,

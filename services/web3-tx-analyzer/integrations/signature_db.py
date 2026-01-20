@@ -42,6 +42,12 @@ COMMON_SIGNATURES: dict[str, list[str]] = {
     "0xf305d719": ["addLiquidityETH(address,uint256,uint256,uint256,address,uint256)"],
     "0xbaa2abde": ["removeLiquidity(address,address,uint256,uint256,uint256,address,uint256)"],
     "0x02751cec": ["removeLiquidityETH(address,uint256,uint256,uint256,address,uint256)"],
+    "0x69328dec": ["removeLiquidityETHWithPermit(address,uint256,uint256,uint256,address,uint256,bool,uint8,bytes32,bytes32)"],
+    "0x2195995c": ["removeLiquidityWithPermit(address,address,uint256,uint256,uint256,address,uint256,bool,uint8,bytes32,bytes32)"],
+    "0xded9382a": ["removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(address,uint256,uint256,uint256,address,uint256,bool,uint8,bytes32,bytes32)"],
+    "0x5c11d795": ["swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)"],
+    "0xb6f9de95": ["swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)"],
+    "0x791ac947": ["swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)"],
 
     # Uniswap V3 Router
     "0x414bf389": ["exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))"],
