@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { useSmartAnalyze } from '@/api/hooks'
-import type { SmartAnalyzeResponse, InputType } from '@/api/types'
+import type { SmartAnalyzeResponse, InputType, TraceStep } from '@/api/types'
 import { copyToClipboard } from '@/lib/utils'
 import { SmartInput } from './SmartInput'
 import { ResultOverview } from './ResultOverview'
@@ -14,7 +14,7 @@ import { RiskAssessment } from './RiskAssessment'
 import { MethodDetail } from './MethodDetail'
 import { EventList } from './EventList'
 import { RagExplanation } from './RagExplanation'
-import { TraceTimeline } from './TraceTimeline'
+import { QueryPipeline } from './QueryPipeline'
 import { CalldataResult } from './CalldataResult'
 import { SignatureResult } from './SignatureResult'
 
@@ -169,8 +169,24 @@ export function SmartAnalyzePage() {
 function TransactionResult({ result }: { result: SmartAnalyzeResponse }) {
   if (!result.tx_result) return null
 
+  // 转换 trace_log 为正确的类型
+  const traceSteps: TraceStep[] | null = result.trace_log?.map((step) => ({
+    name: step.name as string,
+    start_time: step.started_at as string,
+    end_time: (step.ended_at as string) || null,
+    duration_ms: (step.duration_ms as number) ?? null,
+    input: (step.input as Record<string, unknown>) || {},
+    output: (step.output as Record<string, unknown>) || null,
+  })) ?? null
+
   return (
     <>
+      {/* 查询流程展示 */}
+      <QueryPipeline
+        steps={traceSteps}
+        timings={result.timings}
+      />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <ResultOverview result={result.tx_result} />
         <RiskAssessment
@@ -180,13 +196,12 @@ function TransactionResult({ result }: { result: SmartAnalyzeResponse }) {
       </div>
 
       <Tabs defaultValue="method" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="method">方法</TabsTrigger>
           <TabsTrigger value="events">
             事件 ({result.tx_result.events.length})
           </TabsTrigger>
           <TabsTrigger value="explanation">解释</TabsTrigger>
-          <TabsTrigger value="trace">Trace</TabsTrigger>
         </TabsList>
         <TabsContent value="method">
           <MethodDetail
@@ -204,12 +219,6 @@ function TransactionResult({ result }: { result: SmartAnalyzeResponse }) {
         </TabsContent>
         <TabsContent value="explanation">
           <RagExplanation explanation={result.explanation} />
-        </TabsContent>
-        <TabsContent value="trace">
-          <TraceTimeline
-            steps={null}
-            timings={result.timings}
-          />
         </TabsContent>
       </Tabs>
     </>

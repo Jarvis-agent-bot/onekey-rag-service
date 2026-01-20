@@ -617,6 +617,11 @@ async def smart_analyze(
         response.error = str(e)
 
     response.timings = tracer.get_timings()
+
+    # 包含 trace 日志（如果需要）
+    if req.options.include_trace:
+        response.trace_log = tracer.get_steps_list()
+
     clear_context()
     return response
 

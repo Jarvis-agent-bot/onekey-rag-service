@@ -97,7 +97,7 @@ export function SmartInput({ onSubmit, isLoading }: SmartInputProps) {
   const [input, setInput] = useState('')
   const [chainId, setChainId] = useState<string>('1')
   const [includeExplanation, setIncludeExplanation] = useState(true)
-  const [includeTrace, setIncludeTrace] = useState(false)
+  const [includeTrace, setIncludeTrace] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // 额外的上下文输入 (用于 calldata)

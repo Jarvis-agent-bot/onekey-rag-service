@@ -388,4 +388,5 @@ export interface SmartAnalyzeResponse {
   explanation: ExplanationResult | null
   error: string | null
   timings: Record<string, number>
+  trace_log?: TraceStep[] | null
 }

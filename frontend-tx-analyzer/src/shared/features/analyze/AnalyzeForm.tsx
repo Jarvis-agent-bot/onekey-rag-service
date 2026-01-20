@@ -31,7 +31,7 @@ export function AnalyzeForm({ onSubmit, isLoading }: AnalyzeFormProps) {
   const [chainId, setChainId] = useState<string>('1')
   const [txHash, setTxHash] = useState('')
   const [includeExplanation, setIncludeExplanation] = useState(true)
-  const [includeTrace, setIncludeTrace] = useState(false)
+  const [includeTrace, setIncludeTrace] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {

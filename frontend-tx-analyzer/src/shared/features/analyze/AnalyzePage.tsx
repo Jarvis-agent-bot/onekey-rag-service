@@ -13,7 +13,7 @@ import { RiskAssessment } from './RiskAssessment'
 import { MethodDetail } from './MethodDetail'
 import { EventList } from './EventList'
 import { RagExplanation } from './RagExplanation'
-import { TraceTimeline } from './TraceTimeline'
+import { QueryPipeline } from './QueryPipeline'
 
 export function AnalyzePage() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null)
@@ -95,6 +95,12 @@ export function AnalyzePage() {
 
           <Separator />
 
+          {/* 查询流程展示 */}
+          <QueryPipeline
+            steps={result.trace_log}
+            timings={result.timings}
+          />
+
           <div className="grid gap-4 lg:grid-cols-2">
             <ResultOverview result={result.parse_result} />
             <RiskAssessment
@@ -104,13 +110,12 @@ export function AnalyzePage() {
           </div>
 
           <Tabs defaultValue="method" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="method">方法</TabsTrigger>
               <TabsTrigger value="events">
                 事件 ({result.parse_result.events.length})
               </TabsTrigger>
               <TabsTrigger value="explanation">解释</TabsTrigger>
-              <TabsTrigger value="trace">Trace</TabsTrigger>
             </TabsList>
               <TabsContent value="method">
                 <MethodDetail
@@ -128,12 +133,6 @@ export function AnalyzePage() {
               </TabsContent>
             <TabsContent value="explanation">
               <RagExplanation explanation={result.explanation} />
-            </TabsContent>
-            <TabsContent value="trace">
-              <TraceTimeline
-                steps={result.trace_log}
-                timings={result.timings}
-              />
             </TabsContent>
           </Tabs>
 

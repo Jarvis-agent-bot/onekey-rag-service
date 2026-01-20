@@ -6,6 +6,7 @@ export { MethodDetail } from './MethodDetail'
 export { EventList } from './EventList'
 export { RagExplanation } from './RagExplanation'
 export { TraceTimeline } from './TraceTimeline'
+export { QueryPipeline } from './QueryPipeline'
 
 // Smart Analyze Components
 export { SmartAnalyzePage } from './SmartAnalyzePage'

@@ -151,3 +151,4 @@ class SmartAnalyzeResponse(BaseModel):
     explanation: ExplanationResult | None = None
     error: str | None = None
     timings: dict[str, int] = Field(default_factory=dict)
+    trace_log: list[dict[str, Any]] | None = None  # 查询步骤追踪
