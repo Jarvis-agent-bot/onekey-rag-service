@@ -253,6 +253,14 @@ export interface PredictedAssetChange {
 // ABI 来源
 export type AbiSource = 'user_provided' | 'local_registry' | 'etherscan' | '4bytes' | 'none'
 
+// 解码置信度
+export type DecodeConfidence = 'high' | 'medium' | 'low'
+
+// 备选解码结果
+export interface AlternateDecode {
+  name: string
+}
+
 export interface DecodedCalldata {
   selector: string
   raw_data: string
@@ -269,6 +277,9 @@ export interface DecodedCalldata {
   protocol_info?: ProtocolInfo | null
   asset_changes?: PredictedAssetChange[]
   abi_source?: AbiSource
+  // 解码置信度 (当使用 4bytes 且有多个候选时)
+  decode_confidence?: DecodeConfidence
+  alternate_decodes?: AlternateDecode[]
 }
 
 export interface FormattedCalldata {

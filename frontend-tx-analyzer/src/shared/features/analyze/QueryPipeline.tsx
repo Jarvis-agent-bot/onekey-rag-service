@@ -60,7 +60,7 @@ const STEP_CONFIGS: Record<string, StepConfig> = {
     description: '从区块浏览器获取合约 ABI',
     color: 'text-green-500',
   },
-  // Calldata 解码流程
+  // Calldata 解码流程 - 按优先级顺序
   decode_calldata: {
     icon: Code,
     label: 'Calldata 解码',
@@ -69,32 +69,38 @@ const STEP_CONFIGS: Record<string, StepConfig> = {
   },
   identify_contract: {
     icon: Database,
-    label: '合约识别',
-    description: '从本地注册表识别已知协议合约',
+    label: '⓪ 合约识别',
+    description: '识别目标地址是否为已知协议合约',
     color: 'text-green-500',
+  },
+  user_abi_decode: {
+    icon: Code,
+    label: '① 用户 ABI',
+    description: '优先级最高：使用用户提供的 ABI 解码',
+    color: 'text-blue-500',
   },
   local_abi_lookup: {
     icon: Database,
     label: '本地 ABI',
-    description: '查询本地协议 ABI 库',
-    color: 'text-green-500',
+    description: '从内置协议库获取 ABI（暂未启用）',
+    color: 'text-gray-400',
   },
   etherscan_abi_lookup: {
     icon: FileSearch,
-    label: 'Etherscan ABI',
-    description: '从 Etherscan 获取已验证合约 ABI',
-    color: 'text-green-500',
+    label: '② Etherscan',
+    description: '优先级 2：从 Etherscan 获取已验证合约 ABI',
+    color: 'text-yellow-500',
   },
   signature_lookup: {
     icon: Code,
-    label: '4bytes 查询',
-    description: '从签名数据库查询函数签名',
+    label: '③ 4bytes',
+    description: '最低优先级：从签名数据库匹配（可能有碰撞）',
     color: 'text-orange-500',
   },
   predict_assets: {
     icon: Brain,
     label: '资产预测',
-    description: '预测交易的资产变化 (Pay/Receive)',
+    description: '基于函数签名预测资产变化 (Pay/Receive)',
     color: 'text-cyan-500',
   },
   // 原有步骤
@@ -137,12 +143,17 @@ const STEP_GROUPS = [
     steps: ['check_cache', 'fetch_transaction', 'fetch_receipt', 'fetch_abi'],
   },
   {
+    name: 'ABI 解码 (按优先级)',
+    description: '用户ABI → Etherscan → 4bytes，成功即停止',
+    steps: ['identify_contract', 'user_abi_decode', 'local_abi_lookup', 'etherscan_abi_lookup', 'signature_lookup'],
+  },
+  {
     name: '数据解析',
     steps: ['decode_input', 'decode_events'],
   },
   {
     name: '智能分析',
-    steps: ['analyze_behavior', 'detect_risks', 'call_rag'],
+    steps: ['analyze_behavior', 'detect_risks', 'predict_assets', 'call_rag'],
   },
 ]
 
@@ -236,8 +247,9 @@ export function QueryPipeline({ steps, timings, className }: QueryPipelineProps)
                     className={cn(
                       'h-full transition-all',
                       groupIndex === 0 && 'bg-blue-500',
-                      groupIndex === 1 && 'bg-orange-500',
-                      groupIndex === 2 && 'bg-violet-500'
+                      groupIndex === 1 && 'bg-green-500',
+                      groupIndex === 2 && 'bg-orange-500',
+                      groupIndex === 3 && 'bg-violet-500'
                     )}
                     style={{ width: `${percentage}%` }}
                     title={`${group.name}: ${groupDuration}ms (${percentage.toFixed(1)}%)`}
@@ -245,10 +257,14 @@ export function QueryPipeline({ steps, timings, className }: QueryPipelineProps)
                 )
               })}
             </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <div className="h-2 w-2 rounded-full bg-blue-500" />
                 <span>数据获取</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-green-500" />
+                <span>ABI 解码</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="h-2 w-2 rounded-full bg-orange-500" />
@@ -273,7 +289,12 @@ export function QueryPipeline({ steps, timings, className }: QueryPipelineProps)
               // 没有详细步骤时显示简化视图
               return (
                 <div key={group.name} className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">{group.name}</h4>
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground">{group.name}</h4>
+                    {'description' in group && group.description && (
+                      <p className="text-xs text-muted-foreground/70">{group.description}</p>
+                    )}
+                  </div>
                   <div className="space-y-1">
                     {group.steps.map((stepName) => {
                       const config = STEP_CONFIGS[stepName]
@@ -301,7 +322,12 @@ export function QueryPipeline({ steps, timings, className }: QueryPipelineProps)
 
             return (
               <div key={group.name} className="space-y-2">
-                <h4 className="text-sm font-medium text-muted-foreground">{group.name}</h4>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">{group.name}</h4>
+                  {'description' in group && group.description && (
+                    <p className="text-xs text-muted-foreground/70">{group.description}</p>
+                  )}
+                </div>
                 <div className="space-y-1">
                   {group.steps.map((stepName) => {
                     const step = stepMap.get(stepName)
@@ -403,10 +429,20 @@ export function QueryPipeline({ steps, timings, className }: QueryPipelineProps)
         </div>
 
         {/* 数据来源说明 */}
-        <div className="pt-2 border-t">
-          <p className="text-xs text-muted-foreground">
-            数据来源: RPC 节点 (交易数据) → Etherscan (ABI) → 4bytes.directory (签名) → RAG (解释)
-          </p>
+        <div className="pt-3 border-t space-y-2">
+          <div className="text-xs space-y-1">
+            <p className="font-medium text-muted-foreground">ABI 解码优先级链:</p>
+            <div className="flex flex-wrap items-center gap-1 text-muted-foreground/80">
+              <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-500 rounded text-[10px]">① 用户ABI</span>
+              <span>→</span>
+              <span className="px-1.5 py-0.5 bg-yellow-500/10 text-yellow-500 rounded text-[10px]">② Etherscan</span>
+              <span>→</span>
+              <span className="px-1.5 py-0.5 bg-orange-500/10 text-orange-500 rounded text-[10px]">③ 4bytes</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60">
+              按优先级依次尝试，成功解码即停止。4bytes 可能存在选择器碰撞风险。
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

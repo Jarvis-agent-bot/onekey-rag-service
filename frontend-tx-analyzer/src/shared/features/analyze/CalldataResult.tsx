@@ -384,17 +384,57 @@ export function CalldataResult({ result, formatted }: CalldataResultProps) {
         </Card>
       )}
 
-      {/* ABI 来源提示 (如果是 4bytes，提示可能不准确) */}
+      {/* ABI 来源提示 - 根据置信度显示不同的警告 */}
       {result.abi_source === '4bytes' && (
-        <Card className="border-yellow-500/30">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
-              <Info className="h-4 w-4" />
-              <span className="text-sm">
-                Function decoded from 4bytes signature database.
-                Multiple functions may share the same selector - verify with the actual contract ABI if available.
-              </span>
+        <Card className={
+          result.decode_confidence === 'low'
+            ? "border-red-500/30"
+            : result.decode_confidence === 'medium'
+            ? "border-orange-500/30"
+            : "border-yellow-500/30"
+        }>
+          <CardContent className="pt-4 space-y-2">
+            <div className={`flex items-start gap-2 ${
+              result.decode_confidence === 'low'
+                ? 'text-red-600 dark:text-red-400'
+                : result.decode_confidence === 'medium'
+                ? 'text-orange-600 dark:text-orange-400'
+                : 'text-yellow-600 dark:text-yellow-400'
+            }`}>
+              {result.decode_confidence === 'low' ? (
+                <AlertTriangle className="h-4 w-4 mt-0.5" />
+              ) : (
+                <Info className="h-4 w-4 mt-0.5" />
+              )}
+              <div className="space-y-1">
+                <span className="text-sm font-medium">
+                  {result.decode_confidence === 'low'
+                    ? 'Low confidence decode - selector collision detected!'
+                    : result.decode_confidence === 'medium'
+                    ? 'Medium confidence - multiple functions match this selector'
+                    : 'Function decoded from 4bytes signature database'}
+                </span>
+                <p className="text-sm opacity-80">
+                  {result.decode_confidence === 'high'
+                    ? 'Verify with the actual contract ABI if available.'
+                    : 'Please provide the target contract address (to_address) for accurate decoding.'}
+                </p>
+              </div>
             </div>
+
+            {/* 显示备选解码 */}
+            {result.alternate_decodes && result.alternate_decodes.length > 0 && (
+              <div className="pt-2 border-t border-current/10">
+                <p className="text-xs text-muted-foreground mb-1">Other possible functions:</p>
+                <div className="flex flex-wrap gap-1">
+                  {result.alternate_decodes.map((alt, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">
+                      {alt.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

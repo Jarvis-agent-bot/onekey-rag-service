@@ -157,6 +157,10 @@ class DecodedCalldata:
     # ABI 来源 (新增)
     abi_source: str = "unknown"  # user_provided, local_registry, etherscan, 4bytes, none
 
+    # 解码置信度 (新增) - 当使用 4bytes 且有多个候选时
+    decode_confidence: str = "high"  # high, medium, low
+    alternate_decodes: list[dict[str, Any]] = field(default_factory=list)  # 其他可能的解码结果
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "selector": self.selector,
@@ -173,6 +177,8 @@ class DecodedCalldata:
             "protocol_info": self.protocol_info.to_dict() if self.protocol_info else None,
             "asset_changes": [ac.to_dict() for ac in self.asset_changes],
             "abi_source": self.abi_source,
+            "decode_confidence": self.decode_confidence,
+            "alternate_decodes": self.alternate_decodes,
         }
 
 
@@ -355,24 +361,43 @@ class CalldataDecoder:
                 signatures = await self._lookup_signature(selector)
                 if signatures:
                     result.possible_signatures = signatures
-                    # 尝试用第一个签名解码
-                    decoded = self.abi_decoder.decode_function_input(
-                        calldata, signature=signatures[0]
-                    )
-                    if decoded and decoded.get("name"):
+
+                    # 智能签名匹配：尝试所有候选签名，选择最佳匹配
+                    best_match = self._find_best_signature_match(calldata, signatures)
+
+                    if best_match:
+                        decoded = best_match["decoded"]
                         abi_source = "4bytes"
+
+                        # 设置解码置信度
+                        result.decode_confidence = best_match["confidence"]
+
+                        # 如果有多个有效候选，添加警告和备选解码
+                        if best_match["valid_count"] > 1:
+                            result.warnings.append(
+                                f"Selector collision detected: {best_match['valid_count']} possible functions match this selector. "
+                                f"Showing '{decoded.get('name')}'. Other candidates: {', '.join(best_match['other_names'][:3])}"
+                            )
+                            # 存储备选解码结果供前端显示
+                            result.alternate_decodes = [
+                                {"name": name} for name in best_match["other_names"][:5]
+                            ]
+
                         step.set_output({
                             "success": True,
                             "function": decoded.get("name"),
                             "candidates_count": len(signatures),
+                            "valid_matches": best_match["valid_count"],
+                            "confidence": best_match["confidence"],
                         })
                         logger.debug(
                             "decoded_with_4bytes",
                             function=decoded.get("name"),
                             selector=selector,
+                            valid_matches=best_match["valid_count"],
                         )
                     else:
-                        step.set_output({"success": False, "candidates_count": len(signatures), "reason": "decode_failed"})
+                        step.set_output({"success": False, "candidates_count": len(signatures), "reason": "no_valid_decode"})
                 else:
                     step.set_output({"success": False, "candidates_count": 0, "reason": "no_signatures_found"})
 
@@ -435,6 +460,114 @@ class CalldataDecoder:
             elif "arg" in str(name).lower():
                 params[name] = value
         return params
+
+    def _find_best_signature_match(
+        self,
+        calldata: str,
+        signatures: list[str],
+    ) -> dict[str, Any] | None:
+        """
+        智能签名匹配：尝试所有候选签名，选择最佳匹配
+
+        策略：
+        1. 尝试用每个签名解码 calldata
+        2. 过滤出能成功解码的签名
+        3. 根据匹配度评分选择最佳结果
+           - 参数数量少的优先（奥卡姆剃刀）
+           - 常见协议函数优先
+        4. 返回最佳匹配及所有有效候选信息
+
+        Args:
+            calldata: 原始 calldata
+            signatures: 候选签名列表
+
+        Returns:
+            {
+                "decoded": 解码结果,
+                "signature": 使用的签名,
+                "valid_count": 有效匹配数量,
+                "confidence": 置信度 (high/medium/low),
+                "other_names": 其他候选函数名,
+            }
+        """
+        valid_matches: list[tuple[dict, str, int]] = []  # (decoded, signature, score)
+
+        # 已知的高优先级协议函数（这些是常见的、单一用途的）
+        HIGH_PRIORITY_FUNCTIONS = {
+            # Aave
+            "withdraw": 10,
+            "supply": 10,
+            "borrow": 10,
+            "repay": 10,
+            "deposit": 8,
+            # 标准 ERC20
+            "transfer": 10,
+            "approve": 10,
+            "transferFrom": 10,
+            # Uniswap/DEX - 复杂函数优先级稍低
+            "swapExactTokensForTokens": 7,
+            "swapExactETHForTokens": 7,
+            "addLiquidity": 7,
+            "removeLiquidity": 5,  # removeLiquidityETHWithPermit 有很多参数，优先级低
+        }
+
+        for sig in signatures:
+            try:
+                decoded = self.abi_decoder.decode_function_input(calldata, signature=sig)
+                if decoded and decoded.get("name"):
+                    # 计算匹配分数
+                    func_name = decoded.get("name", "")
+                    inputs = decoded.get("inputs", [])
+
+                    # 基础分数：参数越少越好（简单函数优先）
+                    param_score = max(0, 20 - len(inputs) * 2)
+
+                    # 协议优先级加分
+                    priority_score = HIGH_PRIORITY_FUNCTIONS.get(func_name, 0)
+
+                    # 如果函数名包含 "WithPermit"，降低优先级（通常是复杂的 permit 变体）
+                    if "WithPermit" in func_name or "permit" in func_name.lower():
+                        priority_score -= 5
+
+                    total_score = param_score + priority_score
+                    valid_matches.append((decoded, sig, total_score))
+
+                    logger.debug(
+                        "signature_match_candidate",
+                        function=func_name,
+                        params_count=len(inputs),
+                        score=total_score,
+                    )
+            except Exception as e:
+                # 解码失败，跳过这个签名
+                logger.debug("signature_decode_failed", signature=sig, error=str(e))
+                continue
+
+        if not valid_matches:
+            return None
+
+        # 按分数排序，选择最高分的
+        valid_matches.sort(key=lambda x: x[2], reverse=True)
+        best_decoded, best_sig, best_score = valid_matches[0]
+
+        # 计算置信度
+        if len(valid_matches) == 1:
+            confidence = "high"
+        elif best_score > valid_matches[1][2] + 5:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        # 收集其他候选函数名
+        other_names = [m[0].get("name", "") for m in valid_matches[1:]]
+
+        return {
+            "decoded": best_decoded,
+            "signature": best_sig,
+            "valid_count": len(valid_matches),
+            "confidence": confidence,
+            "other_names": other_names,
+        }
 
     async def _lookup_signature(self, selector: str) -> list[str]:
         """查询函数签名"""
