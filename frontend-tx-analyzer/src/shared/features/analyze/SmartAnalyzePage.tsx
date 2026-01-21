@@ -14,7 +14,7 @@ import { RiskAssessment } from './RiskAssessment'
 import { MethodDetail } from './MethodDetail'
 import { EventList } from './EventList'
 import { RagExplanation } from './RagExplanation'
-import { QueryPipeline } from './QueryPipeline'
+import { SearchFlowVisualization } from './SearchFlowVisualization'
 import { CalldataResult } from './CalldataResult'
 import { SignatureResult } from './SignatureResult'
 
@@ -139,9 +139,9 @@ export function SmartAnalyzePage() {
 
           {result.input_type === 'calldata' && result.decode_result && (
             <>
-              {/* Calldata 解码也显示查询流程 */}
+              {/* Calldata 解码也显示搜索流程 */}
               {result.trace_log && result.trace_log.length > 0 && (
-                <QueryPipeline
+                <SearchFlowVisualization
                   steps={result.trace_log}
                   timings={result.timings}
                 />
@@ -183,8 +183,8 @@ function TransactionResult({ result }: { result: SmartAnalyzeResponse }) {
 
   return (
     <>
-      {/* 查询流程展示 */}
-      <QueryPipeline
+      {/* 搜索流程可视化 */}
+      <SearchFlowVisualization
         steps={traceSteps}
         timings={result.timings}
       />
