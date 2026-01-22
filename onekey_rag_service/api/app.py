@@ -410,6 +410,7 @@ async def openai_chat_completions(
             ],
             usage=OpenAIUsage(**(rag.usage or {})),
             sources=filtered_sources,  # type: ignore[arg-type]
+            contract_info=rag.contract_info,  # type: ignore[arg-type]
             debug=rag.debug,
         )
         return JSONResponse(resp.model_dump())
@@ -471,6 +472,7 @@ async def openai_chat_completions(
                     yield f"data: {json_dumps(data)}\n\n"
 
             sources = (prepared.sources if prepared else []) or []
+            contract_info = (prepared.contract_info if prepared else None)
             if prepared and isinstance(prepared.meta, dict):
                 event_meta = dict(prepared.meta)
             else:

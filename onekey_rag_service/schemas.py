@@ -52,6 +52,19 @@ class OpenAIUsage(BaseModel):
     total_tokens: int = 0
 
 
+class ContractInfo(BaseModel):
+    """合约索引信息 - 来自 contract_index 的确定性协议识别结果"""
+    address: str
+    protocol: str
+    protocol_version: str = ""
+    contract_type: str = ""
+    contract_name: str = ""
+    source_url: str = ""
+    confidence: float = 1.0
+    chain_id: int = 1
+    source: str = "contract_index"
+
+
 class OpenAIChatCompletionsResponse(BaseModel):
     id: str
     object: Literal["chat.completion"] = "chat.completion"
@@ -60,6 +73,7 @@ class OpenAIChatCompletionsResponse(BaseModel):
     choices: list[OpenAIChatCompletionsResponseChoice]
     usage: OpenAIUsage = Field(default_factory=OpenAIUsage)
     sources: list[SourceItem] = Field(default_factory=list)
+    contract_info: ContractInfo | None = None
     debug: dict[str, Any] | None = None
 
 

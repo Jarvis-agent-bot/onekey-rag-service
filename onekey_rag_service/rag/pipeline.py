@@ -122,6 +122,7 @@ class RagAnswer:
     debug: dict | None = None
     usage: dict | None = None
     meta: dict | None = None
+    contract_info: dict | None = None  # 来自 contract_index 的确定性协议信息
 
 
 @dataclass(frozen=True)
@@ -133,6 +134,7 @@ class RagPrepared:
     debug: dict | None = None
     direct_answer: str | None = None
     meta: dict | None = None
+    contract_info: dict | None = None  # 来自 contract_index 的确定性协议信息
 
 
 def _resolve_default_prompts(requested_model: str | None) -> tuple[str, str]:
@@ -407,6 +409,22 @@ async def prepare_rag(
             filtered.append(c)
         return filtered
 
+    # 构建 contract_info 的辅助函数
+    def _build_contract_info(hit) -> dict | None:
+        if not hit:
+            return None
+        return {
+            "address": hit.address,
+            "protocol": hit.protocol,
+            "protocol_version": hit.protocol_version or "",
+            "contract_type": hit.contract_type or "",
+            "contract_name": hit.contract_name or "",
+            "source_url": hit.source_url or "",
+            "confidence": hit.confidence,
+            "chain_id": hit.chain_id,
+            "source": "contract_index",
+        }
+
     address_query = None
     contract_index_hit = None  # 合约索引命中信息
     if request_metadata and request_metadata.get("address_lookup"):
@@ -500,6 +518,7 @@ async def prepare_rag(
                 },
                 "used_compaction": used_compaction,
             },
+            contract_info=_build_contract_info(contract_index_hit),
         )
     def _retrieve_for_query(query_text: str, query_embedding: list[float]) -> list[RetrievedChunk]:
         if allocations:
@@ -674,6 +693,7 @@ async def prepare_rag(
                 },
                 "used_compaction": used_compaction,
             },
+            contract_info=_build_contract_info(contract_index_hit),
         )
 
     t0 = time.perf_counter()
@@ -800,6 +820,7 @@ async def prepare_rag(
             },
             "used_compaction": used_compaction,
         },
+        contract_info=_build_contract_info(contract_index_hit),
     )
 
 
@@ -847,7 +868,7 @@ async def answer_with_rag(
     )
 
     if prepared.direct_answer is not None:
-        return RagAnswer(answer=prepared.direct_answer, sources=prepared.sources, debug=prepared.debug, meta=prepared.meta)
+        return RagAnswer(answer=prepared.direct_answer, sources=prepared.sources, debug=prepared.debug, meta=prepared.meta, contract_info=prepared.contract_info)
 
     if not prepared.messages:
         return RagAnswer(
@@ -855,6 +876,7 @@ async def answer_with_rag(
             sources=[],
             debug=prepared.debug,
             meta=prepared.meta,
+            contract_info=prepared.contract_info,
         )
 
     sources = _normalize_sources(prepared.sources)
@@ -862,7 +884,7 @@ async def answer_with_rag(
     if not chat:
         # 降级：无上游模型时，返回可用片段的摘要式回答（确保服务可运行）
         answer = no_sources_answer
-        return RagAnswer(answer=answer, sources=sources, debug=prepared.debug, meta=prepared.meta)
+        return RagAnswer(answer=answer, sources=sources, debug=prepared.debug, meta=prepared.meta, contract_info=prepared.contract_info)
 
     t0 = time.perf_counter()
     result = await chat.complete(
@@ -912,4 +934,5 @@ async def answer_with_rag(
         usage=result.usage,
         debug=debug_obj,
         meta=prepared.meta,
+        contract_info=prepared.contract_info,
     )
