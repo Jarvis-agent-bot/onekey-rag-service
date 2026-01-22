@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quality Monitoring Dashboard - OneKey Admin</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0da6f2",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#101c22",
+                        "card-dark": "#1a2a32",
+                        "border-dark": "#2d4654",
+                        "text-secondary": "#90b7cb",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for dark mode */
+        .dark ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #101c22;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #2d4654;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #3e5e70;
+        }
+        
+        /* Chart specific utilities for gradients */
+        .bg-gradient-chart-1 {
+            background: linear-gradient(180deg, rgba(13, 166, 242, 0.2) 0%, rgba(13, 166, 242, 0) 100%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen flex flex-col font-display">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-gray-200 dark:border-border-dark px-6 py-3 bg-white dark:bg-[#101d23] sticky top-0 z-50">
+<div class="flex items-center gap-4 text-slate-900 dark:text-white">
+<div class="size-8 flex items-center justify-center bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">dataset</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">OneKey Admin</h2>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<label class="flex flex-col min-w-40 h-10 max-w-64 hidden sm:flex">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full border border-gray-200 dark:border-border-dark bg-gray-50 dark:bg-card-dark transition-colors focus-within:border-primary">
+<div class="text-gray-400 dark:text-text-secondary flex items-center justify-center pl-3">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-text-secondary px-3 focus:ring-0" placeholder="Search resources..." value=""/>
+</div>
+</label>
+<div class="flex items-center gap-4">
+<button class="text-gray-500 dark:text-text-secondary hover:text-primary transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-0 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#101d23]"></span>
+</button>
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-9 border-2 border-gray-200 dark:border-border-dark" data-alt="User profile avatar image" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBpYWWuKkhE1hgoIGen1g-AFHjOn708TtlUFrwqyrgoNMhlmjZVkG37j6CB8F1uxQthMuN4Q-E51IqO77g5ajxBYt_ClNBxaLwYO17-djaGxt3jwO3sGafViHNYD9jCRVF94zYoauRF-yEY6NkgQIrKCR1-07SemQdBa9Ad4o3vRI0ciKbch6obo-dJ537G4noV_XoWOCRdlxJetmW318piHrn8xFFbrToP_9J8iP4OeV5OM33s4uG0vBIF_5rmweWFMZtjmgPhDR0");'></div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar Navigation (Optional Visual Context) -->
+<aside class="hidden lg:flex w-64 flex-col border-r border-gray-200 dark:border-border-dark bg-white dark:bg-[#101d23] py-6 px-4 gap-2">
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-text-secondary hover:bg-gray-100 dark:hover:bg-card-dark hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span class="text-sm font-medium">Overview</span>
+</a>
+<div class="pt-4 pb-2 px-3 text-xs font-bold uppercase text-gray-400 dark:text-slate-500 tracking-wider">Services</div>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-text-secondary hover:bg-gray-100 dark:hover:bg-card-dark hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+<span class="text-sm font-medium">LLM Gateway</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px] fill-1">analytics</span>
+<span class="text-sm font-medium">Quality Monitoring</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-text-secondary hover:bg-gray-100 dark:hover:bg-card-dark hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">database</span>
+<span class="text-sm font-medium">Vector Store</span>
+</a>
+<div class="pt-4 pb-2 px-3 text-xs font-bold uppercase text-gray-400 dark:text-slate-500 tracking-wider">Settings</div>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-text-secondary hover:bg-gray-100 dark:hover:bg-card-dark hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="text-sm font-medium">Configuration</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10">
+<div class="max-w-[1280px] mx-auto flex flex-col gap-8">
+<!-- Breadcrumbs & Header -->
+<div class="flex flex-col gap-6">
+<!-- Breadcrumbs -->
+<div class="flex items-center gap-2 text-sm">
+<a class="text-text-secondary hover:text-primary transition-colors" href="#">Admin</a>
+<span class="text-text-secondary material-symbols-outlined text-[14px]">chevron_right</span>
+<a class="text-text-secondary hover:text-primary transition-colors" href="#">Monitoring</a>
+<span class="text-text-secondary material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-slate-900 dark:text-white font-medium">Quality</span>
+</div>
+<!-- Page Heading with Controls -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div class="flex flex-col gap-1">
+<h1 class="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">Quality Monitoring</h1>
+<p class="text-text-secondary text-sm md:text-base">Operational health and performance metrics for RAG service.</p>
+</div>
+<div class="flex items-center gap-3">
+<!-- Time Range Selector -->
+<div class="flex bg-gray-200 dark:bg-card-dark rounded-lg p-1 h-10">
+<label class="cursor-pointer flex items-center justify-center px-4 rounded-md transition-all has-[:checked]:bg-white dark:has-[:checked]:bg-[#101d23] has-[:checked]:text-primary has-[:checked]:shadow-sm text-text-secondary text-xs font-medium">
+<span class="">24h</span>
+<input checked="" class="hidden" name="time-range" type="radio" value="24h"/>
+</label>
+<label class="cursor-pointer flex items-center justify-center px-4 rounded-md transition-all has-[:checked]:bg-white dark:has-[:checked]:bg-[#101d23] has-[:checked]:text-primary has-[:checked]:shadow-sm text-text-secondary text-xs font-medium">
+<span class="">7d</span>
+<input class="hidden" name="time-range" type="radio" value="7d"/>
+</label>
+<label class="cursor-pointer flex items-center justify-center px-4 rounded-md transition-all has-[:checked]:bg-white dark:has-[:checked]:bg-[#101d23] has-[:checked]:text-primary has-[:checked]:shadow-sm text-text-secondary text-xs font-medium">
+<span class="">30d</span>
+<input class="hidden" name="time-range" type="radio" value="30d"/>
+</label>
+</div>
+<!-- Export Button -->
+<button class="hidden sm:flex items-center justify-center h-10 px-4 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors gap-2">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Export</span>
+</button>
+</div>
+</div>
+</div>
+<!-- KPI Cards Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Card 1 -->
+<div class="bg-white dark:bg-card-dark rounded-xl p-5 border border-gray-200 dark:border-border-dark flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<p class="text-text-secondary text-sm font-medium">Total Requests</p>
+<span class="material-symbols-outlined text-text-secondary text-[20px]">cloud_sync</span>
+</div>
+<div>
+<p class="text-3xl font-bold text-slate-900 dark:text-white">12,345</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-emerald-500 text-[16px]">trending_up</span>
+<p class="text-emerald-500 text-xs font-medium">+12% vs last period</p>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white dark:bg-card-dark rounded-xl p-5 border border-gray-200 dark:border-border-dark flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<p class="text-text-secondary text-sm font-medium">Error Rate</p>
+<span class="material-symbols-outlined text-text-secondary text-[20px]">warning</span>
+</div>
+<div>
+<p class="text-3xl font-bold text-slate-900 dark:text-white">0.5%</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-emerald-500 text-[16px]">trending_down</span>
+<p class="text-emerald-500 text-xs font-medium">-0.1% vs last period</p>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white dark:bg-card-dark rounded-xl p-5 border border-gray-200 dark:border-border-dark flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<p class="text-text-secondary text-sm font-medium">Retrieval Hit Rate</p>
+<span class="material-symbols-outlined text-text-secondary text-[20px]">target</span>
+</div>
+<div>
+<p class="text-3xl font-bold text-slate-900 dark:text-white">85%</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-emerald-500 text-[16px]">trending_up</span>
+<p class="text-emerald-500 text-xs font-medium">+2% vs last period</p>
+</div>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="bg-white dark:bg-card-dark rounded-xl p-5 border border-gray-200 dark:border-border-dark flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<p class="text-text-secondary text-sm font-medium">Average Latency</p>
+<span class="material-symbols-outlined text-text-secondary text-[20px]">timer</span>
+</div>
+<div>
+<p class="text-3xl font-bold text-slate-900 dark:text-white">1.2s</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-text-secondary text-[16px]">remove</span>
+<p class="text-text-secondary text-xs font-medium">Stable vs last period</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Main Charts Area -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+<!-- Latency Trends (Large Area Chart) - Spans 2 Columns on LG -->
+<div class="lg:col-span-2 bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark p-6 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white">Latency Trends (ms)</h3>
+<div class="flex items-center gap-4 text-xs font-medium">
+<div class="flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-primary"></span> P50</div>
+<div class="flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-purple-500"></span> P90</div>
+<div class="flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-orange-500"></span> P99</div>
+</div>
+</div>
+<!-- Simulated Chart Container -->
+<div class="relative h-[320px] w-full flex items-end justify-between gap-1 pt-4 pb-6 px-2">
+<!-- Grid Lines (Background) -->
+<div class="absolute inset-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none">
+<div class="w-full h-px bg-gray-100 dark:bg-border-dark/50"></div>
+<div class="w-full h-px bg-gray-100 dark:bg-border-dark/50"></div>
+<div class="w-full h-px bg-gray-100 dark:bg-border-dark/50"></div>
+<div class="w-full h-px bg-gray-100 dark:bg-border-dark/50"></div>
+<div class="w-full h-px bg-gray-100 dark:bg-border-dark"></div> <!-- Bottom axis -->
+</div>
+<!-- Chart Bars (Simulating Area Chart look via many bars or SVG) - Using SVG for smoother look -->
+<svg class="absolute inset-0 h-full w-full p-2" preserveaspectratio="none" viewbox="0 0 100 50">
+<!-- P50 Area -->
+<path d="M0,50 L0,40 Q10,42 20,38 T40,35 T60,38 T80,32 T100,35 L100,50 Z" fill="url(#gradBlue)" opacity="0.4"></path>
+<path d="M0,40 Q10,42 20,38 T40,35 T60,38 T80,32 T100,35" fill="none" stroke="#0da6f2" stroke-width="0.5"></path>
+<!-- P90 Line -->
+<path d="M0,30 Q10,32 20,28 T40,25 T60,28 T80,22 T100,25" fill="none" stroke="#a855f7" stroke-dasharray="1 0.5" stroke-width="0.5"></path>
+<!-- P99 Line -->
+<path d="M0,15 Q10,18 20,12 T40,10 T60,15 T80,8 T100,12" fill="none" stroke="#f97316" stroke-width="0.5"></path>
+<defs>
+<lineargradient id="gradBlue" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#0da6f2;stop-opacity:0.3"></stop>
+<stop offset="100%" style="stop-color:#0da6f2;stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- X-Axis Labels -->
+<div class="absolute bottom-0 left-0 w-full flex justify-between text-[10px] text-text-secondary px-2">
+<span>00:00</span>
+<span>04:00</span>
+<span>08:00</span>
+<span>12:00</span>
+<span>16:00</span>
+<span>20:00</span>
+<span>23:59</span>
+</div>
+</div>
+</div>
+<!-- Token Usage (Stacked Bar Chart) -->
+<div class="bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark p-6 shadow-sm flex flex-col">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white">Token Usage</h3>
+<button class="text-text-secondary hover:text-white">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-2 min-h-[250px] relative">
+<div class="absolute inset-0 flex flex-col justify-between text-[10px] text-text-secondary pointer-events-none z-10 pb-6 pr-2">
+<div class="flex w-full border-b border-gray-100 dark:border-border-dark/30 h-1/4"></div>
+<div class="flex w-full border-b border-gray-100 dark:border-border-dark/30 h-1/4"></div>
+<div class="flex w-full border-b border-gray-100 dark:border-border-dark/30 h-1/4"></div>
+<div class="flex w-full border-b border-gray-100 dark:border-border-dark h-1/4"></div>
+</div>
+<div class="flex items-end justify-between h-full px-1 z-20 pt-4 gap-2">
+<!-- Day 1 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[20%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[30%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[15%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">M</span>
+</div>
+<!-- Day 2 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[25%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[25%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[20%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">T</span>
+</div>
+<!-- Day 3 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[10%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[40%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[15%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">W</span>
+</div>
+<!-- Day 4 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[30%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[35%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[20%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">T</span>
+</div>
+<!-- Day 5 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[22%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[45%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[18%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">F</span>
+</div>
+<!-- Day 6 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[15%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[20%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[10%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">S</span>
+</div>
+<!-- Day 7 -->
+<div class="flex flex-col w-full gap-0.5 items-center group cursor-pointer">
+<div class="w-full bg-emerald-400 h-[12%] rounded-t-sm group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-blue-400 h-[15%] group-hover:opacity-80 transition-opacity"></div>
+<div class="w-full bg-indigo-500 h-[10%] rounded-b-sm group-hover:opacity-80 transition-opacity"></div>
+<span class="text-[10px] text-text-secondary mt-1">S</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-center gap-3 mt-4 text-[10px] font-medium text-text-secondary">
+<div class="flex items-center gap-1"><span class="size-2 rounded-full bg-indigo-500"></span> GPT-4</div>
+<div class="flex items-center gap-1"><span class="size-2 rounded-full bg-blue-400"></span> Claude-3</div>
+<div class="flex items-center gap-1"><span class="size-2 rounded-full bg-emerald-400"></span> Llama-2</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Rerank Comparison & Logs Table placeholder -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-8">
+<!-- Rerank Effectiveness -->
+<div class="bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark p-6 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<div>
+<h3 class="text-lg font-bold text-slate-900 dark:text-white">Rerank Effectiveness</h3>
+<p class="text-xs text-text-secondary mt-1">Top 3 Relevance Score Comparison</p>
+</div>
+</div>
+<div class="space-y-4">
+<!-- Comparison Item 1 -->
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="text-slate-700 dark:text-white font-medium">Query Set A (Financial)</span>
+<span class="text-emerald-500 font-bold">+18%</span>
+</div>
+<div class="h-6 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden relative flex">
+<div class="h-full bg-gray-400 dark:bg-slate-600 flex items-center justify-center text-[10px] text-white font-bold" style="width: 65%">Initial: 0.65</div>
+<div class="h-full bg-primary flex items-center justify-center text-[10px] text-white font-bold shadow-lg z-10" style="width: 18%">Rerank: 0.83</div>
+</div>
+</div>
+<!-- Comparison Item 2 -->
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="text-slate-700 dark:text-white font-medium">Query Set B (Medical)</span>
+<span class="text-emerald-500 font-bold">+24%</span>
+</div>
+<div class="h-6 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden relative flex">
+<div class="h-full bg-gray-400 dark:bg-slate-600 flex items-center justify-center text-[10px] text-white font-bold" style="width: 58%">Initial: 0.58</div>
+<div class="h-full bg-primary flex items-center justify-center text-[10px] text-white font-bold shadow-lg z-10" style="width: 24%">Rerank: 0.82</div>
+</div>
+</div>
+<!-- Comparison Item 3 -->
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="text-slate-700 dark:text-white font-medium">Query Set C (General)</span>
+<span class="text-emerald-500 font-bold">+12%</span>
+</div>
+<div class="h-6 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden relative flex">
+<div class="h-full bg-gray-400 dark:bg-slate-600 flex items-center justify-center text-[10px] text-white font-bold" style="width: 70%">Initial: 0.70</div>
+<div class="h-full bg-primary flex items-center justify-center text-[10px] text-white font-bold shadow-lg z-10" style="width: 12%">Rerank: 0.82</div>
+</div>
+</div>
+</div>
+<div class="mt-6 pt-4 border-t border-gray-100 dark:border-border-dark flex items-center justify-between text-xs">
+<span class="text-text-secondary">Based on human eval dataset v2.4</span>
+<a class="text-primary hover:underline" href="#">View Details</a>
+</div>
+</div>
+<!-- Recent Anomalies (Mini List) -->
+<div class="bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-border-dark p-6 shadow-sm flex flex-col">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white">Recent Anomalies</h3>
+<button class="text-xs font-medium text-primary border border-primary/30 rounded-lg px-2 py-1 hover:bg-primary/10 transition-colors">View All</button>
+</div>
+<div class="flex-1 overflow-hidden">
+<div class="flex flex-col gap-3">
+<!-- Item 1 -->
+<div class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-[#101d23] border border-gray-100 dark:border-border-dark">
+<div class="mt-0.5 size-2 rounded-full bg-red-500 shrink-0"></div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900 dark:text-white truncate">High Latency Spike (P99 &gt; 5s)</p>
+<p class="text-xs text-text-secondary">Cluster-A / 10:42 AM</p>
+</div>
+<span class="text-xs font-mono text-text-secondary">Active</span>
+</div>
+<!-- Item 2 -->
+<div class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-[#101d23] border border-gray-100 dark:border-border-dark">
+<div class="mt-0.5 size-2 rounded-full bg-orange-400 shrink-0"></div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900 dark:text-white truncate">Token Limit Reached (Model: GPT-4)</p>
+<p class="text-xs text-text-secondary">Gateway-2 / 09:15 AM</p>
+</div>
+<span class="text-xs font-mono text-text-secondary">Resolved</span>
+</div>
+<!-- Item 3 -->
+<div class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-[#101d23] border border-gray-100 dark:border-border-dark">
+<div class="mt-0.5 size-2 rounded-full bg-yellow-400 shrink-0"></div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900 dark:text-white truncate">Degraded Retrieval Quality</p>
+<p class="text-xs text-text-secondary">Index-Main / Yesterday</p>
+</div>
+<span class="text-xs font-mono text-text-secondary">Investigating</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

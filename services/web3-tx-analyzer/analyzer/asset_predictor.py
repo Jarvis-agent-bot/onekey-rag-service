@@ -69,6 +69,21 @@ ASSET_CHANGE_RULES: dict[tuple[str, str], dict] = {
         "in": [],
         "amount_param": "amount",
     },
+    ("Aave V3", "depositETH"): {
+        "behavior": "deposit",
+        "out": [{"source": "native_value"}],
+        "in": [],
+    },
+    ("Aave V3", "flashLoan"): {
+        "behavior": "flash_loan",
+        "out": [],
+        "in": [],
+    },
+    ("Aave V3", "flashLoanSimple"): {
+        "behavior": "flash_loan",
+        "out": [],
+        "in": [],
+    },
     ("Aave V2", "withdraw"): {
         "behavior": "withdraw",
         "out": [{"source": "atoken_of_param", "param": "asset"}],
@@ -104,6 +119,39 @@ ASSET_CHANGE_RULES: dict[tuple[str, str], dict] = {
         "amount_out_param": "amountOutMin",
     },
     ("Uniswap V2", "swapExactTokensForETH"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "native"}],
+        "amount_param": "amountIn",
+        "amount_out_param": "amountOutMin",
+    },
+    ("Uniswap V2", "swapETHForExactTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "native_value"}],
+        "in": [{"source": "path_last", "param": "path"}],
+        "amount_out_param": "amountOut",
+    },
+    ("Uniswap V2", "swapTokensForExactETH"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "native"}],
+        "amount_param": "amountInMax",
+        "amount_out_param": "amountOut",
+    },
+    ("Uniswap V2", "swapExactTokensForTokensSupportingFeeOnTransferTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "path_last", "param": "path"}],
+        "amount_param": "amountIn",
+        "amount_out_param": "amountOutMin",
+    },
+    ("Uniswap V2", "swapExactETHForTokensSupportingFeeOnTransferTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "native_value"}],
+        "in": [{"source": "path_last", "param": "path"}],
+        "amount_out_param": "amountOutMin",
+    },
+    ("Uniswap V2", "swapExactTokensForETHSupportingFeeOnTransferTokens"): {
         "behavior": "swap",
         "out": [{"source": "path_first", "param": "path"}],
         "in": [{"source": "native"}],
@@ -146,6 +194,82 @@ ASSET_CHANGE_RULES: dict[tuple[str, str], dict] = {
         ],
         "amount_param": "liquidity",
     },
+    ("Uniswap V2", "removeLiquidityWithPermit"): {
+        "behavior": "liquidity_remove",
+        "out": [{"source": "lp_token"}],
+        "in": [
+            {"source": "param", "param": "tokenA"},
+            {"source": "param", "param": "tokenB"},
+        ],
+        "amount_param": "liquidity",
+    },
+    ("Uniswap V2", "removeLiquidityETHWithPermit"): {
+        "behavior": "liquidity_remove",
+        "out": [{"source": "lp_token"}],
+        "in": [
+            {"source": "param", "param": "token"},
+            {"source": "native"},
+        ],
+        "amount_param": "liquidity",
+    },
+
+    # ===== Uniswap V3 =====
+    ("Uniswap V3", "exactInputSingle"): {
+        "behavior": "swap",
+        "out": [{"source": "tuple_param", "param": "params.tokenIn"}],
+        "in": [{"source": "tuple_param", "param": "params.tokenOut"}],
+        "amount_param": "params.amountIn",
+        "amount_out_param": "params.amountOutMinimum",
+    },
+    ("Uniswap V3", "exactInput"): {
+        "behavior": "swap",
+        "out": [],  # 需要解析 path
+        "in": [],
+        "amount_param": "params.amountIn",
+        "amount_out_param": "params.amountOutMinimum",
+    },
+    ("Uniswap V3", "exactOutputSingle"): {
+        "behavior": "swap",
+        "out": [{"source": "tuple_param", "param": "params.tokenIn"}],
+        "in": [{"source": "tuple_param", "param": "params.tokenOut"}],
+        "amount_param": "params.amountInMaximum",
+        "amount_out_param": "params.amountOut",
+    },
+    ("Uniswap V3", "exactOutput"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+        "amount_param": "params.amountInMaximum",
+        "amount_out_param": "params.amountOut",
+    },
+    ("Uniswap V3", "multicall"): {
+        "behavior": "multicall",
+        "out": [],
+        "in": [],
+    },
+    ("Uniswap V3", "mint"): {
+        "behavior": "liquidity_add",
+        "out": [
+            {"source": "tuple_param", "param": "params.token0"},
+            {"source": "tuple_param", "param": "params.token1"},
+        ],
+        "in": [],
+    },
+    ("Uniswap V3", "increaseLiquidity"): {
+        "behavior": "liquidity_add",
+        "out": [],
+        "in": [],
+    },
+    ("Uniswap V3", "decreaseLiquidity"): {
+        "behavior": "liquidity_remove",
+        "out": [],
+        "in": [],
+    },
+    ("Uniswap V3", "collect"): {
+        "behavior": "claim",
+        "out": [],
+        "in": [],
+    },
 
     # ===== SushiSwap (same as Uniswap V2) =====
     ("SushiSwap", "swapExactTokensForTokens"): {
@@ -153,6 +277,248 @@ ASSET_CHANGE_RULES: dict[tuple[str, str], dict] = {
         "out": [{"source": "path_first", "param": "path"}],
         "in": [{"source": "path_last", "param": "path"}],
         "amount_param": "amountIn",
+    },
+    ("SushiSwap", "swapExactETHForTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "native_value"}],
+        "in": [{"source": "path_last", "param": "path"}],
+        "amount_out_param": "amountOutMin",
+    },
+    ("SushiSwap", "swapExactTokensForETH"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "native"}],
+        "amount_param": "amountIn",
+    },
+    ("SushiSwap", "addLiquidity"): {
+        "behavior": "liquidity_add",
+        "out": [
+            {"source": "param", "param": "tokenA"},
+            {"source": "param", "param": "tokenB"},
+        ],
+        "in": [{"source": "lp_token"}],
+    },
+    ("SushiSwap", "removeLiquidity"): {
+        "behavior": "liquidity_remove",
+        "out": [{"source": "lp_token"}],
+        "in": [
+            {"source": "param", "param": "tokenA"},
+            {"source": "param", "param": "tokenB"},
+        ],
+    },
+
+    # ===== PancakeSwap (same as Uniswap V2) =====
+    ("PancakeSwap", "swapExactTokensForTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "path_last", "param": "path"}],
+        "amount_param": "amountIn",
+    },
+    ("PancakeSwap", "swapExactETHForTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "native_value"}],
+        "in": [{"source": "path_last", "param": "path"}],
+    },
+    ("PancakeSwap", "swapExactTokensForETH"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "native"}],
+    },
+    ("PancakeSwap", "swapExactTokensForTokensSupportingFeeOnTransferTokens"): {
+        "behavior": "swap",
+        "out": [{"source": "path_first", "param": "path"}],
+        "in": [{"source": "path_last", "param": "path"}],
+    },
+
+    # ===== 1inch =====
+    ("1inch", "swap"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+    },
+    ("1inch", "unoswap"): {
+        "behavior": "swap",
+        "out": [{"source": "param", "param": "srcToken"}],
+        "in": [],
+        "amount_param": "amount",
+    },
+    ("1inch", "unoswapTo"): {
+        "behavior": "swap",
+        "out": [{"source": "param", "param": "srcToken"}],
+        "in": [],
+        "amount_param": "amount",
+    },
+    ("1inch", "uniswapV3Swap"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+        "amount_param": "amount",
+    },
+    ("1inch", "uniswapV3SwapTo"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+        "amount_param": "amount",
+    },
+    ("1inch", "fillOrder"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+    },
+    ("1inch", "fillOrderRFQ"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+    },
+
+    # ===== Curve =====
+    ("Curve", "exchange"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+        "amount_param": "dx",
+        "amount_out_param": "min_dy",
+    },
+    ("Curve", "exchange_underlying"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+        "amount_param": "dx",
+        "amount_out_param": "min_dy",
+    },
+    ("Curve", "add_liquidity"): {
+        "behavior": "liquidity_add",
+        "out": [],
+        "in": [],
+    },
+    ("Curve", "remove_liquidity"): {
+        "behavior": "liquidity_remove",
+        "out": [],
+        "in": [],
+    },
+    ("Curve", "remove_liquidity_one_coin"): {
+        "behavior": "liquidity_remove",
+        "out": [],
+        "in": [],
+    },
+    ("Curve", "remove_liquidity_imbalance"): {
+        "behavior": "liquidity_remove",
+        "out": [],
+        "in": [],
+    },
+
+    # ===== Compound V2 =====
+    ("Compound", "mint"): {
+        "behavior": "deposit",
+        "out": [],
+        "in": [{"source": "contract"}],  # cToken
+        "amount_param": "mintAmount",
+    },
+    ("Compound", "redeem"): {
+        "behavior": "withdraw",
+        "out": [{"source": "contract"}],  # cToken
+        "in": [],
+        "amount_param": "redeemTokens",
+    },
+    ("Compound", "redeemUnderlying"): {
+        "behavior": "withdraw",
+        "out": [{"source": "contract"}],
+        "in": [],
+        "amount_param": "redeemAmount",
+    },
+    ("Compound", "borrow"): {
+        "behavior": "borrow",
+        "out": [],
+        "in": [],
+        "amount_param": "borrowAmount",
+    },
+    ("Compound", "repayBorrow"): {
+        "behavior": "repay",
+        "out": [],
+        "in": [],
+        "amount_param": "repayAmount",
+    },
+
+    # ===== Compound V3 (Comet) =====
+    ("Compound V3", "supply"): {
+        "behavior": "deposit",
+        "out": [{"source": "param", "param": "asset"}],
+        "in": [],
+        "amount_param": "amount",
+    },
+    ("Compound V3", "withdraw"): {
+        "behavior": "withdraw",
+        "out": [],
+        "in": [{"source": "param", "param": "asset"}],
+        "amount_param": "amount",
+    },
+
+    # ===== Balancer =====
+    ("Balancer", "swap"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+    },
+    ("Balancer", "batchSwap"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
+    },
+    ("Balancer", "joinPool"): {
+        "behavior": "liquidity_add",
+        "out": [],
+        "in": [],
+    },
+    ("Balancer", "exitPool"): {
+        "behavior": "liquidity_remove",
+        "out": [],
+        "in": [],
+    },
+
+    # ===== Yearn =====
+    ("Yearn", "deposit"): {
+        "behavior": "deposit",
+        "out": [],
+        "in": [{"source": "contract"}],  # yToken
+    },
+    ("Yearn", "withdraw"): {
+        "behavior": "withdraw",
+        "out": [{"source": "contract"}],
+        "in": [],
+    },
+
+    # ===== Convex =====
+    ("Convex", "deposit"): {
+        "behavior": "deposit",
+        "out": [],
+        "in": [],
+    },
+    ("Convex", "withdraw"): {
+        "behavior": "withdraw",
+        "out": [],
+        "in": [],
+    },
+    ("Convex", "getReward"): {
+        "behavior": "claim",
+        "out": [],
+        "in": [],
+    },
+
+    # ===== GMX =====
+    ("GMX", "createIncreasePosition"): {
+        "behavior": "open_position",
+        "out": [],
+        "in": [],
+    },
+    ("GMX", "createDecreasePosition"): {
+        "behavior": "close_position",
+        "out": [],
+        "in": [],
+    },
+    ("GMX", "swap"): {
+        "behavior": "swap",
+        "out": [],
+        "in": [],
     },
 
     # ===== WETH =====
@@ -206,6 +572,63 @@ ASSET_CHANGE_RULES: dict[tuple[str, str], dict] = {
         "out": [{"source": "contract"}],
         "in": [{"source": "steth"}],
     },
+    ("Lido", "requestWithdrawals"): {
+        "behavior": "unstake",
+        "out": [{"source": "contract"}],
+        "in": [],
+    },
+    ("Lido", "claimWithdrawals"): {
+        "behavior": "claim",
+        "out": [],
+        "in": [{"source": "native"}],
+    },
+
+    # ===== Rocket Pool =====
+    ("Rocket Pool", "deposit"): {
+        "behavior": "stake",
+        "out": [{"source": "native_value"}],
+        "in": [{"source": "contract"}],  # rETH
+    },
+    ("Rocket Pool", "burn"): {
+        "behavior": "unstake",
+        "out": [{"source": "contract"}],
+        "in": [{"source": "native"}],
+    },
+
+    # ===== OpenSea / NFT Marketplaces =====
+    ("OpenSea", "fulfillBasicOrder"): {
+        "behavior": "nft_buy",
+        "out": [{"source": "native_value"}],
+        "in": [],
+    },
+    ("OpenSea", "fulfillOrder"): {
+        "behavior": "nft_trade",
+        "out": [],
+        "in": [],
+    },
+    ("Blur", "execute"): {
+        "behavior": "nft_trade",
+        "out": [],
+        "in": [],
+    },
+
+    # ===== Permit2 =====
+    ("Permit2", "permit"): {
+        "behavior": "approve",
+        "out": [],
+        "in": [],
+        "approval": True,
+    },
+    ("Permit2", "permitTransferFrom"): {
+        "behavior": "transfer",
+        "out": [],
+        "in": [],
+    },
+    ("Permit2", "permitBatchTransferFrom"): {
+        "behavior": "transfer",
+        "out": [],
+        "in": [],
+    },
 
     # ===== ERC20 标准 =====
     ("*", "transfer"): {
@@ -225,6 +648,43 @@ ASSET_CHANGE_RULES: dict[tuple[str, str], dict] = {
         "out": [],
         "in": [{"source": "contract"}],
         "amount_param": "amount",
+    },
+    ("*", "increaseAllowance"): {
+        "behavior": "approve",
+        "out": [],
+        "in": [],
+        "approval": True,
+    },
+    ("*", "decreaseAllowance"): {
+        "behavior": "approve",
+        "out": [],
+        "in": [],
+        "approval": True,
+    },
+
+    # ===== ERC721 标准 =====
+    ("*", "safeTransferFrom"): {
+        "behavior": "nft_transfer",
+        "out": [],
+        "in": [],
+    },
+    ("*", "setApprovalForAll"): {
+        "behavior": "nft_approve",
+        "out": [],
+        "in": [],
+        "approval": True,
+    },
+
+    # ===== ERC1155 标准 =====
+    ("*", "safeTransferFrom"): {
+        "behavior": "nft_transfer",
+        "out": [],
+        "in": [],
+    },
+    ("*", "safeBatchTransferFrom"): {
+        "behavior": "nft_transfer",
+        "out": [],
+        "in": [],
     },
 }
 

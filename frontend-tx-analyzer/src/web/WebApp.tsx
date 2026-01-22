@@ -1,23 +1,29 @@
-import { useState, useEffect } from 'react'
-import { History, Shield, ExternalLink, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { History, Shield, ExternalLink } from 'lucide-react'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { ChevronDown } from 'lucide-react'
 import { CHAIN_INFO } from '@/lib/constants'
 import type { SmartAnalyzeResponse, InputType } from '@/api/types'
 
-// Import existing analysis components
-import { ResultOverview } from '@/features/analyze/ResultOverview'
-import { RiskAssessment } from '@/features/analyze/RiskAssessment'
-import { MethodDetail } from '@/features/analyze/MethodDetail'
-import { EventList } from '@/features/analyze/EventList'
-import { RagExplanation } from '@/features/analyze/RagExplanation'
-import { TraceTimeline } from '@/features/analyze/TraceTimeline'
-
-// Import smart analyze components
-import { SmartInput } from '@/features/analyze/SmartInput'
-import { CalldataResult } from '@/features/analyze/CalldataResult'
-import { SignatureResult } from '@/features/analyze/SignatureResult'
+// 新的核心组件
+import {
+  TransactionSummary,
+  AssetChanges,
+  SearchFlowCompact,
+  RagDetails,
+  MethodDetail,
+  EventList,
+  SmartInput,
+  CalldataResult,
+  SignatureResult,
+} from '@/features/analyze'
 
 // API base URL - always use relative path for production (nginx proxy)
 // In development mode only, can use VITE_TX_ANALYZER_WEB_API_URL for direct API calls
@@ -39,9 +45,27 @@ export function WebApp() {
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
 
-  // Load history on mount
+  // Load history on mount and check for URL params
   useEffect(() => {
     loadHistory()
+
+    // Auto-analyze from URL parameters
+    const params = new URLSearchParams(window.location.search)
+    const txHash = params.get('tx')
+    const chainParam = params.get('chain')
+
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      const chainId = chainParam ? parseInt(chainParam) : 1
+      handleSmartAnalyze({
+        input: txHash,
+        inputType: 'tx_hash',
+        chainId,
+        options: {
+          includeExplanation: true,
+          includeTrace: true,
+        },
+      })
+    }
   }, [])
 
   const loadHistory = () => {
@@ -85,6 +109,7 @@ export function WebApp() {
     options: {
       includeExplanation: boolean
       includeTrace: boolean
+      includeSimulation?: boolean
     }
   }) => {
     setError(null)
@@ -104,6 +129,7 @@ export function WebApp() {
           options: {
             include_explanation: data.options.includeExplanation,
             include_trace: data.options.includeTrace,
+            include_simulation: data.options.includeSimulation ?? false,
             language: 'zh',
           },
         }),
@@ -172,70 +198,50 @@ export function WebApp() {
 
         {/* Smart Analyze Results */}
         {smartResult && (
-          <div className="mt-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">分析结果</h2>
-              <span className="text-xs text-muted-foreground">
-                Trace ID: {smartResult.trace_id}
-              </span>
-            </div>
-
-            <Separator />
+          <div className="mt-6 space-y-4">
+            {/* 执行流程 - 紧凑模式，默认折叠 */}
+            <SearchFlowCompact
+              steps={smartResult.trace_log ?? null}
+              timings={smartResult.timings}
+            />
 
             {/* Transaction Result */}
             {smartResult.input_type === 'tx_hash' && smartResult.tx_result && (
               <>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <RiskAssessment
-                    explanation={smartResult.explanation}
-                    riskFlags={smartResult.tx_result.risk_flags}
-                  />
-                  <ResultOverview result={smartResult.tx_result} />
-                </div>
+                {/* 核心信息：交易摘要 (合并了风险+概览) */}
+                <TransactionSummary
+                  result={smartResult.tx_result}
+                  explanation={smartResult.explanation}
+                />
 
-                <Tabs defaultValue="method" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="method">方法详情</TabsTrigger>
-                    <TabsTrigger value="events">
-                      事件 ({smartResult.tx_result.events.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="explanation">RAG 解释</TabsTrigger>
-                    <TabsTrigger value="trace">Trace 追踪</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="method" className="mt-4">
-                    <MethodDetail
-                      method={smartResult.tx_result.method}
-                      inputData={smartResult.tx_result.input}
-                      diagnostics={smartResult.tx_result.diagnostics}
-                    />
-                  </TabsContent>
-                  <TabsContent value="events" className="mt-4">
-                    <EventList
-                      events={smartResult.tx_result.events}
-                      chainId={smartResult.tx_result.chain_id}
-                      diagnostics={smartResult.tx_result.diagnostics}
-                    />
-                  </TabsContent>
-                  <TabsContent value="explanation" className="mt-4">
-                    <RagExplanation explanation={smartResult.explanation} />
-                  </TabsContent>
-                  <TabsContent value="trace" className="mt-4">
-                    <TraceTimeline
-                      steps={null}
-                      timings={smartResult.timings}
-                    />
-                  </TabsContent>
-                </Tabs>
+                {/* 资产变化 (统一展示) */}
+                <AssetChanges
+                  explanation={smartResult.explanation}
+                  simulation={smartResult.simulation_result}
+                />
+
+                {/* 技术详情 - 可折叠 */}
+                <TechDetailsSection
+                  txResult={smartResult.tx_result}
+                  explanation={smartResult.explanation}
+                />
               </>
             )}
 
             {/* Calldata Result */}
             {smartResult.input_type === 'calldata' && smartResult.decode_result && (
               <>
+                {/* 资产变化 (优先显示模拟结果) */}
+                <AssetChanges
+                  simulation={smartResult.simulation_result}
+                  calldataAssets={smartResult.decode_result.asset_changes_from_simulation}
+                />
+
+                {/* Calldata 解码结果 */}
                 <CalldataResult result={smartResult.decode_result} formatted={null} />
-                {smartResult.explanation && (
-                  <RagExplanation explanation={smartResult.explanation} />
-                )}
+
+                {/* RAG 详情 */}
+                <RagDetails explanation={smartResult.explanation} />
               </>
             )}
 
@@ -243,9 +249,7 @@ export function WebApp() {
             {smartResult.input_type === 'signature' && smartResult.signature_result && (
               <>
                 <SignatureResult result={smartResult.signature_result} summary={null} />
-                {smartResult.explanation && (
-                  <RagExplanation explanation={smartResult.explanation} />
-                )}
+                <RagDetails explanation={smartResult.explanation} />
               </>
             )}
 
@@ -259,66 +263,117 @@ export function WebApp() {
         )}
 
         {/* History */}
-        {!isLoading && !smartResult && history.length > 0 && (
+        {!isLoading && !smartResult && (
           <div className="mt-6 space-y-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <History className="h-4 w-4" />
               <span className="font-medium">最近分析</span>
             </div>
-            <div className="grid md:grid-cols-2 gap-3">
-              {history.slice(0, 10).map((item, i) => (
-                <button
-                  key={i}
-                  className="text-left p-4 rounded-lg border hover:bg-accent transition-colors"
-                  onClick={() => {
-                    // Trigger smart analyze with the history item
-                    handleSmartAnalyze({
-                      input: item.txHash,
-                      inputType: 'tx_hash',
-                      chainId: item.chainId,
-                      options: {
-                        includeExplanation: true,
-                        includeTrace: false,
-                      },
-                    })
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: CHAIN_INFO[item.chainId]?.color || '#888' }}
-                    />
-                    <span className="font-medium">
-                      {CHAIN_INFO[item.chainId]?.name || `Chain ${item.chainId}`}
-                    </span>
-                  </div>
-                  <p className="text-sm font-mono text-muted-foreground truncate">
-                    {item.txHash}
-                  </p>
-                </button>
-              ))}
-            </div>
+            {history.length > 0 ? (
+              <div className="grid md:grid-cols-2 gap-3">
+                {history.slice(0, 10).map((item, i) => (
+                  <button
+                    key={i}
+                    className="text-left p-4 rounded-lg border hover:bg-accent transition-colors"
+                    onClick={() => {
+                      handleSmartAnalyze({
+                        input: item.txHash,
+                        inputType: 'tx_hash',
+                        chainId: item.chainId,
+                        options: {
+                          includeExplanation: true,
+                          includeTrace: true,
+                        },
+                      })
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: CHAIN_INFO[item.chainId]?.color || '#888' }}
+                      />
+                      <span className="font-medium">
+                        {CHAIN_INFO[item.chainId]?.name || `Chain ${item.chainId}`}
+                      </span>
+                    </div>
+                    <p className="text-sm font-mono text-muted-foreground truncate">
+                      {item.txHash}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">暂无历史记录</p>
+                <p className="text-xs mt-1">分析交易后会自动保存到历史</p>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Empty State */}
-        {!isLoading && !smartResult && history.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Zap className="h-16 w-16 text-muted-foreground/50 mb-6" />
-            <h3 className="text-lg font-medium mb-2">开始智能分析</h3>
-            <p className="text-muted-foreground max-w-md">
-              输入交易哈希、Calldata 或 EIP-712 签名数据，获取 AI 驱动的安全分析报告
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="py-6 border-t text-center">
-        <p className="text-sm text-muted-foreground">
-          由 <a href="https://onekey.so" className="text-primary hover:underline">OneKey</a> RAG 驱动
-        </p>
       </div>
     </div>
+  )
+}
+
+/** 技术详情折叠区域 */
+function TechDetailsSection({
+  txResult,
+  explanation,
+}: {
+  txResult: SmartAnalyzeResponse['tx_result']
+  explanation: SmartAnalyzeResponse['explanation']
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  if (!txResult) return null
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          className="w-full flex items-center justify-between p-4 h-auto border rounded-lg hover:bg-muted/50"
+        >
+          <span className="text-sm font-medium">技术详情</span>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span className="text-xs">
+              方法 · 事件({txResult.events.length}) · AI 分析
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            />
+          </div>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2">
+        <Tabs defaultValue="method" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="method">方法详情</TabsTrigger>
+            <TabsTrigger value="events">
+              事件 ({txResult.events.length})
+            </TabsTrigger>
+            <TabsTrigger value="rag">AI 分析</TabsTrigger>
+          </TabsList>
+          <TabsContent value="method" className="mt-4">
+            <MethodDetail
+              method={txResult.method}
+              inputData={txResult.input}
+              diagnostics={txResult.diagnostics}
+            />
+          </TabsContent>
+          <TabsContent value="events" className="mt-4">
+            <EventList
+              events={txResult.events}
+              chainId={txResult.chain_id}
+              diagnostics={txResult.diagnostics}
+            />
+          </TabsContent>
+          <TabsContent value="rag" className="mt-4">
+            <RagDetails explanation={explanation} />
+          </TabsContent>
+        </Tabs>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }

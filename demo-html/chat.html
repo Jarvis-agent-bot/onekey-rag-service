@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OneKey Admin - Chat Test</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0da6f2",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#101c22",
+                        "surface-dark": "#16262e", // Slightly lighter for panels
+                        "border-dark": "#223c49",
+                        "text-secondary": "#90b7cb",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display h-screen flex overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-64 flex-shrink-0 border-r border-border-dark flex flex-col bg-[#101d23]">
+<div class="flex flex-col h-full p-4 justify-between">
+<div class="flex flex-col gap-6">
+<!-- Branding -->
+<div class="flex gap-3 px-2">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 shrink-0 bg-primary/20 flex items-center justify-center text-primary" data-alt="OneKey Logo Abstract">
+<span class="material-symbols-outlined">all_inclusive</span>
+</div>
+<div class="flex flex-col justify-center">
+<h1 class="text-white text-base font-medium leading-none mb-1">OneKey Admin</h1>
+<p class="text-text-secondary text-xs font-normal">RAG Platform</p>
+</div>
+</div>
+<!-- Navigation -->
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-dark text-white shadow-sm border border-border-dark/50" href="#">
+<span class="material-symbols-outlined icon-fill">apps</span>
+<span class="text-sm font-medium">Apps</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">key</span>
+<span class="text-sm font-medium">Keys</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+</div>
+<!-- User Profile -->
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-surface-dark cursor-pointer transition-colors mt-auto border-t border-border-dark pt-4">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-8 bg-gradient-to-br from-blue-400 to-purple-500" data-alt="User Avatar Gradient"></div>
+<div class="flex flex-col">
+<p class="text-white text-sm font-medium">Admin User</p>
+<p class="text-text-secondary text-xs">admin@onekey.ai</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col min-w-0 bg-background-dark">
+<!-- Header Section -->
+<header class="flex-shrink-0 border-b border-border-dark bg-[#101d23]">
+<div class="px-6 pt-5 pb-0">
+<!-- Breadcrumbs -->
+<div class="flex flex-wrap items-center gap-2 mb-4">
+<a class="text-text-secondary text-sm font-medium hover:text-primary transition-colors" href="#">Apps</a>
+<span class="material-symbols-outlined text-text-secondary text-sm">chevron_right</span>
+<a class="text-text-secondary text-sm font-medium hover:text-primary transition-colors" href="#">Customer Support Bot</a>
+<span class="material-symbols-outlined text-text-secondary text-sm">chevron_right</span>
+<span class="text-white text-sm font-medium px-2 py-0.5 rounded bg-primary/10 text-primary">Test Environment</span>
+</div>
+<!-- Headline & Actions -->
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-white text-xl font-bold">Customer Support Bot V2</h2>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-dark border border-border-dark text-text-secondary hover:text-white hover:border-text-secondary transition-all text-sm font-medium">
+<span class="material-symbols-outlined text-[18px]">history</span>
+                            History
+                        </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-sky-500 text-white shadow-lg shadow-primary/20 transition-all text-sm font-medium">
+<span class="material-symbols-outlined text-[18px]">rocket_launch</span>
+                            Publish Changes
+                        </button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex gap-8">
+<a class="flex items-center gap-2 border-b-2 border-transparent text-text-secondary pb-3 px-1 hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">tune</span>
+<span class="text-sm font-medium">Configuration</span>
+</a>
+<a class="flex items-center gap-2 border-b-2 border-transparent text-text-secondary pb-3 px-1 hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">database</span>
+<span class="text-sm font-medium">Knowledge Bases</span>
+</a>
+<a class="flex items-center gap-2 border-b-2 border-primary text-white pb-3 px-1" href="#">
+<span class="material-symbols-outlined text-[20px] icon-fill text-primary">chat_bubble</span>
+<span class="text-sm font-bold text-primary">Test</span>
+</a>
+<a class="flex items-center gap-2 border-b-2 border-transparent text-text-secondary pb-3 px-1 hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">analytics</span>
+<span class="text-sm font-medium">Statistics</span>
+</a>
+</div>
+</div>
+</header>
+<!-- Workspace Split View -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Chat Interface (Middle) -->
+<div class="flex-1 flex flex-col relative bg-[#13232b]">
+<!-- Messages Area -->
+<div class="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+<!-- Date Separator -->
+<div class="flex justify-center">
+<span class="text-xs font-medium text-text-secondary bg-surface-dark px-3 py-1 rounded-full border border-border-dark">Today, 10:23 AM</span>
+</div>
+<!-- User Message -->
+<div class="flex items-end gap-3 justify-end">
+<div class="flex flex-col items-end gap-1 max-w-[80%]">
+<div class="px-5 py-3 rounded-2xl rounded-tr-none bg-primary text-white shadow-md">
+<p class="text-sm leading-relaxed">What are the specific features of the Pro plan vs the Free plan?</p>
+</div>
+<span class="text-text-secondary text-[11px] pr-1">Admin • 10:23 AM</span>
+</div>
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-8 shrink-0 bg-gradient-to-br from-blue-400 to-purple-500 shadow-sm" data-alt="User Avatar"></div>
+</div>
+<!-- AI Message -->
+<div class="flex items-start gap-4 justify-start">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-8 shrink-0 bg-white flex items-center justify-center shadow-sm" data-alt="AI Bot Logo">
+<span class="material-symbols-outlined text-black text-[20px]">smart_toy</span>
+</div>
+<div class="flex flex-col items-start gap-1 max-w-[80%]">
+<div class="px-5 py-4 rounded-2xl rounded-tl-none bg-surface-dark border border-border-dark text-gray-100 shadow-sm">
+<p class="text-sm leading-relaxed mb-3">Based on the latest pricing documentation, here is a comparison between the <strong>Pro</strong> and <strong>Free</strong> plans:</p>
+<ul class="list-disc list-outside ml-4 space-y-1 text-sm text-gray-300 mb-3">
+<li><strong class="text-white">Usage Limits:</strong> Free plan allows 50 queries/day, while Pro offers unlimited queries.</li>
+<li><strong class="text-white">Knowledge Base:</strong> Free is limited to 1 file (max 5MB). Pro supports up to 50 files (max 100MB each).</li>
+<li><strong class="text-white">Support:</strong> Pro users get priority email support and SLA guarantees.</li>
+</ul>
+<p class="text-sm leading-relaxed">Would you like to know about the Enterprise tier as well?</p>
+</div>
+<!-- AI Feedback Actions -->
+<div class="flex items-center gap-2 pl-1">
+<span class="text-text-secondary text-[11px]">AI Assistant • 1.4s</span>
+<div class="w-px h-3 bg-border-dark mx-1"></div>
+<button class="text-text-secondary hover:text-green-400 transition-colors" title="Good response">
+<span class="material-symbols-outlined text-[16px]">thumb_up</span>
+</button>
+<button class="text-text-secondary hover:text-red-400 transition-colors" title="Bad response">
+<span class="material-symbols-outlined text-[16px]">thumb_down</span>
+</button>
+<button class="text-text-secondary hover:text-primary transition-colors ml-1" title="Copy text">
+<span class="material-symbols-outlined text-[16px]">content_copy</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Loading Indicator (Hidden by default, shown for design purpose) -->
+<!-- 
+                    <div class="flex items-start gap-4 justify-start opacity-50">
+                        <div class="bg-center bg-no-repeat bg-cover rounded-full size-8 shrink-0 bg-white flex items-center justify-center shadow-sm">
+                           <span class="material-symbols-outlined text-black text-[20px]">smart_toy</span>
+                        </div>
+                        <div class="flex items-center gap-1 px-4 py-3 rounded-2xl rounded-tl-none bg-surface-dark border border-border-dark">
+                            <div class="w-2 h-2 rounded-full bg-text-secondary animate-bounce"></div>
+                            <div class="w-2 h-2 rounded-full bg-text-secondary animate-bounce delay-75"></div>
+                            <div class="w-2 h-2 rounded-full bg-text-secondary animate-bounce delay-150"></div>
+                        </div>
+                    </div> 
+                    -->
+</div>
+<!-- Input Area -->
+<div class="p-6 pt-2 bg-[#13232b]">
+<div class="relative flex flex-col bg-surface-dark rounded-xl border border-border-dark shadow-sm focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary transition-all">
+<textarea class="w-full bg-transparent text-white text-sm placeholder-text-secondary p-4 min-h-[60px] max-h-[200px] resize-none focus:outline-none" placeholder="Type your message to test the bot..."></textarea>
+<div class="flex justify-between items-center px-3 pb-3">
+<div class="flex gap-1">
+<button class="p-2 rounded hover:bg-white/5 text-text-secondary hover:text-white transition-colors" title="Attach">
+<span class="material-symbols-outlined text-[20px]">attach_file</span>
+</button>
+<button class="p-2 rounded hover:bg-white/5 text-text-secondary hover:text-white transition-colors" title="Clear History">
+<span class="material-symbols-outlined text-[20px]">delete_sweep</span>
+</button>
+</div>
+<button class="flex items-center justify-center size-9 rounded-lg bg-primary hover:bg-sky-500 text-white shadow-lg shadow-primary/20 transition-all">
+<span class="material-symbols-outlined text-[20px] icon-fill">send</span>
+</button>
+</div>
+</div>
+<div class="text-center mt-2">
+<p class="text-[10px] text-text-secondary">AI can make mistakes. Consider checking important information.</p>
+</div>
+</div>
+</div>
+<!-- Right Inspector Panel -->
+<div class="w-80 flex-shrink-0 border-l border-border-dark bg-[#101d23] flex flex-col overflow-y-auto custom-scrollbar">
+<!-- Reference Sources Section -->
+<div class="p-5 border-b border-border-dark">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-sm font-bold text-white uppercase tracking-wider">Reference Sources</h3>
+<span class="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">2 Found</span>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Source Card 1 -->
+<div class="p-3 rounded-lg bg-surface-dark border border-border-dark hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="flex items-start justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-red-400 text-[18px]">picture_as_pdf</span>
+<span class="text-xs font-medium text-gray-200 truncate max-w-[120px]">pricing_guide_2023.pdf</span>
+</div>
+<span class="text-[10px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">92% Match</span>
+</div>
+<p class="text-[11px] text-text-secondary line-clamp-2 leading-relaxed group-hover:text-gray-300">
+                                ...The Pro plan is designed for scaling teams. It removes the daily query limit enforced on the Free tier...
+                            </p>
+</div>
+<!-- Source Card 2 -->
+<div class="p-3 rounded-lg bg-surface-dark border border-border-dark hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="flex items-start justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-400 text-[18px]">description</span>
+<span class="text-xs font-medium text-gray-200 truncate max-w-[120px]">feature_matrix.docx</span>
+</div>
+<span class="text-[10px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">85% Match</span>
+</div>
+<p class="text-[11px] text-text-secondary line-clamp-2 leading-relaxed group-hover:text-gray-300">
+                                ...Storage capacities: Free (5MB total), Pro (5GB total), Enterprise (Unlimited)...
+                            </p>
+</div>
+</div>
+</div>
+<!-- Parameters Section -->
+<div class="p-5">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-sm font-bold text-white uppercase tracking-wider">Current Parameters</h3>
+<button class="text-xs text-primary hover:underline">Edit</button>
+</div>
+<div class="space-y-5">
+<!-- Model Selection -->
+<div class="flex flex-col gap-2">
+<label class="text-xs text-text-secondary font-medium">Model</label>
+<div class="flex items-center justify-between px-3 py-2 bg-surface-dark rounded border border-border-dark">
+<span class="text-sm text-white">GPT-4 Turbo</span>
+<span class="material-symbols-outlined text-text-secondary text-[16px]">smart_toy</span>
+</div>
+</div>
+<!-- Temperature Slider -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between">
+<label class="text-xs text-text-secondary font-medium">Temperature</label>
+<span class="text-xs text-white font-mono">0.7</span>
+</div>
+<div class="relative w-full h-1 bg-border-dark rounded-full">
+<div class="absolute left-0 top-0 h-full w-[70%] bg-primary rounded-full"></div>
+<div class="absolute left-[70%] top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow cursor-pointer hover:scale-110 transition-transform"></div>
+</div>
+<div class="flex justify-between text-[10px] text-text-secondary/50">
+<span>Precise</span>
+<span>Creative</span>
+</div>
+</div>
+<!-- Top K -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between">
+<label class="text-xs text-text-secondary font-medium">Top K</label>
+<span class="text-xs text-white font-mono">4</span>
+</div>
+<div class="relative w-full h-1 bg-border-dark rounded-full">
+<div class="absolute left-0 top-0 h-full w-[40%] bg-primary rounded-full"></div>
+<div class="absolute left-[40%] top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow cursor-pointer hover:scale-110 transition-transform"></div>
+</div>
+</div>
+<!-- System Prompt Preview -->
+<div class="flex flex-col gap-2 pt-2 border-t border-border-dark">
+<label class="text-xs text-text-secondary font-medium">System Prompt Override</label>
+<div class="p-3 bg-surface-dark rounded border border-border-dark text-xs text-text-secondary font-mono leading-relaxed h-24 overflow-y-auto">
+                                You are a helpful customer support agent for OneKey. Answer questions strictly based on the provided context. If the answer is not in the context, say "I don't know".
+                            </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

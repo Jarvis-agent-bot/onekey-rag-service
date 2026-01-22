@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
@@ -46,6 +47,7 @@ export function FeedbackPage() {
     queryFn: () => apiFetch<AppsResp>(`/admin/api/workspaces/${workspaceId}/apps`),
     enabled: !!workspaceId,
   });
+  const appById = useMemo(() => new Map((apps.data?.items || []).map((a) => [a.id, a])), [apps.data?.items]);
 
   const pageSize = 20;
   const page = Math.max(1, Number.parseInt(sp.get("page") || "1", 10) || 1);
@@ -195,7 +197,15 @@ export function FeedbackPage() {
                 (list.data?.items || []).map((it) => (
                   <tr key={it.id} className="border-t align-top">
                     <td className="py-2 font-mono text-xs text-muted-foreground">{it.created_at || "-"}</td>
-                    <td className="py-2 font-mono text-xs">{it.app_id || "-"}</td>
+                    <td className="py-2 font-mono text-xs">
+                      {it.app_id ? (
+                        <Link className="underline underline-offset-2" to={`/apps/${it.app_id}`}>
+                          {appById.get(it.app_id)?.name || it.app_id}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="py-2">
                       <span className={it.rating === "down" ? "text-red-300" : "text-emerald-300"}>{it.rating}</span>
                     </td>

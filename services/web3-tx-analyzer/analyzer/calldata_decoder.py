@@ -5,9 +5,10 @@ Calldata 解码模块
 
 ABI 获取优先级:
 1. 用户提供的 ABI
-2. 本地合约注册表 (已知协议)
-3. Etherscan API (链上验证)
-4. 4bytes 签名数据库 (函数签名)
+2. Etherscan API (链上验证)
+3. 4bytes 签名数据库 (函数签名)
+
+注意: 协议识别、行为分析、风险评估等功能由 RAG 服务负责
 """
 from __future__ import annotations
 
@@ -18,10 +19,6 @@ from eth_utils import to_checksum_address
 
 from app_logging import get_logger, Tracer
 from .abi_decoder import ABIDecoder
-from .schemas import RiskFlag
-from .asset_predictor import AssetPredictor, AssetChange, get_asset_predictor
-from integrations.contract_registry import ContractRegistry, ContractInfo, get_contract_registry
-from integrations.token_service import get_token_service
 
 logger = get_logger(__name__)
 
@@ -42,93 +39,9 @@ class _NoOpTracer:
         return _NoOpTracerContext()
 
 
-# 已知的危险函数选择器
-DANGEROUS_SELECTORS: dict[str, dict[str, Any]] = {
-    # 无限授权
-    "0x095ea7b3": {
-        "name": "approve",
-        "risk_level": "check_value",  # 需要检查 value 参数
-        "description": "Token approval - check the approved amount",
-    },
-    # NFT 全部授权
-    "0xa22cb465": {
-        "name": "setApprovalForAll",
-        "risk_level": "high",
-        "description": "NFT approval for all tokens to an operator",
-    },
-    # Permit (无 gas 授权)
-    "0xd505accf": {
-        "name": "permit",
-        "risk_level": "high",
-        "description": "Gasless token approval via signature",
-    },
-    # Permit2
-    "0x2b67b570": {
-        "name": "permit",
-        "risk_level": "high",
-        "description": "Permit2 batch approval",
-    },
-    # 转账
-    "0xa9059cbb": {
-        "name": "transfer",
-        "risk_level": "medium",
-        "description": "Token transfer - verify recipient and amount",
-    },
-    "0x23b872dd": {
-        "name": "transferFrom",
-        "risk_level": "medium",
-        "description": "Token transfer from another address",
-    },
-}
-
-# 已知的安全/常见函数
-SAFE_SELECTORS: dict[str, str] = {
-    "0x70a08231": "balanceOf",
-    "0xdd62ed3e": "allowance",
-    "0x18160ddd": "totalSupply",
-    "0x313ce567": "decimals",
-    "0x06fdde03": "name",
-    "0x95d89b41": "symbol",
-}
-
-# 已知合约类型标识
-KNOWN_CONTRACT_PATTERNS: dict[str, list[str]] = {
-    "uniswap_v2_router": [
-        "0x38ed1739",  # swapExactTokensForTokens
-        "0x7ff36ab5",  # swapExactETHForTokens
-        "0xe8e33700",  # addLiquidity
-    ],
-    "uniswap_v3_router": [
-        "0x414bf389",  # exactInputSingle
-        "0xc04b8d59",  # exactInput
-    ],
-    "permit2": [
-        "0x2b67b570",  # permit
-        "0x2a2d80d1",  # permitTransferFrom
-    ],
-}
-
-
-@dataclass
-class ProtocolInfo:
-    """协议信息"""
-    protocol: str
-    name: str
-    type: str
-    website: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "protocol": self.protocol,
-            "name": self.name,
-            "type": self.type,
-            "website": self.website,
-        }
-
-
 @dataclass
 class DecodedCalldata:
-    """解码后的 calldata 结果"""
+    """解码后的 calldata 结果 - 仅包含基础解析信息"""
     # 基础信息
     selector: str
     raw_data: str
@@ -138,28 +51,17 @@ class DecodedCalldata:
     function_signature: str = ""
     inputs: list[dict[str, Any]] = field(default_factory=list)
 
-    # 分析结果
-    behavior_type: str = "unknown"
-    risk_level: str = "unknown"  # low, medium, high, unknown
-    risk_flags: list[RiskFlag] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    # ABI 来源
+    abi_source: str = "unknown"  # user_provided, etherscan, 4bytes, none
 
-    # 额外信息
-    possible_signatures: list[str] = field(default_factory=list)
-    contract_type: str | None = None
-
-    # 协议信息 (新增)
-    protocol_info: ProtocolInfo | None = None
-
-    # 资产变化预测 (新增)
-    asset_changes: list[AssetChange] = field(default_factory=list)
-
-    # ABI 来源 (新增)
-    abi_source: str = "unknown"  # user_provided, local_registry, etherscan, 4bytes, none
-
-    # 解码置信度 (新增) - 当使用 4bytes 且有多个候选时
+    # 解码置信度 - 当使用 4bytes 且有多个候选时
     decode_confidence: str = "high"  # high, medium, low
-    alternate_decodes: list[dict[str, Any]] = field(default_factory=list)  # 其他可能的解码结果
+    possible_signatures: list[str] = field(default_factory=list)
+    alternate_decodes: list[dict[str, Any]] = field(default_factory=list)
+    abi_fragment: dict[str, Any] | None = None
+
+    # 警告信息
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -168,17 +70,12 @@ class DecodedCalldata:
             "function_name": self.function_name,
             "function_signature": self.function_signature,
             "inputs": self.inputs,
-            "behavior_type": self.behavior_type,
-            "risk_level": self.risk_level,
-            "risk_flags": [rf.to_dict() if hasattr(rf, 'to_dict') else rf.__dict__ for rf in self.risk_flags],
-            "warnings": self.warnings,
-            "possible_signatures": self.possible_signatures,
-            "contract_type": self.contract_type,
-            "protocol_info": self.protocol_info.to_dict() if self.protocol_info else None,
-            "asset_changes": [ac.to_dict() for ac in self.asset_changes],
             "abi_source": self.abi_source,
             "decode_confidence": self.decode_confidence,
+            "possible_signatures": self.possible_signatures,
             "alternate_decodes": self.alternate_decodes,
+            "abi_fragment": self.abi_fragment,
+            "warnings": self.warnings,
         }
 
 
@@ -200,22 +97,17 @@ class CalldataContext:
 
 
 class CalldataDecoder:
-    """Calldata 解码器"""
+    """Calldata 解码器 - 仅负责基础解析"""
 
     def __init__(
         self,
         abi_decoder: ABIDecoder,
         signature_db: Any = None,
-        etherscan_client_factory: Any = None,  # Callable[[int], EtherscanClient] - chain_id -> client
-        contract_registry: ContractRegistry | None = None,
-        asset_predictor: AssetPredictor | None = None,
+        etherscan_client_factory: Any = None,  # Callable[[int], EtherscanClient]
     ):
         self.abi_decoder = abi_decoder
         self.signature_db = signature_db
-        self.etherscan_client_factory = etherscan_client_factory  # 根据 chain_id 创建 client
-        self.contract_registry = contract_registry or get_contract_registry()
-        self.asset_predictor = asset_predictor or get_asset_predictor()
-        self.token_service = get_token_service()
+        self.etherscan_client_factory = etherscan_client_factory
 
     async def decode(
         self,
@@ -225,22 +117,21 @@ class CalldataDecoder:
         tracer: Tracer | None = None,
     ) -> DecodedCalldata:
         """
-        解码 calldata
+        解码 calldata - 仅做基础解析
 
         ABI 获取优先级:
         1. 用户提供的 ABI
-        2. 本地合约注册表 (已知协议)
-        3. Etherscan API (链上验证)
-        4. 4bytes 签名数据库 (函数签名)
+        2. Etherscan API (链上验证)
+        3. 4bytes 签名数据库 (函数签名)
 
         Args:
             calldata: 原始 calldata (0x 开头)
             context: 解码上下文 (链ID, 目标地址等)
             abi: 可选的合约 ABI
-            tracer: 可选的追踪器，用于记录解码步骤
+            tracer: 可选的追踪器
 
         Returns:
-            DecodedCalldata: 解码结果
+            DecodedCalldata: 基础解码结果
         """
         context = context or CalldataContext()
         tracer = tracer or _NoOpTracer()
@@ -264,36 +155,6 @@ class CalldataDecoder:
             raw_data=calldata,
         )
 
-        # 0. 识别合约 (如果有目标地址)
-        contract_info: ContractInfo | None = None
-        if context.to_address:
-            with tracer.step("identify_contract", {"address": context.to_address, "chain_id": context.chain_id}) as step:
-                contract_info = self.contract_registry.identify_contract(
-                    context.chain_id, context.to_address
-                )
-                if contract_info:
-                    result.protocol_info = ProtocolInfo(
-                        protocol=contract_info.protocol,
-                        name=contract_info.name,
-                        type=contract_info.type,
-                        website=contract_info.website,
-                    )
-                    result.contract_type = contract_info.type
-                    step.set_output({
-                        "found": True,
-                        "protocol": contract_info.protocol,
-                        "name": contract_info.name,
-                        "type": contract_info.type,
-                    })
-                    logger.debug(
-                        "contract_identified",
-                        address=context.to_address,
-                        protocol=contract_info.protocol,
-                        name=contract_info.name,
-                    )
-                else:
-                    step.set_output({"found": False})
-
         # ABI 获取和解码流程
         decoded = None
         abi_source = "none"
@@ -309,26 +170,7 @@ class CalldataDecoder:
                 else:
                     step.set_output({"success": False})
 
-        # 2. 尝试从本地合约注册表获取 ABI
-        if (not decoded or not decoded.get("name")) and contract_info:
-            with tracer.step("local_abi_lookup", {"protocol": contract_info.protocol, "name": contract_info.name}) as step:
-                local_abi = self.contract_registry.get_local_abi(contract_info)
-                if local_abi:
-                    decoded = self.abi_decoder.decode_function_input(calldata, abi=local_abi)
-                    if decoded and decoded.get("name"):
-                        abi_source = "local_registry"
-                        step.set_output({"success": True, "function": decoded.get("name"), "protocol": contract_info.protocol})
-                        logger.debug(
-                            "decoded_with_local_abi",
-                            function=decoded.get("name"),
-                            protocol=contract_info.protocol,
-                        )
-                    else:
-                        step.set_output({"success": False, "reason": "decode_failed"})
-                else:
-                    step.set_output({"success": False, "reason": "no_local_abi"})
-
-        # 3. 尝试从 Etherscan 获取 ABI
+        # 2. 尝试从 Etherscan 获取 ABI
         if (not decoded or not decoded.get("name")) and self.etherscan_client_factory and context.to_address:
             with tracer.step("etherscan_abi_lookup", {"address": context.to_address, "chain_id": context.chain_id}) as step:
                 try:
@@ -339,6 +181,7 @@ class CalldataDecoder:
                             decoded = self.abi_decoder.decode_function_input(calldata, abi=etherscan_abi)
                             if decoded and decoded.get("name"):
                                 abi_source = "etherscan"
+                                result.abi_fragment = self.abi_decoder.find_function_abi(selector, etherscan_abi)
                                 step.set_output({"success": True, "function": decoded.get("name")})
                                 logger.debug(
                                     "decoded_with_etherscan_abi",
@@ -355,30 +198,26 @@ class CalldataDecoder:
                     step.set_output({"success": False, "error": str(e)})
                     logger.warning("etherscan_abi_error", error=str(e), address=context.to_address)
 
-        # 4. 如果还没解码成功，尝试从签名数据库查询
+        # 3. 如果还没解码成功，尝试从签名数据库查询
         if not decoded or not decoded.get("name"):
             with tracer.step("signature_lookup", {"selector": selector}) as step:
                 signatures = await self._lookup_signature(selector)
                 if signatures:
                     result.possible_signatures = signatures
 
-                    # 智能签名匹配：尝试所有候选签名，选择最佳匹配
+                    # 智能签名匹配
                     best_match = self._find_best_signature_match(calldata, signatures)
 
                     if best_match:
                         decoded = best_match["decoded"]
                         abi_source = "4bytes"
-
-                        # 设置解码置信度
                         result.decode_confidence = best_match["confidence"]
 
-                        # 如果有多个有效候选，添加警告和备选解码
                         if best_match["valid_count"] > 1:
                             result.warnings.append(
-                                f"Selector collision detected: {best_match['valid_count']} possible functions match this selector. "
-                                f"Showing '{decoded.get('name')}'. Other candidates: {', '.join(best_match['other_names'][:3])}"
+                                f"Selector collision: {best_match['valid_count']} possible functions. "
+                                f"Using '{decoded.get('name')}'. Others: {', '.join(best_match['other_names'][:3])}"
                             )
-                            # 存储备选解码结果供前端显示
                             result.alternate_decodes = [
                                 {"name": name} for name in best_match["other_names"][:5]
                             ]
@@ -390,167 +229,62 @@ class CalldataDecoder:
                             "valid_matches": best_match["valid_count"],
                             "confidence": best_match["confidence"],
                         })
-                        logger.debug(
-                            "decoded_with_4bytes",
-                            function=decoded.get("name"),
-                            selector=selector,
-                            valid_matches=best_match["valid_count"],
-                        )
                     else:
-                        step.set_output({"success": False, "candidates_count": len(signatures), "reason": "no_valid_decode"})
+                        step.set_output({"success": False, "candidates_count": len(signatures)})
                 else:
-                    step.set_output({"success": False, "candidates_count": 0, "reason": "no_signatures_found"})
+                    step.set_output({"success": False, "candidates_count": 0})
 
         result.abi_source = abi_source
 
-        # 3. 填充解码结果
+        # 填充解码结果
         if decoded:
             result.function_name = decoded.get("name", "")
             result.function_signature = decoded.get("signature", "")
             result.inputs = decoded.get("inputs", [])
 
-        # 4. 分析行为类型 - 优先使用资产预测器的结果
-        # 5. 预测资产变化
-        if result.function_name:
-            with tracer.step("predict_assets", {"function": result.function_name, "protocol": contract_info.protocol if contract_info else None}) as step:
-                params = self._inputs_to_params(result.inputs)
-                asset_changes, predicted_behavior = self.asset_predictor.predict(
-                    contract_info=contract_info,
-                    function_name=result.function_name,
-                    params=params,
-                    chain_id=context.chain_id,
-                    value=context.value,
-                    to_address=context.to_address,
-                )
-                result.asset_changes = asset_changes
-                if predicted_behavior != "unknown":
-                    result.behavior_type = predicted_behavior
-                else:
-                    result.behavior_type = self._analyze_behavior(selector, result.function_name)
-                step.set_output({
-                    "behavior_type": result.behavior_type,
-                    "asset_changes_count": len(asset_changes),
-                    "pay_count": len([a for a in asset_changes if a.direction == "out"]),
-                    "receive_count": len([a for a in asset_changes if a.direction == "in"]),
-                })
-        else:
-            result.behavior_type = self._analyze_behavior(selector, result.function_name)
-
-        # 6. 检测风险
-        risk_result = self._detect_risks(result, context)
-        result.risk_level = risk_result["level"]
-        result.risk_flags = risk_result["flags"]
-        result.warnings = risk_result["warnings"]
-
-        # 7. 如果没有通过合约识别获得类型，尝试通过选择器识别
-        if not result.contract_type:
-            result.contract_type = self._identify_contract_type(selector)
-
         return result
-
-    def _inputs_to_params(self, inputs: list[dict[str, Any]]) -> dict[str, Any]:
-        """将 inputs 列表转换为参数字典"""
-        params = {}
-        for inp in inputs:
-            name = inp.get("name", "")
-            value = inp.get("value")
-            if name:
-                params[name] = value
-            # 也支持 argN 格式
-            elif "arg" in str(name).lower():
-                params[name] = value
-        return params
 
     def _find_best_signature_match(
         self,
         calldata: str,
         signatures: list[str],
     ) -> dict[str, Any] | None:
-        """
-        智能签名匹配：尝试所有候选签名，选择最佳匹配
+        """智能签名匹配"""
+        valid_matches: list[tuple[dict, str, int]] = []
 
-        策略：
-        1. 尝试用每个签名解码 calldata
-        2. 过滤出能成功解码的签名
-        3. 根据匹配度评分选择最佳结果
-           - 参数数量少的优先（奥卡姆剃刀）
-           - 常见协议函数优先
-        4. 返回最佳匹配及所有有效候选信息
-
-        Args:
-            calldata: 原始 calldata
-            signatures: 候选签名列表
-
-        Returns:
-            {
-                "decoded": 解码结果,
-                "signature": 使用的签名,
-                "valid_count": 有效匹配数量,
-                "confidence": 置信度 (high/medium/low),
-                "other_names": 其他候选函数名,
-            }
-        """
-        valid_matches: list[tuple[dict, str, int]] = []  # (decoded, signature, score)
-
-        # 已知的高优先级协议函数（这些是常见的、单一用途的）
+        # 常见协议函数优先级
         HIGH_PRIORITY_FUNCTIONS = {
-            # Aave
-            "withdraw": 10,
-            "supply": 10,
-            "borrow": 10,
-            "repay": 10,
-            "deposit": 8,
-            # 标准 ERC20
-            "transfer": 10,
-            "approve": 10,
-            "transferFrom": 10,
-            # Uniswap/DEX - 复杂函数优先级稍低
-            "swapExactTokensForTokens": 7,
-            "swapExactETHForTokens": 7,
-            "addLiquidity": 7,
-            "removeLiquidity": 5,  # removeLiquidityETHWithPermit 有很多参数，优先级低
+            "withdraw": 10, "supply": 10, "borrow": 10, "repay": 10, "deposit": 8,
+            "transfer": 10, "approve": 10, "transferFrom": 10,
+            "swapExactTokensForTokens": 7, "swapExactETHForTokens": 7,
+            "addLiquidity": 7, "removeLiquidity": 5,
         }
 
         for sig in signatures:
             try:
                 decoded = self.abi_decoder.decode_function_input(calldata, signature=sig)
                 if decoded and decoded.get("name"):
-                    # 计算匹配分数
                     func_name = decoded.get("name", "")
                     inputs = decoded.get("inputs", [])
 
-                    # 基础分数：参数越少越好（简单函数优先）
+                    # 参数越少越好
                     param_score = max(0, 20 - len(inputs) * 2)
-
-                    # 协议优先级加分
                     priority_score = HIGH_PRIORITY_FUNCTIONS.get(func_name, 0)
 
-                    # 如果函数名包含 "WithPermit"，降低优先级（通常是复杂的 permit 变体）
                     if "WithPermit" in func_name or "permit" in func_name.lower():
                         priority_score -= 5
 
                     total_score = param_score + priority_score
                     valid_matches.append((decoded, sig, total_score))
-
-                    logger.debug(
-                        "signature_match_candidate",
-                        function=func_name,
-                        params_count=len(inputs),
-                        score=total_score,
-                    )
-            except Exception as e:
-                # 解码失败，跳过这个签名
-                logger.debug("signature_decode_failed", signature=sig, error=str(e))
+            except Exception:
                 continue
 
         if not valid_matches:
             return None
 
-        # 按分数排序，选择最高分的
         valid_matches.sort(key=lambda x: x[2], reverse=True)
         best_decoded, best_sig, best_score = valid_matches[0]
 
-        # 计算置信度
         if len(valid_matches) == 1:
             confidence = "high"
         elif best_score > valid_matches[1][2] + 5:
@@ -558,240 +292,27 @@ class CalldataDecoder:
         else:
             confidence = "low"
 
-        # 收集其他候选函数名
-        other_names = [m[0].get("name", "") for m in valid_matches[1:]]
-
         return {
             "decoded": best_decoded,
             "signature": best_sig,
             "valid_count": len(valid_matches),
             "confidence": confidence,
-            "other_names": other_names,
+            "other_names": [m[0].get("name", "") for m in valid_matches[1:]],
         }
 
     async def _lookup_signature(self, selector: str) -> list[str]:
         """查询函数签名"""
-        # 先检查本地缓存
         if self.signature_db:
             local = self.signature_db.get_local_signature(selector)
             if local:
                 return local
 
-            # 远程查询
             try:
                 return await self.signature_db.lookup_signature(selector)
             except Exception as e:
                 logger.warning("signature_lookup_error", selector=selector, error=str(e))
 
         return []
-
-    def _analyze_behavior(self, selector: str, function_name: str) -> str:
-        """分析交易行为类型"""
-        selector = selector.lower()
-        name_lower = function_name.lower()
-
-        # 授权类
-        if selector == "0x095ea7b3" or "approve" in name_lower:
-            return "approve"
-        if selector == "0xa22cb465" or "setapprovalforall" in name_lower:
-            return "approve"
-        if "permit" in name_lower:
-            return "approve"
-
-        # 转账类
-        if selector in ["0xa9059cbb", "0x23b872dd"]:
-            return "transfer"
-        if "transfer" in name_lower:
-            return "transfer"
-
-        # Swap 类
-        if any(x in name_lower for x in ["swap", "exchange"]):
-            return "swap"
-
-        # 流动性
-        if "addliquidity" in name_lower or "mint" in name_lower:
-            return "liquidity_add"
-        if "removeliquidity" in name_lower or "burn" in name_lower:
-            return "liquidity_remove"
-
-        # 质押
-        if "stake" in name_lower or "deposit" in name_lower:
-            return "stake"
-        if "unstake" in name_lower or "withdraw" in name_lower:
-            return "unstake"
-
-        # 借贷
-        if "borrow" in name_lower:
-            return "borrow"
-        if "repay" in name_lower:
-            return "repay"
-        if "lend" in name_lower or "supply" in name_lower:
-            return "lend"
-
-        # 领取
-        if "claim" in name_lower:
-            return "claim"
-
-        # 包装
-        if name_lower in ["deposit", "wrap"]:
-            return "wrap"
-        if name_lower in ["withdraw", "unwrap"]:
-            return "unwrap"
-
-        return "unknown"
-
-    def _detect_risks(
-        self,
-        decoded: DecodedCalldata,
-        context: CalldataContext,
-    ) -> dict[str, Any]:
-        """检测风险"""
-        flags: list[RiskFlag] = []
-        warnings: list[str] = []
-        level = "low"
-
-        selector = decoded.selector.lower()
-
-        # 检查已知危险函数
-        if selector in DANGEROUS_SELECTORS:
-            danger_info = DANGEROUS_SELECTORS[selector]
-            warnings.append(danger_info["description"])
-
-            if danger_info["risk_level"] == "high":
-                level = "high"
-                flags.append(RiskFlag(
-                    type="dangerous_function",
-                    severity="high",
-                    evidence=f"Function: {danger_info['name']}",
-                    description=danger_info["description"],
-                ))
-            elif danger_info["risk_level"] == "check_value":
-                # 检查授权金额
-                level = self._check_approval_amount(decoded, flags, warnings)
-
-        # 检查无限授权 (approve)
-        if selector == "0x095ea7b3" and decoded.inputs:
-            amount_input = next(
-                (inp for inp in decoded.inputs if inp.get("name") in ["value", "amount", "arg1"]),
-                None
-            )
-            if amount_input:
-                try:
-                    amount = int(amount_input.get("value", "0"))
-                    max_uint256 = 2**256 - 1
-                    # 如果授权金额超过 90% 的最大值，认为是无限授权
-                    if amount >= max_uint256 * 0.9:
-                        level = "high"
-                        flags.append(RiskFlag(
-                            type="unlimited_approve",
-                            severity="high",
-                            evidence=f"Approved amount: {amount}",
-                            description="Unlimited token approval - the spender can transfer all your tokens",
-                        ))
-                        warnings.append("DANGER: Unlimited token approval detected!")
-                except (ValueError, TypeError):
-                    pass
-
-        # 检查 setApprovalForAll
-        if selector == "0xa22cb465":
-            approved_input = next(
-                (inp for inp in decoded.inputs if inp.get("name") in ["approved", "_approved", "arg1"]),
-                None
-            )
-            if approved_input and str(approved_input.get("value", "")).lower() in ["true", "1"]:
-                level = "high"
-                flags.append(RiskFlag(
-                    type="nft_unlimited_approval",
-                    severity="high",
-                    evidence="setApprovalForAll(operator, true)",
-                    description="Approving ALL NFTs to an operator",
-                ))
-                warnings.append("DANGER: This will approve ALL your NFTs!")
-
-        # 检查转账目标地址
-        if decoded.behavior_type == "transfer" and decoded.inputs:
-            to_input = next(
-                (inp for inp in decoded.inputs if inp.get("name") in ["to", "_to", "recipient", "dst"]),
-                None
-            )
-            if to_input:
-                to_addr = str(to_input.get("value", "")).lower()
-                if to_addr == "0x0000000000000000000000000000000000000000":
-                    level = "high"
-                    flags.append(RiskFlag(
-                        type="zero_address_transfer",
-                        severity="high",
-                        evidence=f"Transfer to: {to_addr}",
-                        description="Transfer to zero address - tokens will be burned/lost",
-                    ))
-                    warnings.append("DANGER: Transferring to zero address!")
-
-        # 检查原生代币转账金额
-        if context.value and context.value != "0":
-            try:
-                value_wei = int(context.value)
-                value_eth = value_wei / 1e18
-                if value_eth > 1:
-                    warnings.append(f"This transaction sends {value_eth:.4f} native tokens")
-                    if value_eth > 10:
-                        level = max(level, "medium", key=lambda x: ["low", "medium", "high"].index(x))
-                        flags.append(RiskFlag(
-                            type="high_value_transfer",
-                            severity="medium",
-                            evidence=f"Value: {value_eth:.4f} ETH/BNB/MATIC",
-                            description="High value native token transfer",
-                        ))
-            except (ValueError, TypeError):
-                pass
-
-        return {
-            "level": level,
-            "flags": flags,
-            "warnings": warnings,
-        }
-
-    def _check_approval_amount(
-        self,
-        decoded: DecodedCalldata,
-        flags: list[RiskFlag],
-        warnings: list[str],
-    ) -> str:
-        """检查授权金额"""
-        for inp in decoded.inputs:
-            if inp.get("type") == "uint256" and inp.get("name") in ["value", "amount", "arg1"]:
-                try:
-                    amount = int(inp.get("value", "0"))
-                    max_uint256 = 2**256 - 1
-                    if amount >= max_uint256 * 0.9:
-                        flags.append(RiskFlag(
-                            type="unlimited_approve",
-                            severity="high",
-                            evidence=f"Amount: {amount}",
-                            description="Unlimited approval",
-                        ))
-                        warnings.append("Unlimited approval detected")
-                        return "high"
-                    elif amount > 10**24:  # > 1M tokens (assuming 18 decimals)
-                        flags.append(RiskFlag(
-                            type="high_value_approve",
-                            severity="medium",
-                            evidence=f"Amount: {amount}",
-                            description="Large approval amount",
-                        ))
-                        return "medium"
-                except (ValueError, TypeError):
-                    pass
-        return "low"
-
-    def _identify_contract_type(self, selector: str) -> str | None:
-        """识别合约类型"""
-        selector = selector.lower()
-
-        for contract_type, selectors in KNOWN_CONTRACT_PATTERNS.items():
-            if selector in [s.lower() for s in selectors]:
-                return contract_type
-
-        return None
 
     def format_decoded_for_display(self, decoded: DecodedCalldata) -> dict[str, Any]:
         """格式化解码结果用于显示"""
@@ -802,36 +323,10 @@ class CalldataDecoder:
                 "signature": decoded.function_signature,
             },
             "parameters": [],
-            "analysis": {
-                "behavior": decoded.behavior_type,
-                "risk_level": decoded.risk_level,
-                "warnings": decoded.warnings,
-            },
             "abi_source": decoded.abi_source,
+            "decode_confidence": decoded.decode_confidence,
+            "warnings": decoded.warnings,
         }
-
-        # 添加协议信息
-        if decoded.protocol_info:
-            result["protocol"] = decoded.protocol_info.to_dict()
-
-        # 添加资产变化
-        if decoded.asset_changes:
-            result["asset_changes"] = {
-                "pay": [],
-                "receive": [],
-            }
-            for change in decoded.asset_changes:
-                change_info = {
-                    "token": change.token_symbol,
-                    "name": change.token_name,
-                    "amount": change.amount_formatted,
-                    "address": change.token_address,
-                    "type": change.token_type,
-                }
-                if change.direction == "out":
-                    result["asset_changes"]["pay"].append(change_info)
-                else:
-                    result["asset_changes"]["receive"].append(change_info)
 
         # 格式化参数
         for inp in decoded.inputs:
@@ -846,10 +341,6 @@ class CalldataDecoder:
                 try:
                     param["value"] = to_checksum_address(inp.get("value", ""))
                     param["display"] = f"{param['value'][:6]}...{param['value'][-4:]}"
-                    # 尝试获取地址的名称
-                    token_info = self.token_service.get_token_info(1, param["value"])
-                    if token_info:
-                        param["display"] = f"{token_info.symbol} ({param['value'][:6]}...{param['value'][-4:]})"
                 except Exception:
                     pass
             elif inp.get("type") == "uint256":

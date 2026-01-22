@@ -218,6 +218,25 @@ class ABIDecoder:
             "raw_data": data,
         }
 
+    def find_function_abi(
+        self,
+        selector: str,
+        abi: list[dict[str, Any]] | None,
+    ) -> dict[str, Any] | None:
+        """根据 selector 获取对应的函数 ABI 片段"""
+        if not selector or not abi:
+            return None
+        target = selector.lower()
+        for item in abi:
+            if item.get("type") != "function":
+                continue
+            try:
+                if self._get_function_selector(item) == target:
+                    return item
+            except Exception:
+                continue
+        return None
+
     def _get_function_selector(self, func_def: dict[str, Any]) -> str:
         """计算函数选择器"""
         from eth_utils import keccak

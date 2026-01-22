@@ -29,6 +29,7 @@ interface SmartInputProps {
     options: {
       includeExplanation: boolean
       includeTrace: boolean
+      includeSimulation: boolean
     }
   }) => void
   isLoading: boolean
@@ -98,6 +99,7 @@ export function SmartInput({ onSubmit, isLoading }: SmartInputProps) {
   const [chainId, setChainId] = useState<string>('1')
   const [includeExplanation, setIncludeExplanation] = useState(true)
   const [includeTrace, setIncludeTrace] = useState(true)
+  const [includeSimulation, setIncludeSimulation] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // 额外的上下文输入 (用于 calldata)
@@ -143,10 +145,11 @@ export function SmartInput({ onSubmit, isLoading }: SmartInputProps) {
         options: {
           includeExplanation,
           includeTrace,
+          includeSimulation: inputType === 'calldata' ? includeSimulation : false,
         },
       })
     },
-    [input, chainId, toAddress, fromAddress, value, includeExplanation, includeTrace, onSubmit]
+    [input, chainId, toAddress, fromAddress, value, includeExplanation, includeTrace, includeSimulation, onSubmit]
   )
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -292,6 +295,19 @@ export function SmartInput({ onSubmit, isLoading }: SmartInputProps) {
                 Include Trace Log
               </Label>
             </div>
+
+            {detectedType === 'calldata' && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="simulation"
+                  checked={includeSimulation}
+                  onCheckedChange={(checked) => setIncludeSimulation(checked === true)}
+                />
+                <Label htmlFor="simulation" className="text-sm font-normal">
+                  Include Simulation
+                </Label>
+              </div>
+            )}
           </div>
 
           {/* 提交按钮 */}

@@ -209,6 +209,20 @@ export function ObservabilityPage() {
               <option value="7d">7d</option>
             </Select>
           </div>
+          <div className="flex items-end">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={metricsRange === dateRange}
+              onClick={() => {
+                const next = new URLSearchParams(sp);
+                next.set("metrics_range", dateRange);
+                setSp(next, { replace: true });
+              }}
+            >
+              同步时间窗
+            </Button>
+          </div>
           {metrics.data?.degraded ? <div className="text-xs text-amber-500">仅容器指标可用或采集失败</div> : null}
           {metrics.data?.host && (metrics.data.host as any).error ? (
             <div className="text-xs text-muted-foreground">宿主机：{String((metrics.data.host as any).error)}</div>

@@ -286,16 +286,16 @@ export function AppsPage() {
           empty={
             <EmptyState
               description={
-                <div className="space-y-2">
-                  <div>快速开始：</div>
-                  <ol className="list-inside list-decimal text-left">
-                    <li>新建 App</li>
-                    <li>进入 App 详情绑定知识库（KB）</li>
-                    <li>去任务中心触发抓取与索引</li>
-                    <li>在客户端/Widget 调试后发布</li>
-                  </ol>
-                </div>
-              }
+                  <div className="space-y-2">
+                    <div>快速开始：</div>
+                    <ol className="list-inside list-decimal text-left">
+                      <li>新建 App</li>
+                      <li>进入 App 详情绑定知识库（KB）</li>
+                      <li>进入知识库详情，在「数据源/任务」中触发抓取与索引</li>
+                      <li>在客户端/Widget 调试后发布</li>
+                    </ol>
+                  </div>
+                }
               actions={
                 <Button type="button" onClick={() => setCreateOpen(true)}>
                   新建 App

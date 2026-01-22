@@ -157,6 +157,20 @@ export interface ExplanationResult {
   risk_reasons: string[]
   actions: Array<Record<string, unknown>>
   sources: SourceInfo[]
+  protocol?: string | null
+  /** 详细的安全分析（Markdown 格式） */
+  security_analysis?: string | null
+  /** 警告信息列表 */
+  warnings?: string[]
+  /** 给用户的建议 */
+  recommendations?: string[]
+  address_attribution?: Array<{
+    address: string
+    protocol?: string | null
+    name?: string | null
+    evidence?: string | null
+    is_verified?: boolean
+  }>
 }
 
 // Trace step
@@ -262,24 +276,21 @@ export interface AlternateDecode {
 }
 
 export interface DecodedCalldata {
+  // 基础解析字段 (由 CalldataDecoder 提供)
   selector: string
   raw_data: string
   function_name: string
   function_signature: string
   inputs: MethodInput[]
-  behavior_type: BehaviorType
-  risk_level: RiskLevel
-  risk_flags: RiskFlag[]
-  warnings: string[]
+  abi_source: AbiSource
+  decode_confidence: DecodeConfidence
   possible_signatures: string[]
-  contract_type: string | null
-  // 新增字段
-  protocol_info?: ProtocolInfo | null
-  asset_changes?: PredictedAssetChange[]
-  abi_source?: AbiSource
-  // 解码置信度 (当使用 4bytes 且有多个候选时)
-  decode_confidence?: DecodeConfidence
   alternate_decodes?: AlternateDecode[]
+  abi_fragment?: Record<string, unknown> | null
+  warnings: string[]
+  // 模拟结果字段 (可选，由 Simulator 提供)
+  asset_changes_from_simulation?: AssetChange[]
+  asset_changes_source?: 'simulation'
 }
 
 export interface FormattedCalldata {
@@ -445,6 +456,7 @@ export interface SmartAnalyzeResponse {
   tx_result: ParseResult | null
   decode_result: DecodedCalldata | null
   signature_result: SignatureAnalysis | null
+  simulation_result: SimulationResult | null
   explanation: ExplanationResult | null
   error: string | null
   timings: Record<string, number>

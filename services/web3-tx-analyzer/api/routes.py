@@ -187,6 +187,7 @@ async def analyze_transaction(
                             parse_result=parse_result.to_dict(),
                             language=req.options.language,
                             trace_id=tracer.trace_id,
+                            metadata=None,
                         )
                         explanation = ExplanationResult(
                             summary=rag_result.get("summary", ""),
@@ -269,9 +270,19 @@ def get_calldata_decoder(request: Request) -> CalldataDecoder:
     )
 
 
-def get_simulator(request: Request) -> TxSimulator:
+def get_simulator(request: Request, chain_id: int) -> TxSimulator | None:
     """获取交易模拟器实例"""
     parser = get_parser(request)
+    settings = get_settings()
+
+    # 确保 RPC 客户端存在
+    if chain_id not in parser.rpc_clients:
+        try:
+            chain_config = parser._get_chain_config(chain_id)
+            parser.rpc_clients[chain_id] = parser._get_rpc_client(chain_config)
+        except Exception:
+            return None
+
     return TxSimulator(parser.rpc_clients)
 
 
@@ -357,7 +368,7 @@ async def simulate_transaction(
     bind_context(trace_id=tracer.trace_id, chain_id=req.chain_id)
 
     try:
-        simulator = get_simulator(request)
+        simulator = get_simulator(request, req.chain_id)
 
         sim_request = SimulationRequest(
             chain_id=req.chain_id,
@@ -473,6 +484,16 @@ async def smart_analyze(
         status="success",
     )
 
+    # 缓存 RAG 服务状态，避免重复检查
+    rag_client = get_rag_client(request)
+    _rag_ready_cache: bool | None = None
+
+    async def check_rag_ready() -> bool:
+        nonlocal _rag_ready_cache
+        if _rag_ready_cache is None:
+            _rag_ready_cache = await _rag_service_check(tracer, rag_client, settings)
+        return _rag_ready_cache
+
     try:
         if input_type == "tx_hash":
             # 交易哈希分析
@@ -486,19 +507,23 @@ async def smart_analyze(
 
             # 可选：调用 RAG
             if req.options.include_explanation:
-                rag_client = get_rag_client(request)
-                if rag_client:
+                rag_ready = await check_rag_ready()
+                if rag_client and rag_ready:
                     try:
-                        rag_result = await rag_client.explain(
-                            parse_result=parse_result.to_dict(),
-                            language=req.options.language,
-                            trace_id=tracer.trace_id,
-                        )
+                        with tracer.step("call_rag", {"model": settings.rag_model}) as step:
+                            rag_result = await rag_client.explain(
+                                parse_result=parse_result.to_dict(),
+                                language=req.options.language,
+                                trace_id=tracer.trace_id,
+                            )
+                            step.set_output({"sources_count": len(rag_result.get("sources", []))})
                         response.explanation = ExplanationResult(
                             summary=rag_result.get("summary", ""),
                             risk_level=rag_result.get("risk_level", "unknown"),
                             risk_reasons=rag_result.get("risk_reasons", []),
                             actions=rag_result.get("actions", []),
+                            protocol=rag_result.get("protocol"),
+                            address_attribution=rag_result.get("address_attribution", []),
                             sources=rag_result.get("sources", []),
                         )
                     except Exception as e:
@@ -508,11 +533,13 @@ async def smart_analyze(
             # Calldata 解码 (CalldataDecoder 内部处理 ABI 优先级)
             decoder = get_calldata_decoder(request)
             to_address = req.context.get("to_address")
+            from_address = req.context.get("from_address")
+            value = req.context.get("value", "0")
             context = CalldataContext(
                 chain_id=req.chain_id,
                 to_address=to_address,
-                from_address=req.context.get("from_address"),
-                value=req.context.get("value", "0"),
+                from_address=from_address,
+                value=value,
             )
 
             # 直接传入 tracer，让 CalldataDecoder 内部记录详细步骤
@@ -520,42 +547,175 @@ async def smart_analyze(
 
             response.decode_result = result.to_dict()
 
-            # 可选：调用 RAG 生成解释
-            if req.options.include_explanation:
-                rag_client = get_rag_client(request)
-                if rag_client:
+            # 可选：交易模拟
+            if req.options.include_simulation and to_address and from_address:
+                with tracer.step("simulate_transaction", {"to": to_address, "from": from_address}) as sim_step:
                     try:
-                        # 构建类似交易的 parse_result 用于 RAG 分析
-                        calldata_parse_result = {
-                            "method": {
-                                "name": result.function_name,
-                                "signature": result.function_signature,
-                                "selector": result.selector,
-                                "inputs": result.inputs,
-                            },
-                            "behavior": {
-                                "type": result.behavior_type,
-                            },
-                            "risk_flags": [rf.to_dict() if hasattr(rf, 'to_dict') else rf.__dict__ for rf in result.risk_flags],
+                        simulator = get_simulator(request, req.chain_id)
+                        if simulator:
+                            sim_request = SimulationRequest(
+                                chain_id=req.chain_id,
+                                from_address=from_address,
+                                to_address=to_address,
+                                data=input_data,
+                                value=value,
+                            )
+                            sim_result = await simulator.simulate(sim_request)
+                            response.simulation_result = sim_result.to_dict()
+
+                            # 添加模拟结果的资产变化
+                            if sim_result.success and sim_result.asset_changes:
+                                response.decode_result["asset_changes_from_simulation"] = [
+                                    ac.to_dict() for ac in sim_result.asset_changes
+                                ]
+                                response.decode_result["asset_changes_source"] = "simulation"
+
+                            sim_step.set_output({
+                                "success": sim_result.success,
+                                "gas_used": sim_result.gas_used,
+                                "transfers_count": len(sim_result.token_transfers),
+                                "asset_changes_count": len(sim_result.asset_changes),
+                            })
+                        else:
+                            sim_step.set_output({"success": False, "reason": "simulator_not_available"})
+                    except Exception as e:
+                        logger.warning("simulation_error", error=str(e))
+                        sim_step.set_output({"success": False, "error": str(e)})
+
+            # 可选：调用 RAG 生成解释 (协议识别、行为分析、风险评估全部由 RAG 负责)
+            if req.options.include_explanation:
+                rag_ready = await check_rag_ready()
+                if rag_client and rag_ready:
+                    try:
+                        # 预查询 contract_index 获取协议信息
+                        contract_attributions: list[dict] = []
+                        identified_protocol: str | None = None
+
+                        with tracer.step("contract_index_lookup") as ci_step:
+                            # 收集需要查询的地址
+                            addresses_to_lookup = []
+                            if to_address:
+                                addresses_to_lookup.append(to_address)
+                            # 从解码参数中提取地址
+                            for inp in (result.inputs or []):
+                                if inp.get("type") == "address" and inp.get("value"):
+                                    addr = inp.get("value")
+                                    if addr and addr.startswith("0x") and len(addr) == 42:
+                                        addresses_to_lookup.append(addr)
+
+                            # 批量查询
+                            if addresses_to_lookup:
+                                contract_results = await rag_client.batch_lookup_contracts(addresses_to_lookup)
+                                for addr, info in contract_results.items():
+                                    if info:
+                                        contract_attributions.append({
+                                            "address": addr,
+                                            "protocol": info.get("protocol"),
+                                            "name": info.get("contract_type") or info.get("contract_name") or "Unknown",
+                                            "version": info.get("protocol_version", ""),
+                                            "source": info.get("source", "index"),
+                                            "confidence": info.get("confidence", 0.7),
+                                        })
+                                        # 使用 to_address 的协议作为主协议
+                                        if addr.lower() == (to_address or "").lower() and not identified_protocol:
+                                            identified_protocol = info.get("protocol")
+
+                            ci_step.set_output({
+                                "addresses_queried": len(addresses_to_lookup),
+                                "contracts_found": len(contract_attributions),
+                                "identified_protocol": identified_protocol,
+                            })
+
+                        # 直接发送基础解析结果 + 原始数据给 RAG
+                        # RAG 负责: 协议识别、行为分析、风险评估
+                        rag_data = {
+                            "type": "calldata",
+                            "raw_calldata": input_data,
+                            "selector": result.selector,
+                            "function_name": result.function_name,
+                            "function_signature": result.function_signature,
+                            "decoded_inputs": result.inputs,
+                            "abi_source": result.abi_source,
+                            "decode_confidence": result.decode_confidence,
+                            "to_address": to_address,
+                            "from_address": from_address,
+                            "value": value,
                             "chain_id": req.chain_id,
-                            "to": to_address,
-                            "from": req.context.get("from_address"),
-                            "value": req.context.get("value", "0"),
+                            # 新增: 预识别的协议信息
+                            "identified_protocol": identified_protocol,
+                            "contract_attributions": contract_attributions,
                         }
-                        rag_result = await rag_client.explain(
-                            parse_result=calldata_parse_result,
-                            language=req.options.language,
-                            trace_id=tracer.trace_id,
-                        )
+
+                        # 如果有模拟结果，也发送给 RAG
+                        if response.simulation_result:
+                            rag_data["simulation"] = response.simulation_result
+
+                        # 构建 metadata 用于知识库检索
+                        rag_metadata = {
+                            "address_lookup": to_address,
+                            "function_name": result.function_name,
+                            "function_signature": result.function_signature,
+                            "selector": result.selector,
+                            # 新增: 使用预识别的协议进行检索
+                            "protocol": identified_protocol,
+                        }
+
+                        with tracer.step("call_rag", {"model": settings.rag_model}) as step:
+                            rag_result = await rag_client.explain_calldata(
+                                calldata_data=rag_data,
+                                language=req.options.language,
+                                trace_id=tracer.trace_id,
+                                metadata=rag_metadata,
+                            )
+                            step.set_output({"sources_count": len(rag_result.get("sources", []))})
+
+                        # 合并地址归属：优先使用 contract_index 的结果
+                        final_address_attribution = []
+                        seen_addresses = set()
+                        # 先添加 contract_index 结果（置信度更高）
+                        for ca in contract_attributions:
+                            final_address_attribution.append({
+                                "address": ca["address"],
+                                "protocol": ca["protocol"],
+                                "name": ca["name"],
+                                "evidence": f"contract_index (confidence: {ca.get('confidence', 0.7)})",
+                            })
+                            seen_addresses.add(ca["address"].lower())
+                        # 再添加 RAG 结果中未覆盖的地址
+                        for ra in rag_result.get("address_attribution", []):
+                            if ra.get("address", "").lower() not in seen_addresses:
+                                final_address_attribution.append(ra)
+
+                        # 使用预识别的协议（如果 RAG 没有识别出来）
+                        final_protocol = rag_result.get("protocol") or identified_protocol
+
                         response.explanation = ExplanationResult(
                             summary=rag_result.get("summary", ""),
                             risk_level=rag_result.get("risk_level", "unknown"),
                             risk_reasons=rag_result.get("risk_reasons", []),
                             actions=rag_result.get("actions", []),
+                            protocol=final_protocol,
+                            address_attribution=final_address_attribution,
                             sources=rag_result.get("sources", []),
                         )
                     except Exception as e:
                         logger.warning("rag_error_calldata", error=str(e))
+                        # 即使 RAG 失败，也返回 contract_index 的结果
+                        if contract_attributions:
+                            response.explanation = ExplanationResult(
+                                summary=f"调用 {result.function_name or 'unknown'} 函数",
+                                risk_level="unknown",
+                                risk_reasons=["RAG 服务暂时不可用，无法提供详细分析"],
+                                actions=[],
+                                protocol=identified_protocol,
+                                address_attribution=[{
+                                    "address": ca["address"],
+                                    "protocol": ca["protocol"],
+                                    "name": ca["name"],
+                                    "evidence": f"contract_index (confidence: {ca.get('confidence', 0.7)})",
+                                } for ca in contract_attributions],
+                                sources=[],
+                            )
 
         elif input_type == "signature":
             # 签名解析
@@ -569,8 +729,8 @@ async def smart_analyze(
 
             # 可选：调用 RAG 生成解释
             if req.options.include_explanation:
-                rag_client = get_rag_client(request)
-                if rag_client:
+                rag_ready = await check_rag_ready()
+                if rag_client and rag_ready:
                     try:
                         # 构建 parse_result 用于 RAG 分析
                         sig_parse_result = {
@@ -585,16 +745,21 @@ async def smart_analyze(
                             },
                             "chain_id": req.chain_id,
                         }
-                        rag_result = await rag_client.explain(
-                            parse_result=sig_parse_result,
-                            language=req.options.language,
-                            trace_id=tracer.trace_id,
-                        )
+                        with tracer.step("call_rag", {"model": settings.rag_model}) as step:
+                            rag_result = await rag_client.explain(
+                                parse_result=sig_parse_result,
+                                language=req.options.language,
+                                trace_id=tracer.trace_id,
+                                metadata=None,
+                            )
+                            step.set_output({"sources_count": len(rag_result.get("sources", []))})
                         response.explanation = ExplanationResult(
                             summary=rag_result.get("summary", ""),
                             risk_level=rag_result.get("risk_level", "unknown"),
                             risk_reasons=rag_result.get("risk_reasons", []),
                             actions=rag_result.get("actions", []),
+                            protocol=rag_result.get("protocol"),
+                            address_attribution=rag_result.get("address_attribution", []),
                             sources=rag_result.get("sources", []),
                         )
                     except Exception as e:
@@ -617,6 +782,81 @@ async def smart_analyze(
 
     clear_context()
     return response
+
+
+async def _rag_service_check(
+    tracer: Tracer,
+    rag_client: RAGClient | None,
+    settings: Settings,
+) -> bool:
+    """RAG 服务可用性与模型检测"""
+    step = tracer.start_step(
+        "rag_service_check",
+        input_data={"base_url": settings.rag_base_url, "model": settings.rag_model},
+    )
+    if not rag_client:
+        tracer.end_step(status="failed", error="rag_client_not_configured")
+        return False
+
+    try:
+        healthy = await rag_client.health_check()
+        if not healthy:
+            tracer.end_step(
+                status="failed",
+                output_data={"healthy": False, "model": settings.rag_model},
+                error="rag_health_check_failed",
+            )
+            return False
+
+        models = await rag_client.list_models()
+        model_exists = settings.rag_model in models
+        tracer.end_step(
+            status="success" if model_exists else "failed",
+            output_data={
+                "healthy": True,
+                "model": settings.rag_model,
+                "model_exists": model_exists,
+                "models_count": len(models),
+            },
+            error=None if model_exists else "rag_model_not_found",
+        )
+        return model_exists
+    except Exception as exc:
+        tracer.end_step(status="failed", error=str(exc))
+        return False
+
+
+def _append_extra_sources(
+    sources: list[dict[str, Any]],
+    settings: Settings,
+    protocol_info: dict[str, Any] | None,
+    chain_id: int | None,
+    to_address: str | None,
+) -> list[dict[str, Any]]:
+    if not sources:
+        return []
+    merged: list[dict[str, Any]] = list(sources or [])
+    seen: set[str] = {str(s.get("url") or "") for s in merged if s.get("url")}
+
+    if protocol_info:
+        website = str(protocol_info.get("website") or "").strip()
+        title = str(protocol_info.get("protocol") or protocol_info.get("name") or "Protocol").strip()
+        if website and website not in seen:
+            merged.append({"url": website, "title": title, "section_path": "", "snippet": ""})
+            seen.add(website)
+
+    if chain_id and to_address:
+        chain_configs = settings.get_chain_configs()
+        chain = chain_configs.get(chain_id)
+        if chain:
+            explorer_base = str(chain.explorer_base_url or "").replace("/api", "").rstrip("/")
+            if explorer_base:
+                url = f"{explorer_base}/address/{to_address}"
+                if url not in seen:
+                    merged.append({"url": url, "title": f"{chain.name} Explorer", "section_path": "", "snippet": ""})
+                    seen.add(url)
+
+    return merged
 
 
 def _detect_input_type(input_data: str) -> str:

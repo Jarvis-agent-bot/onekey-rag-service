@@ -221,3 +221,38 @@ class Feedback(Base):
     tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow, index=True)
+
+
+class ContractIndex(Base):
+    """
+    合约地址 → 协议 索引表
+
+    用于快速查询合约地址归属的协议信息，支持：
+    1. 直接查询（地址索引命中）
+    2. RAG 反向识别后自动写入（自动学习）
+    """
+    __tablename__ = "contract_index"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # 核心字段：合约地址（小写，唯一）
+    address: Mapped[str] = mapped_column(String(42), unique=True, nullable=False, index=True)
+
+    # 协议信息
+    protocol: Mapped[str] = mapped_column(String(64), nullable=False, index=True)  # Aave, Uniswap, Compound...
+    protocol_version: Mapped[str] = mapped_column(String(16), default="", nullable=False)  # V2, V3, V4...
+    contract_type: Mapped[str] = mapped_column(String(128), default="", nullable=False)  # WrappedTokenGateway, Pool...
+    contract_name: Mapped[str] = mapped_column(String(256), default="", nullable=False)  # 完整合约名
+
+    # 来源追踪
+    source_url: Mapped[str] = mapped_column(Text, default="", nullable=False)  # 从哪个文档页面提取
+    source_kb_id: Mapped[str] = mapped_column(String(64), default="", nullable=False, index=True)  # 来自哪个知识库
+    confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)  # 置信度 (1.0=文档明确, 0.8=RAG推断)
+
+    # 链信息
+    chain_id: Mapped[int] = mapped_column(Integer, default=1, nullable=False, index=True)  # 1=Ethereum, 137=Polygon...
+
+    # 元数据
+    meta: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow)

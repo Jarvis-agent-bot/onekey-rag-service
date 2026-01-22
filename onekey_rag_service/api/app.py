@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from onekey_rag_service.api.deps import get_db
 from onekey_rag_service.api.admin import router as admin_router
+from onekey_rag_service.api.contracts import router as contracts_router
 from onekey_rag_service.config import Settings, get_settings
 from onekey_rag_service.admin.bootstrap import ensure_default_entities
 from onekey_rag_service.db import (
@@ -48,6 +49,38 @@ from onekey_rag_service.schemas import (
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="OneKey RAG Service", version="0.1.0")
+
+
+def _filter_sources_by_metadata(
+    sources: list[dict],
+    metadata: dict[str, object] | None,
+) -> list[dict]:
+    if not sources or not metadata:
+        return sources
+
+    allowlist = [str(s).lower() for s in (metadata.get("source_allowlist") or []) if str(s).strip()]
+    denylist = [str(s).lower() for s in (metadata.get("source_denylist") or []) if str(s).strip()]
+
+    if not allowlist and not denylist:
+        return sources
+
+    def match_any(text: str, patterns: list[str]) -> bool:
+        return any(p in text for p in patterns)
+
+    filtered: list[dict] = []
+    for s in sources:
+        url = str(s.get("url") or "").lower()
+        title = str(s.get("title") or "").lower()
+        section = str(s.get("section_path") or "").lower()
+        combined = " ".join([url, title, section]).strip()
+
+        if allowlist and not match_any(combined, allowlist):
+            continue
+        if denylist and match_any(combined, denylist):
+            continue
+        filtered.append(s)
+
+    return filtered
 # 前端 Widget（/widget/widget.js + /widget/）
 _WIDGET_DIR = Path(__file__).resolve().parents[1] / "static" / "widget"
 app.mount("/widget", StaticFiles(directory=str(_WIDGET_DIR), html=True, check_dir=False), name="widget")
@@ -58,6 +91,9 @@ app.mount("/admin/ui", StaticFiles(directory=str(_ADMIN_UI_DIR), html=True, chec
 
 # Admin API
 app.include_router(admin_router)
+
+# Contracts API (合约地址查询)
+app.include_router(contracts_router)
 
 
 @app.middleware("http")
@@ -295,6 +331,7 @@ async def openai_chat_completions(
                     chat_model=upstream_model,
                     request_messages=request_messages,
                     question=question,
+                    request_metadata=req.metadata,
                     workspace_id=workspace_id,
                     kb_allocations=kb_allocations,
                     prompt_templates=prompt_templates,
@@ -344,6 +381,8 @@ async def openai_chat_completions(
         meta["rerank_provider"] = settings.rerank_provider
         meta["retrieval_mode"] = settings.retrieval_mode
 
+        filtered_sources = _filter_sources_by_metadata(rag.sources, req.metadata)
+
         _save_retrieval_event(
             db,
             settings=settings,
@@ -352,7 +391,7 @@ async def openai_chat_completions(
             request_id=chat_id,
             question=question,
             meta=meta,
-            sources=rag.sources,
+            sources=filtered_sources,
             usage=rag.usage,
             req_metadata=req.metadata,
             error="",
@@ -370,7 +409,7 @@ async def openai_chat_completions(
                 )
             ],
             usage=OpenAIUsage(**(rag.usage or {})),
-            sources=rag.sources,  # type: ignore[arg-type]
+            sources=filtered_sources,  # type: ignore[arg-type]
             debug=rag.debug,
         )
         return JSONResponse(resp.model_dump())
@@ -395,6 +434,7 @@ async def openai_chat_completions(
                         chat_model=upstream_model,
                         request_messages=request_messages,
                         question=question,
+                        request_metadata=req.metadata,
                         workspace_id=workspace_id,
                         kb_allocations=kb_allocations,
                         prompt_templates=prompt_templates,

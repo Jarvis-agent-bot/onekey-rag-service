@@ -61,7 +61,7 @@ class ContractRegistry:
                         self._contracts[chain_id] = {
                             addr.lower(): info for addr, info in contracts.items()
                         }
-                logger.info("contract_registry_loaded", count=sum(len(c) for c in self._contracts.values()))
+            logger.info("contract_registry_loaded", count=sum(len(c) for c in self._contracts.values()))
         except Exception as e:
             logger.error("contract_registry_load_error", error=str(e))
 

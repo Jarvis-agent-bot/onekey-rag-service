@@ -17,8 +17,58 @@ from onekey_rag_service.rag.pgvector_store import RetrievedChunk, hybrid_search,
 from onekey_rag_service.rag.reranker import Reranker
 from onekey_rag_service.rag.kb_allocation import KbAllocation
 from onekey_rag_service.utils import clamp_text
+from onekey_rag_service.services.contract_index import (
+    get_contract_info,
+    build_contract_info_from_chunk,
+    upsert_contract_info,
+)
 
 logger = logging.getLogger(__name__)
+
+# 合约地址正则表达式 (0x + 40位十六进制)
+_CONTRACT_ADDRESS_RE = re.compile(r'0x[a-fA-F0-9]{40}', re.IGNORECASE)
+
+
+def _extract_addresses_from_text(text: str) -> set[str]:
+    """从文本中提取所有合约地址（小写）"""
+    if not text:
+        return set()
+    return {m.group(0).lower() for m in _CONTRACT_ADDRESS_RE.finditer(text)}
+
+
+def _filter_chunks_by_address(
+    chunks: list[RetrievedChunk],
+    addresses: set[str],
+    *,
+    strict: bool = True,
+) -> list[RetrievedChunk]:
+    """
+    过滤 chunks，只保留包含指定地址的结果。
+
+    Args:
+        chunks: 候选 chunks
+        addresses: 要匹配的地址集合（小写）
+        strict: True=只返回包含地址的; False=地址匹配的优先，不匹配的放后面
+
+    Returns:
+        过滤/排序后的 chunks
+    """
+    if not addresses:
+        return chunks
+
+    matched: list[RetrievedChunk] = []
+    unmatched: list[RetrievedChunk] = []
+
+    for c in chunks:
+        chunk_addresses = _extract_addresses_from_text(c.text)
+        if addresses & chunk_addresses:  # 有交集
+            matched.append(c)
+        else:
+            unmatched.append(c)
+
+    if strict:
+        return matched
+    return matched + unmatched
 
 
 def _strip_code_fences(text: str) -> str:
@@ -280,6 +330,7 @@ async def prepare_rag(
     chat_model: str,
     request_messages: list[dict],
     question: str,
+    request_metadata: dict[str, Any] | None = None,
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
     prompt_templates: dict[str, str] | None = None,
@@ -335,9 +386,95 @@ async def prepare_rag(
 
     default_system, no_sources_answer = _resolve_default_prompts(requested_model)
 
+    def _filter_chunks_by_metadata(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+        if not request_metadata:
+            return chunks
+        allowlist = [str(s).lower() for s in (request_metadata.get("source_allowlist") or []) if str(s).strip()]
+        denylist = [str(s).lower() for s in (request_metadata.get("source_denylist") or []) if str(s).strip()]
+        if not allowlist and not denylist:
+            return chunks
+
+        def match_any(text: str, patterns: list[str]) -> bool:
+            return any(p in text for p in patterns)
+
+        filtered: list[RetrievedChunk] = []
+        for c in chunks:
+            combined = " ".join([c.url, c.title, c.section_path]).lower()
+            if allowlist and not match_any(combined, allowlist):
+                continue
+            if denylist and match_any(combined, denylist):
+                continue
+            filtered.append(c)
+        return filtered
+
+    address_query = None
+    contract_index_hit = None  # 合约索引命中信息
+    if request_metadata and request_metadata.get("address_lookup"):
+        address_value = str(request_metadata.get("address_lookup") or "").strip()
+        if address_value:
+            address_query = f"{address_value} 地址归属 addresses address list"
+
+            # 尝试从合约索引中查找协议信息
+            try:
+                contract_index_hit = get_contract_info(session, address_value)
+                if contract_index_hit:
+                    logger.debug(
+                        "Contract index hit: %s -> %s (%s)",
+                        address_value, contract_index_hit.protocol, contract_index_hit.contract_type
+                    )
+                    # 如果 metadata 中没有 protocol，使用索引中的信息
+                    if request_metadata and not request_metadata.get("protocol"):
+                        request_metadata = dict(request_metadata or {})
+                        request_metadata["protocol"] = contract_index_hit.protocol
+                        if contract_index_hit.protocol_version:
+                            request_metadata["protocol_version"] = contract_index_hit.protocol_version
+                        if contract_index_hit.contract_type:
+                            request_metadata["contract_type"] = contract_index_hit.contract_type
+            except Exception as e:
+                logger.warning("Contract index lookup failed: %s", e)
+
+    # 处理协议信息，构建协议相关的检索查询
+    protocol_query = None
+    if request_metadata and request_metadata.get("protocol"):
+        protocol_value = str(request_metadata.get("protocol") or "").strip()
+        protocol_name = str(request_metadata.get("protocol_name") or "").strip()
+        if protocol_value:
+            protocol_parts = [protocol_value]
+            if protocol_name and protocol_name != protocol_value:
+                protocol_parts.append(protocol_name)
+            protocol_query = f"{' '.join(protocol_parts)} protocol 协议 合约 contract DeFi"
+
+    # 处理函数名/签名/选择器，即使协议未识别也能检索到相关文档
+    function_query = None
+    if request_metadata:
+        func_parts = []
+        function_name = str(request_metadata.get("function_name") or "").strip()
+        function_signature = str(request_metadata.get("function_signature") or "").strip()
+        selector = str(request_metadata.get("selector") or "").strip()
+        if function_name:
+            func_parts.append(function_name)
+        if function_signature and function_signature != function_name:
+            func_parts.append(function_signature)
+        if selector:
+            func_parts.append(selector)
+        if func_parts:
+            function_query = f"{' '.join(func_parts)} function 函数 方法 DeFi protocol 协议"
+
     t0 = time.perf_counter()
     qvec = embeddings.embed_query(retrieval_query)
     t_embed_ms = int((time.perf_counter() - t0) * 1000)
+    if address_query:
+        t0 = time.perf_counter()
+        address_qvec = embeddings.embed_query(address_query)
+        t_embed_ms += int((time.perf_counter() - t0) * 1000)
+    if protocol_query:
+        t0 = time.perf_counter()
+        protocol_qvec = embeddings.embed_query(protocol_query)
+        t_embed_ms += int((time.perf_counter() - t0) * 1000)
+    if function_query:
+        t0 = time.perf_counter()
+        function_qvec = embeddings.embed_query(function_query)
+        t_embed_ms += int((time.perf_counter() - t0) * 1000)
     mode = (settings.retrieval_mode or "vector").lower()
     t0 = time.perf_counter()
     allocations = [a for a in (kb_allocations or []) if int(a.top_k or 0) > 0]
@@ -364,43 +501,44 @@ async def prepare_rag(
                 "used_compaction": used_compaction,
             },
         )
-    if allocations:
-        groups: list[list[RetrievedChunk]] = []
-        for a in allocations:
-            per_k = max(1, int(a.top_k))
-            if mode == "hybrid":
-                groups.append(
-                    hybrid_search(
-                        session,
-                        query_text=retrieval_query,
-                        query_embedding=qvec,
-                        workspace_id=workspace_id,
-                        kb_id=a.kb_id,
-                        k=per_k,
-                        vector_k=min(settings.hybrid_vector_k, per_k),
-                        bm25_k=min(settings.hybrid_bm25_k, per_k),
-                        vector_weight=settings.hybrid_vector_weight,
-                        bm25_weight=settings.hybrid_bm25_weight,
-                        fts_config=settings.bm25_fts_config,
+    def _retrieve_for_query(query_text: str, query_embedding: list[float]) -> list[RetrievedChunk]:
+        if allocations:
+            groups: list[list[RetrievedChunk]] = []
+            for a in allocations:
+                per_k = max(1, int(a.top_k))
+                if mode == "hybrid":
+                    groups.append(
+                        hybrid_search(
+                            session,
+                            query_text=query_text,
+                            query_embedding=query_embedding,
+                            workspace_id=workspace_id,
+                            kb_id=a.kb_id,
+                            k=per_k,
+                            vector_k=min(settings.hybrid_vector_k, per_k),
+                            bm25_k=min(settings.hybrid_bm25_k, per_k),
+                            vector_weight=settings.hybrid_vector_weight,
+                            bm25_weight=settings.hybrid_bm25_weight,
+                            fts_config=settings.bm25_fts_config,
+                        )
                     )
-                )
-            else:
-                groups.append(
-                    similarity_search(
-                        session,
-                        query_embedding=qvec,
-                        workspace_id=workspace_id,
-                        kb_id=a.kb_id,
-                        k=per_k,
+                else:
+                    groups.append(
+                        similarity_search(
+                            session,
+                            query_embedding=query_embedding,
+                            workspace_id=workspace_id,
+                            kb_id=a.kb_id,
+                            k=per_k,
+                        )
                     )
-                )
-        retrieved = _merge_candidates(groups, k=settings.rag_top_k)
-    else:
+            return _merge_candidates(groups, k=settings.rag_top_k)
+
         if mode == "hybrid":
-            retrieved = hybrid_search(
+            return hybrid_search(
                 session,
-                query_text=retrieval_query,
-                query_embedding=qvec,
+                query_text=query_text,
+                query_embedding=query_embedding,
                 workspace_id=workspace_id,
                 kb_id=None,
                 k=settings.rag_top_k,
@@ -410,15 +548,90 @@ async def prepare_rag(
                 bm25_weight=settings.hybrid_bm25_weight,
                 fts_config=settings.bm25_fts_config,
             )
-        else:
-            retrieved = similarity_search(
-                session,
-                query_embedding=qvec,
-                workspace_id=workspace_id,
-                kb_id=None,
-                k=settings.rag_top_k,
-            )
+
+        return similarity_search(
+            session,
+            query_embedding=query_embedding,
+            workspace_id=workspace_id,
+            kb_id=None,
+            k=settings.rag_top_k,
+        )
+
+    retrieved = _retrieve_for_query(retrieval_query, qvec)
+    if address_query:
+        retrieved_address = _retrieve_for_query(address_query, address_qvec)
+        retrieved = _merge_candidates([retrieved, retrieved_address], k=settings.rag_top_k)
+    if protocol_query:
+        retrieved_protocol = _retrieve_for_query(protocol_query, protocol_qvec)
+        retrieved = _merge_candidates([retrieved, retrieved_protocol], k=settings.rag_top_k)
+    if function_query:
+        retrieved_function = _retrieve_for_query(function_query, function_qvec)
+        retrieved = _merge_candidates([retrieved, retrieved_function], k=settings.rag_top_k)
     t_retrieve_ms = int((time.perf_counter() - t0) * 1000)
+    retrieved = _filter_chunks_by_metadata(retrieved)
+
+    # 地址相关性过滤：收集查询中的所有地址
+    query_addresses: set[str] = set()
+    query_addresses.update(_extract_addresses_from_text(question))
+    if request_metadata and request_metadata.get("address_lookup"):
+        addr = str(request_metadata.get("address_lookup") or "").strip().lower()
+        if addr and _CONTRACT_ADDRESS_RE.match(addr):
+            query_addresses.add(addr)
+
+    # 如果查询包含地址，优先返回包含这些地址的 chunks
+    address_filtered_count = 0
+    auto_learned_contracts: list[str] = []
+    if query_addresses:
+        pre_filter_count = len(retrieved)
+        # strict=True: 只返回包含地址的 chunk
+        # 如果过滤后没有结果，回退到 strict=False（地址匹配优先）
+        filtered = _filter_chunks_by_address(retrieved, query_addresses, strict=True)
+        if filtered:
+            retrieved = filtered
+            address_filtered_count = pre_filter_count - len(filtered)
+
+            # 自动学习：从匹配的 chunks 中提取协议信息并写入索引
+            # 只对索引中不存在的地址进行学习
+            for addr in query_addresses:
+                if contract_index_hit and contract_index_hit.address == addr:
+                    continue  # 已经在索引中了
+                try:
+                    existing = get_contract_info(session, addr)
+                    if existing:
+                        continue  # 已在索引中
+
+                    # 尝试从 chunks 中提取协议信息
+                    for c in filtered[:3]:  # 只检查前 3 个最相关的
+                        if addr not in c.text.lower():
+                            continue
+                        contract_info = build_contract_info_from_chunk(
+                            chunk_text=c.text,
+                            chunk_url=c.url,
+                            chunk_kb_id="",  # chunk 没有直接的 kb_id
+                            address=addr,
+                        )
+                        if contract_info:
+                            upsert_contract_info(
+                                session,
+                                address=contract_info.address,
+                                protocol=contract_info.protocol,
+                                protocol_version=contract_info.protocol_version,
+                                contract_type=contract_info.contract_type,
+                                source_url=contract_info.source_url,
+                                confidence=contract_info.confidence,
+                            )
+                            auto_learned_contracts.append(addr)
+                            logger.info(
+                                "Auto-learned contract from RAG: %s -> %s (%s)",
+                                addr, contract_info.protocol, contract_info.contract_type
+                            )
+                            break
+                except Exception as e:
+                    logger.debug("Auto-learn failed for %s: %s", addr, e)
+        else:
+            # 没有严格匹配，使用非严格模式（地址匹配的排前面）
+            retrieved = _filter_chunks_by_address(retrieved, query_addresses, strict=False)
+
     ranked = retrieved
     rerank_used = bool(reranker)
     if reranker:
@@ -540,6 +753,12 @@ async def prepare_rag(
             "rerank_used": rerank_used,
             "retrieval_query": retrieval_query,
             "used_compaction": used_compaction,
+            "address_filter": {
+                "applied": bool(query_addresses),
+                "query_addresses": list(query_addresses),
+                "filtered_count": address_filtered_count,
+                "auto_learned": auto_learned_contracts,
+            },
             "timings_ms": {
                 "compaction": t_compaction_ms,
                 "embed": t_embed_ms,
@@ -565,6 +784,12 @@ async def prepare_rag(
             "top_scores": [c.score for c in topn],
             "top_scores_pre_rerank": top_scores_pre_rerank,
             "rerank_used": rerank_used,
+            "address_filter": {
+                "applied": bool(query_addresses),
+                "query_addresses": list(query_addresses),
+                "filtered_count": address_filtered_count,
+                "auto_learned": auto_learned_contracts,
+            },
             "timings_ms": {
                 "compaction": t_compaction_ms,
                 "embed": t_embed_ms,
@@ -588,6 +813,7 @@ async def answer_with_rag(
     chat_model: str,
     request_messages: list[dict],
     question: str,
+    request_metadata: dict[str, Any] | None = None,
     workspace_id: str = "default",
     kb_allocations: list[KbAllocation] | None = None,
     prompt_templates: dict[str, str] | None = None,
@@ -610,6 +836,7 @@ async def answer_with_rag(
         chat_model=chat_model,
         request_messages=request_messages,
         question=question,
+        request_metadata=request_metadata,
         workspace_id=workspace_id,
         kb_allocations=kb_allocations,
         prompt_templates=prompt_templates,

@@ -3,7 +3,7 @@ from .abi_decoder import ABIDecoder
 from .event_classifier import EventClassifier
 from .behavior_analyzer import BehaviorAnalyzer
 from .risk_detector import RiskDetector
-from .calldata_decoder import CalldataDecoder, DecodedCalldata, CalldataContext, ProtocolInfo
+from .calldata_decoder import CalldataDecoder, DecodedCalldata, CalldataContext
 from .asset_predictor import AssetPredictor, AssetChange, get_asset_predictor
 from .simulator import TxSimulator, SimulationResult, SimulationRequest
 from .signature_parser import SignatureParser, SignatureAnalysis, EIP712Domain
@@ -35,7 +35,6 @@ __all__ = [
     "CalldataDecoder",
     "DecodedCalldata",
     "CalldataContext",
-    "ProtocolInfo",
     # 资产预测
     "AssetPredictor",
     "AssetChange",

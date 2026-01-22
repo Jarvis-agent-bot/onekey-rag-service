@@ -22,17 +22,19 @@ class EtherscanError(Exception):
 
 
 class EtherscanClient:
-    """Etherscan API 客户端（支持多链）"""
+    """Etherscan API 客户端（支持多链，使用 V2 API）"""
 
     def __init__(
         self,
         base_url: str,
         api_key: str = "",
+        chain_id: int = 1,
         rate_limit_per_min: int = 5,
         timeout: float = 30.0,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        self.chain_id = chain_id
         self.rate_limit_per_min = rate_limit_per_min
         self.timeout = timeout
         self._last_request_time = 0.0
@@ -51,6 +53,8 @@ class EtherscanClient:
         """发送请求"""
         await self._rate_limit()
 
+        # V2 API 必须添加 chainid 参数
+        params["chainid"] = self.chain_id
         if self.api_key:
             params["apikey"] = self.api_key
 

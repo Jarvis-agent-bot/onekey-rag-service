@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OneKey RAG Service Admin</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0da6f2",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#101c22",
+                        "card-dark": "#16232b",
+                        "border-dark": "#2a3e49",
+                        "text-secondary": "#90b7cb",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.375rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display overflow-x-hidden transition-colors duration-200">
+<div class="flex h-screen w-full overflow-hidden">
+<!-- Sidebar -->
+<aside class="hidden w-64 flex-col border-r border-gray-200 dark:border-border-dark bg-white dark:bg-background-dark lg:flex">
+<div class="flex h-16 items-center gap-3 px-6 border-b border-gray-200 dark:border-border-dark">
+<div class="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-xl">dataset</span>
+</div>
+<h1 class="text-lg font-bold tracking-tight">OneKey Admin</h1>
+</div>
+<div class="flex flex-1 flex-col gap-1 p-4">
+<nav class="space-y-1">
+<a class="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary transition-colors" href="#">
+<span class="material-symbols-outlined icon-fill">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100 dark:text-text-secondary dark:hover:bg-card-dark dark:hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">database</span>
+<span class="text-sm font-medium">Knowledge Bases</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100 dark:text-text-secondary dark:hover:bg-card-dark dark:hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="text-sm font-medium">Applications</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100 dark:text-text-secondary dark:hover:bg-card-dark dark:hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+<span class="text-sm font-medium">Jobs</span>
+</a>
+<a class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100 dark:text-text-secondary dark:hover:bg-card-dark dark:hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+</div>
+<div class="p-4 border-t border-gray-200 dark:border-border-dark">
+<div class="flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-card-dark p-3">
+<div class="h-9 w-9 rounded-full bg-cover bg-center" data-alt="User avatar with abstract colorful gradient" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDW-mi8OClOv359VsbcCeKfiqA6_n_JFyVgFrUQwJc-yi1WqhZXvaW0wrlVQK8FD04nj5aWmMByr8EyfN1bSNdL-BHJbQsbf5CUQMGPhbQPhBBYs6Iso5zl6MOhWMKGKhcvPIQxRj8ZE90StRlQng2a9YCGMDD9fpNTq5QfXZ677cFEj9DOqdupXMbI_4mwS2jJ_wKoIO08zWXFPfoxaRLW0E73k1y8bn8Ic_X3Y1j4NzMtgv9Lc8tCsjNCKonmLi8QhXtt-4ttRzc');"></div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold dark:text-white">Admin User</span>
+<span class="text-xs text-slate-500 dark:text-text-secondary">admin@onekey.com</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex flex-1 flex-col overflow-y-auto bg-background-light dark:bg-background-dark">
+<!-- Top Navbar -->
+<header class="sticky top-0 z-10 flex h-16 w-full items-center justify-between border-b border-gray-200 dark:border-border-dark bg-white/80 dark:bg-background-dark/80 px-6 backdrop-blur">
+<div class="flex items-center gap-4 lg:hidden">
+<button class="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-card-dark dark:text-white">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="text-lg font-bold dark:text-white">OneKey Admin</span>
+</div>
+<div class="flex flex-1 items-center justify-between gap-4 md:justify-end">
+<div class="hidden w-full max-w-md md:flex">
+<div class="relative w-full">
+<span class="absolute left-3 top-2.5 text-slate-400 dark:text-text-secondary material-symbols-outlined text-[20px]">search</span>
+<input class="h-10 w-full rounded-lg border-none bg-slate-100 pl-10 text-sm text-slate-900 focus:ring-2 focus:ring-primary dark:bg-card-dark dark:text-white dark:placeholder-text-secondary" placeholder="Search resources..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:text-text-secondary dark:hover:bg-card-dark">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:text-text-secondary dark:hover:bg-card-dark">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-cover bg-center md:hidden" data-alt="User avatar mobile" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAhnnhx32VB-U7kRWvAy6q2npL8exVxBX1lY6XJr-7hvROwGwcqu0y072fsliq5zXIvcu1-YOELUOtkH3zrFM37Sx89RzU70np9T0QxRr3NC8nFW4onuMsMAWHDIGZ1g9HkxzZjZTLO4Zcww1vWbNWIZ2D6_uCIKolrtAbe6iyLxhBHJ-ewHU7cExgFeobyyiASKvDKMgSHtSoIDBNGOGf7nu0oJZ4rYy53sKvSmgSJF5SBn5dLuNeWzTOeuJzLIuji5XJtLrjIvjg');"></div>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="flex-1 p-6 lg:p-10 mx-auto w-full max-w-7xl">
+<!-- Page Heading -->
+<div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+<div>
+<h2 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white">RAG Service Admin</h2>
+<div class="mt-1 flex items-center gap-2 text-slate-500 dark:text-text-secondary">
+<span class="material-symbols-outlined text-[18px]">domain</span>
+<span class="text-sm font-medium">Current Workspace: Production</span>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark px-4 py-2 text-sm font-medium text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:focus:ring-offset-background-dark transition-all">
+<span class="material-symbols-outlined mr-2 text-[20px]">file_upload</span>
+                            Import Data
+                        </button>
+<button class="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-background-dark shadow-lg shadow-primary/20 transition-all">
+<span class="material-symbols-outlined mr-2 text-[20px]">add</span>
+                            New Resource
+                        </button>
+</div>
+</div>
+<!-- Stats Grid -->
+<div class="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+<!-- Stat Card 1 -->
+<div class="rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-sm">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-slate-500 dark:text-text-secondary">Knowledge Bases</p>
+<span class="material-symbols-outlined text-slate-400 dark:text-slate-500">database</span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">12</span>
+<span class="text-xs font-medium text-green-500 flex items-center">
+<span class="material-symbols-outlined text-[14px] mr-0.5">arrow_upward</span>
+                                +2
+                            </span>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-sm">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-slate-500 dark:text-text-secondary">Applications</p>
+<span class="material-symbols-outlined text-slate-400 dark:text-slate-500">smart_toy</span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">5</span>
+<span class="text-xs font-medium text-slate-400 dark:text-slate-500">Stable</span>
+</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-sm">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-slate-500 dark:text-text-secondary">Total Pages</p>
+<span class="material-symbols-outlined text-slate-400 dark:text-slate-500">article</span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">12,450</span>
+<span class="text-xs font-medium text-green-500 flex items-center">
+<span class="material-symbols-outlined text-[14px] mr-0.5">arrow_upward</span>
+                                +12%
+                            </span>
+</div>
+</div>
+<!-- Stat Card 4 -->
+<div class="rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-sm">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-slate-500 dark:text-text-secondary">Active Jobs</p>
+<span class="material-symbols-outlined text-primary animate-pulse">cached</span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">3</span>
+<span class="text-xs font-medium text-primary">Processing</span>
+</div>
+</div>
+</div>
+<!-- Quick Actions Section -->
+<div>
+<h3 class="mb-4 text-xl font-bold tracking-tight text-slate-900 dark:text-white">Quick Actions</h3>
+<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+<!-- Action Card 1 -->
+<button class="group relative flex flex-col items-start rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/50 hover:shadow-md dark:hover:border-primary/50">
+<div class="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</div>
+<h4 class="text-base font-semibold text-slate-900 dark:text-white">New Knowledge Base</h4>
+<p class="mt-1 text-sm text-slate-500 dark:text-text-secondary text-left">Upload documents or connect data sources like Notion or Google Drive.</p>
+</button>
+<!-- Action Card 2 -->
+<button class="group relative flex flex-col items-start rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/50 hover:shadow-md dark:hover:border-primary/50">
+<div class="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">build_circle</span>
+</div>
+<h4 class="text-base font-semibold text-slate-900 dark:text-white">Create Application</h4>
+<p class="mt-1 text-sm text-slate-500 dark:text-text-secondary text-left">Configure a new chat interface or agent with specific capabilities.</p>
+</button>
+<!-- Action Card 3 -->
+<button class="group relative flex flex-col items-start rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/50 hover:shadow-md dark:hover:border-primary/50">
+<div class="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">rate_review</span>
+</div>
+<h4 class="text-base font-semibold text-slate-900 dark:text-white">View Feedback</h4>
+<p class="mt-1 text-sm text-slate-500 dark:text-text-secondary text-left">Analyze user interactions and improve response quality.</p>
+</button>
+<!-- Action Card 4 -->
+<button class="group relative flex flex-col items-start rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/50 hover:shadow-md dark:hover:border-primary/50">
+<div class="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-500/10 text-slate-500 group-hover:bg-slate-500 group-hover:text-white dark:text-slate-400 transition-colors">
+<span class="material-symbols-outlined">tune</span>
+</div>
+<h4 class="text-base font-semibold text-slate-900 dark:text-white">System Settings</h4>
+<p class="mt-1 text-sm text-slate-500 dark:text-text-secondary text-left">Manage API keys, team members, and billing preferences.</p>
+</button>
+</div>
+</div>
+<!-- Recent Activity Table (Bonus for completeness of dashboard feel) -->
+<div class="mt-10">
+<h3 class="mb-4 text-xl font-bold tracking-tight text-slate-900 dark:text-white">Recent Activity</h3>
+<div class="overflow-hidden rounded-xl border border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left text-sm">
+<thead class="border-b border-gray-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark/50">
+<tr>
+<th class="px-6 py-4 font-medium text-slate-500 dark:text-text-secondary">Job Name</th>
+<th class="px-6 py-4 font-medium text-slate-500 dark:text-text-secondary">Status</th>
+<th class="px-6 py-4 font-medium text-slate-500 dark:text-text-secondary">Duration</th>
+<th class="px-6 py-4 font-medium text-slate-500 dark:text-text-secondary">Date</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 dark:divide-border-dark">
+<tr class="hover:bg-slate-50 dark:hover:bg-background-dark/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-8 w-8 rounded bg-blue-500/20 text-blue-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">sync</span>
+</div>
+<span class="font-medium text-slate-900 dark:text-white">Engineering Docs Sync</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-500 border border-green-500/20">
+                                                Completed
+                                            </span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-text-secondary">2m 34s</td>
+<td class="px-6 py-4 text-slate-500 dark:text-text-secondary">Just now</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-background-dark/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-8 w-8 rounded bg-purple-500/20 text-purple-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">smart_toy</span>
+</div>
+<span class="font-medium text-slate-900 dark:text-white">Customer Support Bot Update</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-500 border border-blue-500/20">
+                                                In Progress
+                                            </span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-text-secondary">--</td>
+<td class="px-6 py-4 text-slate-500 dark:text-text-secondary">5 mins ago</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-background-dark/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-8 w-8 rounded bg-orange-500/20 text-orange-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">upload_file</span>
+</div>
+<span class="font-medium text-slate-900 dark:text-white">Q3 Financial Reports PDF</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500 border border-red-500/20">
+                                                Failed
+                                            </span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-text-secondary">10s</td>
+<td class="px-6 py-4 text-slate-500 dark:text-text-secondary">2 hrs ago</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

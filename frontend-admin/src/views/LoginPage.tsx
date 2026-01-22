@@ -19,8 +19,8 @@ export function LoginPage() {
   const passwordRef = useRef<HTMLInputElement>(null);
 
   const fromPath = useMemo(() => {
-    const raw = (location.state as { from?: string } | null | undefined)?.from || "/dashboard";
-    if (typeof raw !== "string" || !raw.startsWith("/") || raw === "/login") return "/dashboard";
+    const raw = (location.state as { from?: string } | null | undefined)?.from || "/";
+    if (typeof raw !== "string" || !raw.startsWith("/") || raw === "/login") return "/";
     return raw;
   }, [location.state]);
 

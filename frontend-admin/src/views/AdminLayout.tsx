@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Database, Eye, Home, LogOut, ScrollText, Settings, ThumbsUp, type LucideIcon } from "lucide-react";
+import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, ThumbsUp, type LucideIcon } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -39,6 +39,7 @@ const navGroups: NavGroup[] = [
     title: "内容管理",
     items: [
       { to: "/kbs", label: "知识库", icon: Database },
+      { to: "/pages", label: "内容", icon: FileText },
       { to: "/apps", label: "应用", icon: Boxes },
     ],
   },
@@ -48,6 +49,7 @@ const navGroups: NavGroup[] = [
       { to: "/feedback", label: "反馈", icon: ThumbsUp },
       { to: "/quality", label: "质量", icon: BarChart3 },
       { to: "/observability", label: "观测", icon: Eye },
+      { to: "/jobs", label: "任务中心", icon: ScrollText },
     ],
   },
   {
@@ -62,6 +64,12 @@ const navGroups: NavGroup[] = [
 // 扁平化导航项用于面包屑匹配
 const flatNavItems = navGroups.flatMap((g) => g.items);
 
+function normalizeNavPath(pathname: string) {
+  if (pathname === "/") return "/";
+  const found = flatNavItems.find((it) => it.to !== "/" && pathname.startsWith(it.to));
+  return found?.to || "/";
+}
+
 export function AdminLayout() {
   const navigate = useNavigate();
   const me = useMe();
@@ -70,6 +78,7 @@ export function AdminLayout() {
   const ws = useWorkspace();
   const wsLabel = ws.workspaces.find((w) => w.id === ws.workspaceId)?.name || ws.workspaceId;
   const breadcrumbItems = useBreadcrumb();
+  const currentNav = normalizeNavPath(location.pathname);
 
   useEffect(() => {
     if (!me.error) return;
@@ -162,7 +171,7 @@ export function AdminLayout() {
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur md:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <div className="text-sm text-muted-foreground md:hidden">OneKey RAG Admin</div>
-              <div className="md:hidden">
+              <div className="md:hidden flex items-center gap-2">
                 <Select
                   value={ws.workspaceId}
                   onChange={(e) => {
@@ -179,6 +188,20 @@ export function AdminLayout() {
                     ))
                   ) : (
                     <option value={ws.workspaceId}>{ws.workspaceId}</option>
+                  )}
+                </Select>
+                <Select
+                  value={currentNav}
+                  onChange={(e) => {
+                    navigate(e.target.value);
+                  }}
+                >
+                  {navGroups.flatMap((group, groupIdx) =>
+                    group.items.map((it) => (
+                      <option key={`${groupIdx}-${it.to}`} value={it.to}>
+                        {group.title ? `${group.title} / ${it.label}` : it.label}
+                      </option>
+                    ))
                   )}
                 </Select>
               </div>

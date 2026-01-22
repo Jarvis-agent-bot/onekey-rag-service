@@ -5,6 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import {
   Check,
+  ChevronDown,
   Copy,
   ExternalLink,
   SendHorizonal,
@@ -22,6 +23,20 @@ type SourceItem = {
   title?: string;
   section_path?: string;
   snippet?: string;
+};
+
+type ModelItem = {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+  root: string;
+  parent: string | null;
+  meta?: {
+    app_id?: string;
+    upstream_model?: string;
+    base_url?: string;
+  };
 };
 
 type ChatMessage = {
@@ -221,11 +236,15 @@ function getSourceRef(s: SourceItem, idx: number) {
 export default function App() {
   const sp = useMemo(() => new URLSearchParams(window.location.search), []);
   const title = sp.get("title") || "Ask AI";
-  const model = sp.get("model") || "onekey-docs";
+  const defaultModel = sp.get("model") || "onekey-docs";
   const parentOrigin = sp.get("parent_origin") || "";
   const apiBase = sp.get("api_base") || "";
   const contactUrl = sp.get("contact_url") || "https://onekey.so";
   const oneKeyLogoUrl = "./onekey.png";
+
+  const [models, setModels] = useState<ModelItem[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   const [pageUrl, setPageUrl] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -247,10 +266,29 @@ export default function App() {
 
   const apiChatUrl = joinUrl(apiBase, "/v1/chat/completions");
   const apiFeedbackUrl = joinUrl(apiBase, "/v1/feedback");
+  const apiModelsUrl = joinUrl(apiBase, "/v1/models");
 
   useEffect(() => {
     localStorage.setItem("onekey_rag_widget_conversation_id", conversationIdRef.current);
   }, []);
+
+  useEffect(() => {
+    // 获取应用列表
+    fetchJson<{ object: string; data: ModelItem[] }>(apiModelsUrl)
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setModels(res.data);
+          // 如果默认模型在列表中，使用默认模型；否则使用列表第一个
+          const found = res.data.find((m) => m.id === defaultModel);
+          if (!found) {
+            setSelectedModel(res.data[0].id);
+          }
+        }
+      })
+      .catch((e) => {
+        console.error("Failed to fetch models:", e);
+      });
+  }, [apiModelsUrl, defaultModel]);
 
   useEffect(() => {
     // 监听父页面传入上下文
@@ -398,7 +436,7 @@ export default function App() {
       .map((m) => ({ role: m.role, content: m.content }));
 
     const body = {
-      model,
+      model: selectedModel,
       messages: openaiMessages,
       stream: true,
       metadata: pageUrl ? { page_url: pageUrl } : {},
@@ -630,7 +668,49 @@ export default function App() {
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#0c1220] text-slate-100">
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between px-5 pb-3 pt-4">
-          <div className="text-sm font-semibold text-white">Ask AI</div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-semibold text-white">Ask AI</div>
+            {models.length > 1 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-white/10"
+                  onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                >
+                  <span className="max-w-[120px] truncate">{selectedModel}</span>
+                  <ChevronDown size={14} className={`transition-transform ${modelDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+                {modelDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setModelDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 top-full z-20 mt-1 max-h-60 min-w-[160px] overflow-y-auto rounded-lg border border-white/10 bg-[#1a202c] py-1 shadow-lg">
+                      {models.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={[
+                            "w-full px-3 py-2 text-left text-xs hover:bg-white/10",
+                            selectedModel === m.id ? "bg-white/5 text-blue-300" : "text-slate-200",
+                          ].join(" ")}
+                          onClick={() => {
+                            setSelectedModel(m.id);
+                            setModelDropdownOpen(false);
+                            // 切换应用时清空对话
+                            onClear();
+                          }}
+                        >
+                          {m.id}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition-all duration-200 hover:-translate-y-[1px] hover:bg-white/10"

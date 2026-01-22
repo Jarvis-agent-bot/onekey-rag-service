@@ -272,7 +272,15 @@ export function QualityPage() {
                 {(q.data.by_app || []).length ? (
                   (q.data.by_app || []).map((r) => (
                     <TableRow key={r.app_id || "(none)"}>
-                      <TableCell className="font-mono text-xs">{r.app_id || "(none)"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {r.app_id ? (
+                          <Link className="underline underline-offset-2" to={`/apps/${r.app_id}`}>
+                            {r.app_id}
+                          </Link>
+                        ) : (
+                          "(none)"
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-mono text-xs">{r.requests}</TableCell>
                       <TableCell className="text-right font-mono text-xs">{pct(r.error_ratio)}</TableCell>
                       <TableCell className="text-right font-mono text-xs">{pct(r.hit_ratio)}</TableCell>
@@ -307,8 +315,24 @@ export function QualityPage() {
                 {(q.data.by_app_kb || []).length ? (
                   (q.data.by_app_kb || []).slice(0, 50).map((r) => (
                     <TableRow key={`${r.app_id}_${r.kb_id}`}>
-                      <TableCell className="font-mono text-xs">{r.app_id || "(none)"}</TableCell>
-                      <TableCell className="font-mono text-xs">{r.kb_id || "(none)"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {r.app_id ? (
+                          <Link className="underline underline-offset-2" to={`/apps/${r.app_id}`}>
+                            {r.app_id}
+                          </Link>
+                        ) : (
+                          "(none)"
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {r.kb_id ? (
+                          <Link className="underline underline-offset-2" to={`/kbs/${r.kb_id}`}>
+                            {r.kb_id}
+                          </Link>
+                        ) : (
+                          "(none)"
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-mono text-xs">{r.requests}</TableCell>
                       <TableCell className="text-right font-mono text-xs">{pct(r.error_ratio)}</TableCell>
                       <TableCell className="text-right font-mono text-xs">{pct(r.hit_ratio)}</TableCell>

@@ -14,6 +14,7 @@ httpx>=0.27.0
 beautifulsoup4>=4.12.0
 lxml>=5.2.0
 readability-lxml>=0.8.1
+markdownify>=0.13.1  # HTML to Markdown conversion with table support
 
 tenacity>=8.2.3
 

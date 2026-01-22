@@ -7,10 +7,12 @@ import { AppsPage } from "./views/AppsPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { FeedbackPage } from "./views/FeedbackPage";
 import { JobDetailPage } from "./views/JobDetailPage";
+import { JobsPage } from "./views/JobsPage";
 import { KbsPage } from "./views/KbsPage";
 import { KbDetailPage } from "./views/KbDetailPage";
 import { LoginPage } from "./views/LoginPage";
 import { ObservabilityPage } from "./views/ObservabilityPage";
+import { PagesPage } from "./views/PagesPage";
 import { PageDetailPage } from "./views/PageDetailPage";
 import { QualityPage } from "./views/QualityPage";
 import { RetrievalEventDetailPage } from "./views/RetrievalEventDetailPage";
@@ -50,12 +52,10 @@ export function App() {
           <Route path="apps/:appId" element={<AppDetailPage />} />
 
           {/* 详情页 - 保留用于查看单个页面/任务 */}
+          <Route path="pages" element={<PagesPage />} />
           <Route path="pages/:pageId" element={<PageDetailPage />} />
+          <Route path="jobs" element={<JobsPage />} />
           <Route path="jobs/:jobId" element={<JobDetailPage />} />
-
-          {/* 旧路由重定向 - 兼容旧链接 */}
-          <Route path="pages" element={<Navigate to="/kbs" replace />} />
-          <Route path="jobs" element={<Navigate to="/kbs" replace />} />
 
           {/* 运营监控 */}
           <Route path="feedback" element={<FeedbackPage />} />

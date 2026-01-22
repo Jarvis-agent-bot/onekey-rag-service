@@ -1,10 +1,10 @@
-import { Code, Copy, Check } from 'lucide-react'
+import { Code, Copy, Check, ExternalLink, Info, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { DecodedMethod } from '@/api/types'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, cn } from '@/lib/utils'
 
 interface MethodDetailProps {
   method: DecodedMethod | null
@@ -13,6 +13,13 @@ interface MethodDetailProps {
     method?: { status?: string; reason?: string; selector?: string }
     abi?: { status?: string; reason?: string; source?: string; ref?: string; error?: string }
   }
+}
+
+const abiSourceLabels: Record<string, { label: string; color: string; description: string }> = {
+  registry: { label: 'Registry', color: 'bg-green-500/10 text-green-600 border-green-500/20', description: '本地合约注册表' },
+  explorer: { label: 'Etherscan', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', description: 'Etherscan 验证合约' },
+  signature_db: { label: '4bytes', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', description: '4bytes 签名数据库' },
+  unknown: { label: '未知', color: 'bg-gray-500/10 text-gray-600 border-gray-500/20', description: '来源不明' },
 }
 
 export function MethodDetail({ method, inputData, diagnostics }: MethodDetailProps) {
@@ -91,6 +98,8 @@ export function MethodDetail({ method, inputData, diagnostics }: MethodDetailPro
     )
   }
 
+  const abiInfo = abiSourceLabels[method.abi_source] || abiSourceLabels.unknown
+
   return (
     <Card>
       <CardHeader>
@@ -100,15 +109,15 @@ export function MethodDetail({ method, inputData, diagnostics }: MethodDetailPro
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <code className="text-lg font-semibold font-mono">
             {method.name}
           </code>
           <Badge variant="outline" className="text-xs">
             {method.selector}
           </Badge>
-          <Badge variant="secondary" className="text-xs">
-            {method.abi_source}
+          <Badge variant="outline" className={cn("text-xs", abiInfo.color)}>
+            {abiInfo.label}
           </Badge>
         </div>
 
@@ -120,6 +129,13 @@ export function MethodDetail({ method, inputData, diagnostics }: MethodDetailPro
             </code>
           </div>
         )}
+
+        {/* ABI 来源详情 */}
+        <AbiSourceDetails
+          abiSource={method.abi_source}
+          abiRef={method.abi_ref}
+          diagnostics={diagnostics}
+        />
 
         {method.inputs.length > 0 && (
           <div className="space-y-2">
@@ -156,6 +172,95 @@ export function MethodDetail({ method, inputData, diagnostics }: MethodDetailPro
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/** ABI 来源详情组件 */
+function AbiSourceDetails({
+  abiSource,
+  abiRef,
+  diagnostics,
+}: {
+  abiSource: string
+  abiRef?: string
+  diagnostics?: MethodDetailProps['diagnostics']
+}) {
+  const abiInfo = abiSourceLabels[abiSource] || abiSourceLabels.unknown
+  const abiDiag = diagnostics?.abi
+
+  // 构建 Etherscan 链接
+  const getEtherscanLink = (ref?: string) => {
+    if (!ref) return null
+    // ref 格式通常是合约地址
+    if (ref.startsWith('0x') && ref.length === 42) {
+      return `https://etherscan.io/address/${ref}#code`
+    }
+    return null
+  }
+
+  const etherscanLink = getEtherscanLink(abiRef || abiDiag?.ref)
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+      <div className="flex items-center gap-2 text-sm">
+        <Info className="h-4 w-4 text-muted-foreground" />
+        <span className="font-medium">ABI 来源</span>
+        <Badge variant="outline" className={cn("text-xs", abiInfo.color)}>
+          {abiInfo.label}
+        </Badge>
+      </div>
+
+      <div className="text-xs text-muted-foreground space-y-1.5 pl-6">
+        <p>{abiInfo.description}</p>
+
+        {/* Etherscan 来源展示详细信息 */}
+        {abiSource === 'explorer' && (
+          <>
+            {abiDiag?.status === 'success' && (
+              <p className="text-green-600">✓ 合约已在 Etherscan 验证</p>
+            )}
+            {(abiRef || abiDiag?.ref) && (
+              <div className="flex items-center gap-2">
+                <span>合约地址:</span>
+                <code className="text-xs bg-background px-1.5 py-0.5 rounded">
+                  {abiRef || abiDiag?.ref}
+                </code>
+                {etherscanLink && (
+                  <a
+                    href={etherscanLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline flex items-center gap-1"
+                  >
+                    查看源码 <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 4bytes 签名数据库 */}
+        {abiSource === 'signature_db' && (
+          <p className="text-yellow-600">
+            ⚠ 仅匹配到函数签名，参数名称可能不准确
+          </p>
+        )}
+
+        {/* Registry 本地注册表 */}
+        {abiSource === 'registry' && (
+          <p className="text-green-600">✓ 来自本地协议合约库</p>
+        )}
+
+        {/* 显示诊断错误信息 */}
+        {abiDiag?.error && (
+          <div className="flex items-center gap-1 text-red-500">
+            <AlertCircle className="h-3 w-3" />
+            <span>{abiDiag.error}</span>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -57,7 +57,8 @@ export function PageDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
       toast.success("已删除页面");
-      navigate("/pages", { replace: true });
+      const kbId = q.data?.kb_id;
+      navigate(kbId ? `/pages?kb_id=${encodeURIComponent(kbId)}` : "/pages", { replace: true });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
@@ -70,9 +71,15 @@ export function PageDetailPage() {
         <div>
           <div className="text-lg font-semibold">页面详情</div>
           <div className="mt-1 text-xs text-muted-foreground">
-            <Link className="underline underline-offset-2" to="/pages">
-              返回页面列表
-            </Link>
+            {q.data?.kb_id ? (
+              <Link className="underline underline-offset-2" to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
+                返回内容列表
+              </Link>
+            ) : (
+              <Link className="underline underline-offset-2" to="/pages">
+                返回内容列表
+              </Link>
+            )}
             {q.data?.kb_id ? (
               <span className="ml-3">
                 <Link
@@ -135,7 +142,7 @@ export function PageDetailPage() {
                 <div className="flex items-center gap-2">
                   <div className="font-mono text-xs">{q.data.source_id || "-"}</div>
                   {q.data.kb_id ? (
-                    <Link className="text-xs underline underline-offset-2" to={`/kbs/${q.data.kb_id}`}>
+                    <Link className="text-xs underline underline-offset-2" to={`/kbs/${q.data.kb_id}?tab=sources`}>
                       查看数据源
                     </Link>
                   ) : null}

@@ -9,6 +9,7 @@ class TxAnalyzeOptions(BaseModel):
     """分析选项"""
     include_explanation: bool = True
     include_trace: bool = False
+    include_simulation: bool = False  # 是否包含交易模拟
     language: str = "zh"
 
 
@@ -26,6 +27,8 @@ class ExplanationResult(BaseModel):
     risk_reasons: list[str] = Field(default_factory=list)
     actions: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[dict[str, Any]] = Field(default_factory=list)
+    protocol: str | None = None
+    address_attribution: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class TxAnalyzeResponse(BaseModel):
@@ -181,6 +184,7 @@ class SmartAnalyzeResponse(BaseModel):
     tx_result: dict[str, Any] | None = None  # 交易哈希分析结果
     decode_result: dict[str, Any] | None = None  # calldata 解码结果
     signature_result: dict[str, Any] | None = None  # 签名解析结果
+    simulation_result: dict[str, Any] | None = None  # 交易模拟结果 (新增)
     explanation: ExplanationResult | None = None
     error: str | None = None
     timings: dict[str, int] = Field(default_factory=dict)
