@@ -20,6 +20,19 @@ class TxAnalyzeRequest(BaseModel):
     options: TxAnalyzeOptions = Field(default_factory=TxAnalyzeOptions)
 
 
+class ContractIndexInfo(BaseModel):
+    """合约索引信息 - 来自 contract_index 的确定性协议识别结果"""
+    address: str
+    protocol: str
+    protocol_version: str = ""
+    contract_type: str = ""
+    contract_name: str = ""
+    source_url: str = ""
+    confidence: float = 1.0
+    chain_id: int = 1
+    source: str = "contract_index"
+
+
 class ExplanationResult(BaseModel):
     """解释结果"""
     summary: str = ""
@@ -29,6 +42,7 @@ class ExplanationResult(BaseModel):
     sources: list[dict[str, Any]] = Field(default_factory=list)
     protocol: str | None = None
     address_attribution: list[dict[str, Any]] = Field(default_factory=list)
+    contract_info: ContractIndexInfo | dict[str, Any] | None = None  # 来自 contract_index 的确定性结果
 
 
 class TxAnalyzeResponse(BaseModel):

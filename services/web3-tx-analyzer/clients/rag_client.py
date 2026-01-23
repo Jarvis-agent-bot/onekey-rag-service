@@ -312,14 +312,18 @@ Transaction data:
                     "actions": [],
                 }
 
-            # 添加 sources
+            # 添加 sources 和 contract_info
             explanation["sources"] = sources
+            # 从 RAG 响应中提取 contract_info（如果存在）
+            if data.get("contract_info"):
+                explanation["contract_info"] = data.get("contract_info")
 
             logger.info(
                 "rag_response",
                 trace_id=trace_id,
                 risk_level=explanation.get("risk_level"),
                 sources_count=len(sources),
+                has_contract_info=bool(data.get("contract_info")),
             )
 
             return explanation
@@ -536,6 +540,9 @@ Please identify the protocol, analyze the behavior, assess risks based on knowle
                 }
 
             explanation["sources"] = sources
+            # 从 RAG 响应中提取 contract_info（如果存在）
+            if data.get("contract_info"):
+                explanation["contract_info"] = data.get("contract_info")
 
             logger.info(
                 "rag_calldata_response",
@@ -543,6 +550,7 @@ Please identify the protocol, analyze the behavior, assess risks based on knowle
                 protocol=explanation.get("protocol"),
                 risk_level=explanation.get("risk_level"),
                 sources_count=len(sources),
+                has_contract_info=bool(data.get("contract_info")),
             )
 
             return explanation

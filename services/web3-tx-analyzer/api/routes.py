@@ -583,51 +583,13 @@ async def smart_analyze(
                         sim_step.set_output({"success": False, "error": str(e)})
 
             # 可选：调用 RAG 生成解释 (协议识别、行为分析、风险评估全部由 RAG 负责)
+            # contract_index 查询由 RAG 服务内部处理，返回 contract_info
             if req.options.include_explanation:
                 rag_ready = await check_rag_ready()
                 if rag_client and rag_ready:
                     try:
-                        # 预查询 contract_index 获取协议信息
-                        contract_attributions: list[dict] = []
-                        identified_protocol: str | None = None
-
-                        with tracer.step("contract_index_lookup") as ci_step:
-                            # 收集需要查询的地址
-                            addresses_to_lookup = []
-                            if to_address:
-                                addresses_to_lookup.append(to_address)
-                            # 从解码参数中提取地址
-                            for inp in (result.inputs or []):
-                                if inp.get("type") == "address" and inp.get("value"):
-                                    addr = inp.get("value")
-                                    if addr and addr.startswith("0x") and len(addr) == 42:
-                                        addresses_to_lookup.append(addr)
-
-                            # 批量查询
-                            if addresses_to_lookup:
-                                contract_results = await rag_client.batch_lookup_contracts(addresses_to_lookup)
-                                for addr, info in contract_results.items():
-                                    if info:
-                                        contract_attributions.append({
-                                            "address": addr,
-                                            "protocol": info.get("protocol"),
-                                            "name": info.get("contract_type") or info.get("contract_name") or "Unknown",
-                                            "version": info.get("protocol_version", ""),
-                                            "source": info.get("source", "index"),
-                                            "confidence": info.get("confidence", 0.7),
-                                        })
-                                        # 使用 to_address 的协议作为主协议
-                                        if addr.lower() == (to_address or "").lower() and not identified_protocol:
-                                            identified_protocol = info.get("protocol")
-
-                            ci_step.set_output({
-                                "addresses_queried": len(addresses_to_lookup),
-                                "contracts_found": len(contract_attributions),
-                                "identified_protocol": identified_protocol,
-                            })
-
-                        # 直接发送基础解析结果 + 原始数据给 RAG
-                        # RAG 负责: 协议识别、行为分析、风险评估
+                        # 发送基础解析结果 + 原始数据给 RAG
+                        # RAG 负责: contract_index 查询、协议识别、行为分析、风险评估
                         rag_data = {
                             "type": "calldata",
                             "raw_calldata": input_data,
@@ -641,9 +603,6 @@ async def smart_analyze(
                             "from_address": from_address,
                             "value": value,
                             "chain_id": req.chain_id,
-                            # 新增: 预识别的协议信息
-                            "identified_protocol": identified_protocol,
-                            "contract_attributions": contract_attributions,
                         }
 
                         # 如果有模拟结果，也发送给 RAG
@@ -651,13 +610,12 @@ async def smart_analyze(
                             rag_data["simulation"] = response.simulation_result
 
                         # 构建 metadata 用于知识库检索
+                        # RAG 服务会使用 address_lookup 查询 contract_index
                         rag_metadata = {
                             "address_lookup": to_address,
                             "function_name": result.function_name,
                             "function_signature": result.function_signature,
                             "selector": result.selector,
-                            # 新增: 使用预识别的协议进行检索
-                            "protocol": identified_protocol,
                         }
 
                         with tracer.step("call_rag", {"model": settings.rag_model}) as step:
@@ -667,27 +625,33 @@ async def smart_analyze(
                                 trace_id=tracer.trace_id,
                                 metadata=rag_metadata,
                             )
-                            step.set_output({"sources_count": len(rag_result.get("sources", []))})
-
-                        # 合并地址归属：优先使用 contract_index 的结果
-                        final_address_attribution = []
-                        seen_addresses = set()
-                        # 先添加 contract_index 结果（置信度更高）
-                        for ca in contract_attributions:
-                            final_address_attribution.append({
-                                "address": ca["address"],
-                                "protocol": ca["protocol"],
-                                "name": ca["name"],
-                                "evidence": f"contract_index (confidence: {ca.get('confidence', 0.7)})",
+                            # RAG 返回 contract_info (来自 contract_index) 和 sources
+                            contract_info = rag_result.get("contract_info")
+                            step.set_output({
+                                "sources_count": len(rag_result.get("sources", [])),
+                                "has_contract_info": bool(contract_info),
+                                "protocol": contract_info.get("protocol") if contract_info else rag_result.get("protocol"),
                             })
-                            seen_addresses.add(ca["address"].lower())
-                        # 再添加 RAG 结果中未覆盖的地址
-                        for ra in rag_result.get("address_attribution", []):
-                            if ra.get("address", "").lower() not in seen_addresses:
-                                final_address_attribution.append(ra)
 
-                        # 使用预识别的协议（如果 RAG 没有识别出来）
-                        final_protocol = rag_result.get("protocol") or identified_protocol
+                        # 使用 contract_info 构建地址归属
+                        address_attribution = rag_result.get("address_attribution", [])
+                        if contract_info:
+                            # 将 contract_info 添加到地址归属
+                            ci_attribution = {
+                                "address": contract_info.get("address"),
+                                "protocol": contract_info.get("protocol"),
+                                "name": contract_info.get("contract_type") or contract_info.get("contract_name") or "Unknown",
+                                "evidence": f"contract_index (confidence: {contract_info.get('confidence', 0.9)})",
+                            }
+                            # 确保不重复
+                            existing_addrs = {a.get("address", "").lower() for a in address_attribution}
+                            if ci_attribution["address"] and ci_attribution["address"].lower() not in existing_addrs:
+                                address_attribution = [ci_attribution] + address_attribution
+
+                        # 使用 contract_info 的协议（如果 RAG 没有识别出来）
+                        final_protocol = rag_result.get("protocol")
+                        if not final_protocol and contract_info:
+                            final_protocol = contract_info.get("protocol")
 
                         response.explanation = ExplanationResult(
                             summary=rag_result.get("summary", ""),
@@ -695,27 +659,12 @@ async def smart_analyze(
                             risk_reasons=rag_result.get("risk_reasons", []),
                             actions=rag_result.get("actions", []),
                             protocol=final_protocol,
-                            address_attribution=final_address_attribution,
+                            address_attribution=address_attribution,
                             sources=rag_result.get("sources", []),
+                            contract_info=contract_info,  # 添加 contract_info 到响应
                         )
                     except Exception as e:
                         logger.warning("rag_error_calldata", error=str(e))
-                        # 即使 RAG 失败，也返回 contract_index 的结果
-                        if contract_attributions:
-                            response.explanation = ExplanationResult(
-                                summary=f"调用 {result.function_name or 'unknown'} 函数",
-                                risk_level="unknown",
-                                risk_reasons=["RAG 服务暂时不可用，无法提供详细分析"],
-                                actions=[],
-                                protocol=identified_protocol,
-                                address_attribution=[{
-                                    "address": ca["address"],
-                                    "protocol": ca["protocol"],
-                                    "name": ca["name"],
-                                    "evidence": f"contract_index (confidence: {ca.get('confidence', 0.7)})",
-                                } for ca in contract_attributions],
-                                sources=[],
-                            )
 
         elif input_type == "signature":
             # 签名解析

@@ -582,7 +582,7 @@ async def openai_chat_completions(
             # 正常结束 chunk（OpenAI 习惯在最后给 finish_reason）
             yield f"data: {json_dumps({'id': chat_id,'object':'chat.completion.chunk','created': created,'model': req.model,'choices':[{'index':0,'delta':{},'finish_reason':'stop'}]})}\n\n"
 
-            sources_event = {"id": chat_id, "object": "chat.completion.sources", "sources": sources}
+            sources_event = {"id": chat_id, "object": "chat.completion.sources", "sources": sources, "contract_info": contract_info}
             yield f"data: {json_dumps(sources_event)}\n\n"
             yield "data: [DONE]\n\n"
         finally:

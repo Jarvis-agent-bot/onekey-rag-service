@@ -151,6 +151,19 @@ export interface SourceInfo {
   ref?: number | null
 }
 
+// 合约索引信息 - 来自 contract_index 的确定性协议识别结果
+export interface ContractInfo {
+  address: string
+  protocol: string
+  protocol_version?: string
+  contract_type?: string
+  contract_name?: string
+  source_url?: string
+  confidence: number
+  chain_id: number
+  source: string  // "contract_index"
+}
+
 export interface ExplanationResult {
   summary: string
   risk_level: RiskLevel
@@ -171,6 +184,8 @@ export interface ExplanationResult {
     evidence?: string | null
     is_verified?: boolean
   }>
+  /** 来自 contract_index 的确定性协议识别结果 */
+  contract_info?: ContractInfo | null
 }
 
 // Trace step

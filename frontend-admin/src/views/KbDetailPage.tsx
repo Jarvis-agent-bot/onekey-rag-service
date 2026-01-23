@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Database, FileText, Play, Plus, Settings2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Database, Play, Plus, RefreshCw, RotateCcw, Settings2, Upload } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { ActionCard } from "../components/ActionCard";
+
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { Card } from "../components/Card";
 import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
@@ -22,6 +22,7 @@ import { Select } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
+import { getContractStats } from "../api/contracts";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
 
@@ -161,6 +162,12 @@ export function KbDetailPage() {
     queryFn: () => apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?kb_id=${kbId}&page_size=20`),
     enabled: !!workspaceId && !!kbId,
     refetchInterval: 5000, // 每 5 秒刷新一次，跟踪进行中的任务
+  });
+
+  // 获取合约索引统计
+  const contractStats = useQuery({
+    queryKey: ["contract-stats"],
+    queryFn: getContractStats,
   });
 
   // 构建 source_id -> 最新任务 的映射
@@ -326,58 +333,6 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
 
-  // ======== 触发抓取 ========
-  const triggerCrawl = useMutation({
-    mutationFn: async (sourceId: string) => {
-      return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/crawl`, {
-        method: "POST",
-        body: JSON.stringify({
-          kb_id: kbId,
-          source_id: sourceId,
-          mode: "full",
-        }),
-      });
-    },
-    onSuccess: async (data) => {
-      // 不自动跳转，显示 Toast 带操作按钮
-      toast.success("抓取任务已启动", {
-        description: `任务 ID: ${data.job_id}`,
-        action: {
-          label: "查看详情",
-          onClick: () => navigate(`/jobs/${data.job_id}`),
-        },
-      });
-      // 刷新数据源和任务列表
-      await qc.invalidateQueries({ queryKey: ["sources", workspaceId, kbId] });
-      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
-  });
-
-  const triggerIndex = useMutation({
-    mutationFn: async () => {
-      return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/index`, {
-        method: "POST",
-        body: JSON.stringify({
-          kb_id: kbId,
-          mode: "full",
-        }),
-      });
-    },
-    onSuccess: async (data) => {
-      toast.success("索引任务已启动", {
-        description: `任务 ID: ${data.job_id}`,
-        action: {
-          label: "查看详情",
-          onClick: () => navigate(`/jobs/${data.job_id}`),
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
-      await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
-  });
-
   // ======== 内容 (Pages) Tab ========
   const [pagesPage, setPagesPage] = useState(1);
   const [pagesSourceId, setPagesSourceId] = useState("");
@@ -445,6 +400,73 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "操作失败"),
   });
 
+  // ======== 一键同步（简化版：crawl + index） ========
+  const [syncProgress, setSyncProgress] = useState<{ step: string; status: "idle" | "running" | "done" | "error" }>({ step: "", status: "idle" });
+
+  const syncAll = useMutation({
+    mutationFn: async () => {
+      const sourceList = sources.data?.items.filter((s) => s.status === "active") || [];
+      if (sourceList.length === 0) {
+        throw new Error("没有可用的数据源");
+      }
+
+      // Step 1: 抓取所有数据源
+      setSyncProgress({ step: `抓取 ${sourceList.length} 个数据源...`, status: "running" });
+      for (const source of sourceList) {
+        await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/crawl`, {
+          method: "POST",
+          body: JSON.stringify({ kb_id: kbId, source_id: source.id, mode: "full" }),
+        });
+      }
+
+      // Step 2: 索引（会自动触发 contract_index）
+      setSyncProgress({ step: "生成索引...", status: "running" });
+      await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/index`, {
+        method: "POST",
+        body: JSON.stringify({ kb_id: kbId, mode: "full" }),
+      });
+
+      setSyncProgress({ step: "任务已提交", status: "done" });
+      return { success: true };
+    },
+    onSuccess: async () => {
+      toast.success("同步任务已启动", {
+        description: "抓取和索引任务已提交，可在任务 Tab 查看进度",
+      });
+      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
+      await qc.invalidateQueries({ queryKey: ["kb-recent-jobs", workspaceId, kbId] });
+      // 3秒后重置状态
+      setTimeout(() => setSyncProgress({ step: "", status: "idle" }), 3000);
+    },
+    onError: (e) => {
+      setSyncProgress({ step: "", status: "error" });
+      toast.error(e instanceof Error ? e.message : "同步失败");
+    },
+  });
+
+  // ======== 单个数据源同步（crawl + index） ========
+  const syncSource = useMutation({
+    mutationFn: async (sourceId: string) => {
+      // 先 crawl
+      await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/crawl`, {
+        method: "POST",
+        body: JSON.stringify({ kb_id: kbId, source_id: sourceId, mode: "full" }),
+      });
+      // 然后 index
+      const indexResult = await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/index`, {
+        method: "POST",
+        body: JSON.stringify({ kb_id: kbId, mode: "full" }),
+      });
+      return indexResult;
+    },
+    onSuccess: async () => {
+      toast.success("同步任务已启动");
+      await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
+      await qc.invalidateQueries({ queryKey: ["kb-recent-jobs", workspaceId, kbId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "同步失败"),
+  });
+
   const actionError = saveKb.error || deleteKb.error || createSource.error || updateSource.error || deleteSource.error;
   const hasNoSources = !sources.data?.items?.length;
   const hasNoContent = !stats.data?.pages.total;
@@ -460,6 +482,15 @@ export function KbDetailPage() {
             <div className="font-mono text-[11px] text-muted-foreground">{kbId}</div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              onClick={() => syncAll.mutate()}
+              disabled={syncAll.isPending || !sources.data?.items?.length}
+              title="抓取所有数据源并生成索引"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncAll.isPending ? "animate-spin" : ""}`} />
+              {syncAll.isPending ? syncProgress.step || "同步中..." : "同步"}
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/kbs">返回列表</Link>
             </Button>
@@ -486,13 +517,13 @@ export function KbDetailPage() {
 
         {/* ============ 概览 Tab ============ */}
         <TabsContent value="overview" className="space-y-6">
-          {/* 快速操作区域 - 根据状态显示不同引导 */}
+          {/* 引导区域 - 仅在无数据源或无内容时显示 */}
           {hasNoSources ? (
             <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-6">
               <div className="text-center">
                 <Database className="mx-auto h-10 w-10 text-primary/60" />
                 <div className="mt-3 text-lg font-medium">开始配置知识库</div>
-                <div className="mt-1 text-sm text-muted-foreground">添加数据源后，就可以开始抓取和索引内容了</div>
+                <div className="mt-1 text-sm text-muted-foreground">添加数据源后，点击「同步」即可抓取和索引内容</div>
                 <Button className="mt-4" onClick={() => { handleTabChange("sources"); setShowSourceForm(true); }}>
                   <Plus className="mr-2 h-4 w-4" />
                   添加数据源
@@ -501,116 +532,126 @@ export function KbDetailPage() {
             </div>
           ) : hasNoContent ? (
             <div className="rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 p-6">
-              <div className="text-center">
-                <Play className="mx-auto h-10 w-10 text-amber-500/60" />
-                <div className="mt-3 text-lg font-medium">数据源已就绪</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  已配置 {sources.data?.items.length || 0} 个数据源，前往数据源页面启动抓取任务
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-medium">数据源已就绪</div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    已配置 {sources.data?.items.length || 0} 个数据源，点击同步开始抓取
+                  </div>
                 </div>
-                <Button className="mt-4" onClick={() => handleTabChange("sources")}>
-                  <Play className="mr-2 h-4 w-4" />
-                  前往数据源页面
+                <Button onClick={() => syncAll.mutate()} disabled={syncAll.isPending}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${syncAll.isPending ? "animate-spin" : ""}`} />
+                  {syncAll.isPending ? "同步中..." : "立即同步"}
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-3">
-              <ActionCard
-                icon={Plus}
-                title="添加数据源"
-                description="配置新的网站爬虫或上传文件"
-                onClick={() => { handleTabChange("sources"); setShowSourceForm(true); }}
-              />
-              <ActionCard
-                icon={Play}
-                title="启动抓取"
-                description={`当前 ${sources.data?.items.length || 0} 个数据源可用`}
-                onClick={() => handleTabChange("sources")}
-                variant="primary"
-              />
-              <ActionCard
-                icon={FileText}
-                title="查看内容"
-                description={`已索引 ${stats.data?.pages.total || 0} 个页面`}
-                onClick={() => handleTabChange("pages")}
-                variant="success"
-              />
+          ) : null}
+
+          {/* 核心指标 - 顶部一行展示 */}
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="rounded-xl border border-border/70 bg-card/50 p-4">
+              <div className="text-3xl font-semibold">{stats.data?.pages.total || 0}</div>
+              <div className="mt-1 text-sm text-muted-foreground">页面总数</div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-card/50 p-4">
+              <div className="text-3xl font-semibold">{stats.data?.chunks.total || 0}</div>
+              <div className="mt-1 text-sm text-muted-foreground">文档片段</div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-card/50 p-4">
+              <div className="flex items-baseline gap-1">
+                <div className="text-3xl font-semibold">{coveragePercent}</div>
+                <div className="text-lg text-muted-foreground">%</div>
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">向量覆盖率</div>
+              <Progress value={coveragePercent} className="mt-2 h-1.5" />
+            </div>
+            <div className="rounded-xl border border-border/70 bg-card/50 p-4">
+              <div className="text-3xl font-semibold">{sources.data?.items.length || 0}</div>
+              <div className="mt-1 text-sm text-muted-foreground">数据源</div>
+            </div>
+          </div>
+
+          {/* 合约索引统计 */}
+          {contractStats.data && contractStats.data.total_contracts > 0 && (
+            <div className="rounded-xl border border-border/70 bg-card/50">
+              <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                <div className="font-medium">合约索引</div>
+                <Badge variant="secondary">{contractStats.data.total_contracts} 个合约</Badge>
+              </div>
+              <div className="p-4">
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(contractStats.data.by_protocol || {})
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10)
+                    .map(([protocol, count]) => (
+                      <Badge key={protocol} variant="outline" className="text-xs">
+                        {protocol}: {count}
+                      </Badge>
+                    ))}
+                  {Object.keys(contractStats.data.by_protocol || {}).length > 10 && (
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                      +{Object.keys(contractStats.data.by_protocol).length - 10} 更多
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* 统计数据 */}
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card title="索引状态" description="页面数量与向量覆盖率">
-              {stats.isLoading ? <Loading size="sm" /> : null}
-              {stats.error ? <ApiErrorBanner error={stats.error} /> : null}
-              {stats.data ? (
-                <div className="space-y-4">
-                  <div className="space-y-2 rounded-xl border border-border/70 bg-background/50 p-3">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>向量覆盖率</span>
-                      <span className="font-mono text-foreground">{coveragePercent}%</span>
+          {/* 最近任务状态 */}
+          <div className="rounded-xl border border-border/70 bg-card/50">
+            <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+              <div className="font-medium">最近任务</div>
+              <Button variant="ghost" size="sm" onClick={() => handleTabChange("jobs")}>
+                查看全部
+              </Button>
+            </div>
+            <div className="divide-y divide-border/50">
+              {recentJobs.data?.items.slice(0, 5).map((job) => {
+                const progress = job.progress as { done?: number; total?: number } | undefined;
+                const percent = progress?.total ? Math.round(((progress.done || 0) / progress.total) * 100) : 0;
+                return (
+                  <Link
+                    key={job.id}
+                    to={`/jobs/${job.id}`}
+                    className="flex items-center justify-between px-4 py-3 hover:bg-muted/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`h-2 w-2 rounded-full ${
+                        job.status === "running" ? "animate-pulse bg-blue-500" :
+                        job.status === "queued" ? "bg-amber-500" :
+                        job.status === "succeeded" ? "bg-emerald-500" :
+                        job.status === "failed" ? "bg-red-500" : "bg-muted-foreground"
+                      }`} />
+                      <div>
+                        <div className="text-sm font-medium">
+                          {job.type === "crawl" ? "抓取" : job.type === "index" ? "索引" : job.type}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {job.started_at?.slice(0, 16) || "排队中"}
+                        </div>
+                      </div>
                     </div>
-                    <Progress value={coveragePercent} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-lg border border-border/50 bg-background/30 p-3">
-                      <div className="text-2xl font-semibold">{stats.data.pages.total}</div>
-                      <div className="text-xs text-muted-foreground">页面总数</div>
+                    <div className="text-right">
+                      <Badge variant={
+                        job.status === "failed" ? "destructive" :
+                        job.status === "succeeded" ? "default" : "secondary"
+                      }>
+                        {job.status === "running" ? `${percent}%` :
+                         job.status === "queued" ? "排队中" :
+                         job.status === "succeeded" ? "成功" :
+                         job.status === "failed" ? "失败" : job.status}
+                      </Badge>
                     </div>
-                    <div className="rounded-lg border border-border/50 bg-background/30 p-3">
-                      <div className="text-2xl font-semibold">{stats.data.chunks.total}</div>
-                      <div className="text-xs text-muted-foreground">文档片段</div>
-                    </div>
-                  </div>
-                  {stats.data.pages.last_crawled_at && (
-                    <div className="text-xs text-muted-foreground">
-                      最近抓取：{stats.data.pages.last_crawled_at}
-                    </div>
-                  )}
+                  </Link>
+                );
+              })}
+              {!recentJobs.data?.items?.length && (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  暂无任务记录
                 </div>
-              ) : null}
-            </Card>
-
-            <Card title="数据源" description="已配置的内容来源">
-              <div className="space-y-2">
-                {sources.data?.items.slice(0, 3).map((s) => (
-                  <div key={s.id} className="flex items-center justify-between rounded-lg border border-border/50 bg-background/30 p-3">
-                    <div>
-                      <div className="font-medium">{s.name || "未命名"}</div>
-                      <div className="text-xs text-muted-foreground">{s.type}</div>
-                    </div>
-                    <Badge variant={s.status === "active" ? "default" : "secondary"}>{s.status}</Badge>
-                  </div>
-                ))}
-                {!sources.data?.items?.length && (
-                  <div className="py-4 text-center text-sm text-muted-foreground">暂无数据源</div>
-                )}
-                {(sources.data?.items?.length || 0) > 3 && (
-                  <div className="text-xs text-muted-foreground">还有 {sources.data!.items.length - 3} 个...</div>
-                )}
-              </div>
-            </Card>
-
-            <Card title="引用应用" description="使用此知识库的应用">
-              {referencedBy.isLoading ? <Loading size="sm" /> : null}
-              {referencedBy.error ? <ApiErrorBanner error={referencedBy.error} /> : null}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-lg border border-border/50 bg-background/30 p-3">
-                  <div>
-                    <div className="text-2xl font-semibold">{referencedBy.data?.total || 0}</div>
-                    <div className="text-xs text-muted-foreground">个应用引用</div>
-                  </div>
-                  <Badge variant={(referencedBy.data?.total || 0) > 0 ? "default" : "secondary"}>
-                    {(referencedBy.data?.total || 0) > 0 ? "已绑定" : "未绑定"}
-                  </Badge>
-                </div>
-                {referencedBy.data?.items.slice(0, 2).map((a) => (
-                  <div key={a.app_id} className="rounded-md border border-border/50 bg-background/30 p-2 text-xs">
-                    <Link to={`/apps/${a.app_id}`} className="font-medium hover:underline">{a.name || a.app_id}</Link>
-                  </div>
-                ))}
-              </div>
-            </Card>
+              )}
+            </div>
           </div>
 
           {/* 知识库配置（可折叠） */}
@@ -763,23 +804,28 @@ export function KbDetailPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => triggerCrawl.mutate(s.id)}
-                              disabled={triggerCrawl.isPending || s.status !== "active"}
-                            >
-                              <Play className="mr-1 h-3 w-3" />
-                              抓取
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => triggerIndex.mutate()}
-                              disabled={triggerIndex.isPending}
-                            >
-                              索引
-                            </Button>
+                            {latestJob?.status === "failed" ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => syncSource.mutate(s.id)}
+                                disabled={syncSource.isPending || s.status !== "active"}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                <RotateCcw className="mr-1 h-3 w-3" />
+                                重试
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => syncSource.mutate(s.id)}
+                                disabled={syncSource.isPending || s.status !== "active" || latestJob?.status === "running" || latestJob?.status === "queued"}
+                              >
+                                <RefreshCw className={`mr-1 h-3 w-3 ${syncSource.isPending ? "animate-spin" : ""}`} />
+                                同步
+                              </Button>
+                            )}
                             <Button variant="outline" size="sm" onClick={() => { setEditingSourceId(s.id); setShowSourceForm(true); }}>
                               编辑
                             </Button>

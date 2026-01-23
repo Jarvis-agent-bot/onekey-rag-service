@@ -10,6 +10,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
+import { getContractStats } from "../api/contracts";
 
 type WorkspaceHealth = { status: string; dependencies: Record<string, unknown> };
 type WorkspaceSettings = {
@@ -93,6 +94,12 @@ export function SettingsPage() {
         setTestResults((prev) => ({ ...prev, [data.kind]: data.result || {} }));
       }
     },
+  });
+
+  // 合约索引统计（只读）
+  const contractStats = useQuery({
+    queryKey: ["contractStats"],
+    queryFn: () => getContractStats(),
   });
 
   const settingsData = settings.data;
@@ -289,6 +296,33 @@ export function SettingsPage() {
               <TestResult title="Embeddings" result={testResults.embeddings} />
               <TestResult title="Rerank" result={testResults.rerank} />
             </div>
+          </div>
+        </Card>
+
+        <Card title="合约索引统计" description="全局合约地址到协议的映射统计（在知识库详情页可构建索引）">
+          <div className="space-y-4 text-sm">
+            {contractStats.isLoading ? <div className="text-xs text-muted-foreground">加载中...</div> : null}
+            {contractStats.error ? <ApiErrorBanner error={contractStats.error} /> : null}
+            {contractStats.data ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+                  <span className="text-muted-foreground">总合约数</span>
+                  <span className="text-2xl font-mono font-semibold">{contractStats.data.total_contracts}</span>
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground mb-2">按协议分布</div>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(contractStats.data.by_protocol || {})
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([proto, count]) => (
+                        <Badge key={proto} variant="outline" className="text-xs">
+                          {proto}: {count}
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </Card>
 

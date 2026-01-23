@@ -16,6 +16,10 @@ export default defineConfig({
       "/admin/api": {
         target: process.env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true
+      },
+      "/api/v1": {
+        target: process.env.VITE_ADMIN_API_PROXY_TARGET || "http://localhost:8000",
+        changeOrigin: true
       }
     }
   },
