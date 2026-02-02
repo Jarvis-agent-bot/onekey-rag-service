@@ -1187,7 +1187,14 @@ export function KbDetailPage() {
                   pagesQuery.data.items.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-xs">
-                        <Link className="hover:underline" to={`/pages/${p.id}`}>{p.id}</Link>
+                        <Link
+                          className="hover:underline"
+                          to={`/pages/${p.id}`}
+                          state={{ from: { kb_id: kbId, source_id: p.source_id || undefined } }}
+                          title="打开页面详情（保留返回路径：KB 内容）"
+                        >
+                          {p.id}
+                        </Link>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{p.title || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="max-w-[300px]">
@@ -1201,7 +1208,17 @@ export function KbDetailPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/pages/${p.id}`)}>详情</Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              navigate(`/pages/${p.id}`, {
+                                state: { from: { kb_id: kbId, source_id: p.source_id || undefined } },
+                              })
+                            }
+                          >
+                            详情
+                          </Button>
                           <Button variant="outline" size="sm" disabled={recrawlPage.isPending} onClick={() => recrawlPage.mutate(p.id)}>
                             重新抓取
                           </Button>
