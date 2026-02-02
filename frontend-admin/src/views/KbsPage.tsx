@@ -489,14 +489,16 @@ export function KbsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/pages?kb_id=${encodeURIComponent(it.id)}`)}
+                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=pages`)}
+                          title="在知识库详情页内查看内容（减少在全局 Pages 列表和 KB 详情之间来回切换）"
                         >
                           内容
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(it.id)}`)}
+                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=jobs`)}
+                          title="在知识库详情页内查看任务（默认带 KB 过滤）"
                         >
                           任务
                         </Button>
