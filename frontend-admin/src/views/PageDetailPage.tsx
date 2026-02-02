@@ -45,7 +45,9 @@ export function PageDetailPage() {
       await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
       await qc.invalidateQueries({ queryKey: ["page", workspaceId, pageId] });
       toast.success("已触发 recrawl，正在跳转任务详情");
-      navigate(`/jobs/${data.job_id}`);
+      navigate(`/jobs/${data.job_id}`, {
+        state: { from: { kb_id: q.data?.kb_id, source_id: q.data?.source_id } },
+      });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });

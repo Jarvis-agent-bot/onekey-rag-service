@@ -471,7 +471,11 @@ export function JobsPage() {
                       <tr key={job.id} className="border-t border-border/30">
                         <td className="px-4 py-2 font-mono text-xs">
                           <div className="flex flex-col gap-1">
-                            <Link className="hover:underline" to={`/jobs/${job.id}`}>
+                            <Link
+                              className="hover:underline"
+                              to={`/jobs/${job.id}`}
+                              state={{ from: { kb_id: job.kb_id, source_id: job.source_id } }}
+                            >
                               {job.id}
                             </Link>
                             {job.kb_id ? (
@@ -505,7 +509,11 @@ export function JobsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => navigate(`/jobs/${job.id}`)}
+                              onClick={() =>
+                                navigate(`/jobs/${job.id}`, {
+                                  state: { from: { kb_id: job.kb_id, source_id: job.source_id } },
+                                })
+                              }
                             >
                               详情
                             </Button>

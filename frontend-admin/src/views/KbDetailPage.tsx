@@ -397,7 +397,9 @@ export function KbDetailPage() {
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
       toast.success("已触发 recrawl");
-      navigate(`/jobs/${data.job_id}`);
+      navigate(`/jobs/${data.job_id}`, {
+        state: { from: { kb_id: kbId, source_id: pagesSourceId || undefined } },
+      });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
@@ -722,6 +724,7 @@ export function KbDetailPage() {
                   <Link
                     key={job.id}
                     to={`/jobs/${job.id}`}
+                    state={{ from: { kb_id: job.kb_id, source_id: job.source_id } }}
                     className="flex items-center justify-between px-4 py-3 hover:bg-muted/30"
                   >
                     <div className="flex items-center gap-3">
@@ -881,7 +884,11 @@ export function KbDetailPage() {
                         </TableCell>
                         <TableCell>
                           {latestJob ? (
-                            <Link to={`/jobs/${latestJob.id}`} className="block hover:underline">
+                            <Link
+                              to={`/jobs/${latestJob.id}`}
+                              state={{ from: { kb_id: kbId, source_id: s.id } }}
+                              className="block hover:underline"
+                            >
                               {latestJob.status === "running" ? (
                                 <div className="flex items-center gap-1.5">
                                   <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
@@ -1384,7 +1391,15 @@ export function KbDetailPage() {
                                 </div>
                               </div>
                               <div className="mt-4 flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${j.id}`)}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    navigate(`/jobs/${j.id}`, {
+                                      state: { from: { kb_id: kbId, source_id: j.source_id || undefined } },
+                                    })
+                                  }
+                                >
                                   查看完整详情
                                 </Button>
                                 {j.source_id && sources.data?.items.find((s) => s.id === j.source_id) && (

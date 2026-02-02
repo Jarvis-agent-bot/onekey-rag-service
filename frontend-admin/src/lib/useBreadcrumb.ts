@@ -70,8 +70,13 @@ export function useBreadcrumb(): BreadcrumbItem[] {
   // 内容详情
   if (path.startsWith("/pages/")) {
     const pageId = path.replace("/pages/", "");
+    const from = (location.state as any)?.from as { kb_id?: string; source_id?: string } | undefined;
+    const fromTo = from?.kb_id
+      ? `/kbs/${encodeURIComponent(from.kb_id)}?tab=pages${from?.source_id ? `&source_id=${encodeURIComponent(from.source_id)}` : ""}`
+      : "/pages";
+
     return [
-      { label: "内容", to: "/pages" },
+      { label: "内容", to: fromTo },
       { label: pageId || "详情" },
     ];
   }
@@ -79,8 +84,13 @@ export function useBreadcrumb(): BreadcrumbItem[] {
   // 任务详情
   if (path.startsWith("/jobs/")) {
     const jobId = path.replace("/jobs/", "");
+    const from = (location.state as any)?.from as { kb_id?: string; source_id?: string } | undefined;
+    const fromTo = from?.kb_id
+      ? `/kbs/${encodeURIComponent(from.kb_id)}?tab=jobs${from?.source_id ? `&source_id=${encodeURIComponent(from.source_id)}` : ""}`
+      : "/jobs";
+
     return [
-      { label: "任务", to: "/jobs" },
+      { label: "任务", to: fromTo },
       { label: jobId || "详情" },
     ];
   }

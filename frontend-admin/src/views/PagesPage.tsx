@@ -92,7 +92,9 @@ export function PagesPage() {
     },
     onSuccess: (data) => {
       toast.success("已触发抓取任务，正在跳转详情");
-      navigate(`/jobs/${data.job_id}`);
+      navigate(`/jobs/${data.job_id}`, {
+        state: { from: { kb_id: kbId || undefined, source_id: sourceId || undefined } },
+      });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
@@ -228,7 +230,11 @@ export function PagesPage() {
                 (list.data?.items || []).map((it) => (
                   <tr key={it.id} className="border-t align-top">
                     <td className="py-2 font-mono text-xs">
-                      <Link className="underline underline-offset-2" to={`/pages/${it.id}`}>
+                      <Link
+                        className="underline underline-offset-2"
+                        to={`/pages/${it.id}`}
+                        state={{ from: { kb_id: it.kb_id, source_id: it.source_id } }}
+                      >
                         {it.id}
                       </Link>
                     </td>
@@ -284,7 +290,15 @@ export function PagesPage() {
                     <td className="py-2 font-mono text-xs text-muted-foreground">{it.last_crawled_at || "-"}</td>
                     <td className="py-2">
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/pages/${it.id}`)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            navigate(`/pages/${it.id}`, {
+                              state: { from: { kb_id: it.kb_id, source_id: it.source_id } },
+                            })
+                          }
+                        >
                           详情
                         </Button>
                         <Button
