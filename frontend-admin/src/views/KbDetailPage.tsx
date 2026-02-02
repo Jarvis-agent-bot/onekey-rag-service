@@ -214,6 +214,30 @@ export function KbDetailPage() {
     setSearchParams(next, { replace: true });
   };
 
+  /**
+   * 从任意位置跳转到 KB 详情内的指定 Tab，并可选携带 source_id。
+   * 目的：减少「数据源列表 → 内容/任务」的割裂感；同时把筛选写入 URL，便于刷新/分享。
+   */
+  const jumpToTab = (targetTab: "pages" | "jobs", sourceId?: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", targetTab);
+
+    if (sourceId) next.set("source_id", sourceId);
+    else next.delete("source_id");
+
+    setSearchParams(next, { replace: true });
+    setTab(targetTab);
+
+    if (targetTab === "pages") {
+      setPagesSourceId(sourceId || "");
+      setPagesPage(1);
+    }
+
+    if (targetTab === "jobs") {
+      setJobsSourceId(sourceId || "");
+      setJobsPage(1);
+    }
+  };
 
   const coveragePercent = Math.round((stats.data?.chunks.embedding_coverage || 0) * 100);
 
@@ -885,14 +909,18 @@ export function KbDetailPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                handleTabChange("pages");
-                                setPagesSourceId(s.id);
-                                setPagesPage(1);
-                              }}
-                              title="查看该数据源抓取到的内容"
+                              onClick={() => jumpToTab("pages", s.id)}
+                              title="查看该数据源抓取到的内容（并写入 URL，便于分享/刷新保留筛选）"
                             >
                               内容
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => jumpToTab("jobs", s.id)}
+                              title="查看该数据源相关任务（并写入 URL，便于分享/刷新保留筛选）"
+                            >
+                              任务
                             </Button>
                             {latestJob?.status === "failed" ? (
                               <Button
