@@ -305,7 +305,7 @@ export function AppDetailPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {b.kb_id ? (
-                        <Link className="hover:underline" to={`/kbs/${b.kb_id}`}>
+                        <Link className="hover:underline" to={`/kbs/${encodeURIComponent(b.kb_id)}`}>
                           {b.kb_id}
                         </Link>
                       ) : (
@@ -340,7 +340,7 @@ export function AppDetailPage() {
                       <div className="flex items-center gap-2">
                         {b.kb_id ? (
                           <Button asChild variant="ghost" size="sm">
-                            <Link to={`/kbs/${b.kb_id}`}>查看 KB</Link>
+                            <Link to={`/kbs/${encodeURIComponent(b.kb_id)}`}>查看 KB</Link>
                           </Button>
                         ) : null}
                         <Button

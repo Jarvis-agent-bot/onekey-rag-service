@@ -688,7 +688,7 @@ export function KbDetailPage() {
                   {referencedBy.data.items.slice(0, 6).map((it) => (
                     <Link
                       key={it.app_id}
-                      to={`/apps/${it.app_id}`}
+                      to={`/apps/${encodeURIComponent(it.app_id)}`}
                       className="rounded-lg border border-border/50 bg-background/30 p-3 text-sm hover:bg-muted/30"
                     >
                       <div className="font-medium text-foreground">{it.name || it.app_id}</div>
