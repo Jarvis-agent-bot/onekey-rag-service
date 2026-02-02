@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
@@ -38,6 +38,9 @@ export function JobDetailPage() {
   const jobId = params.jobId || "";
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const from = (location.state as any)?.from as { kb_id?: string; source_id?: string } | undefined;
 
   const q = useQuery({
     queryKey: ["job", workspaceId, jobId],
@@ -72,15 +75,27 @@ export function JobDetailPage() {
 
   const actionError = requeue.error || cancel.error;
 
-  // 智能返回逻辑：优先返回 KB 详情页，否则返回上一页
+  // 智能返回逻辑：优先遵循来源页面 state.from（用于保留 kb/source 上下文），其次返回 KB 详情，否则返回上一页
   const handleGoBack = () => {
+    if (from?.kb_id) {
+      const qs = new URLSearchParams();
+      qs.set("tab", "jobs");
+      if (from.source_id) qs.set("source_id", from.source_id);
+      navigate(`/kbs/${from.kb_id}?${qs.toString()}`);
+      return;
+    }
+
     if (q.data?.kb_id) {
       navigate(`/kbs/${q.data.kb_id}?tab=jobs`);
-    } else if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate("/kbs");
+      return;
     }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/kbs");
   };
 
   return (
