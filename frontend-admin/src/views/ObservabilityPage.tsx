@@ -332,9 +332,14 @@ export function ObservabilityPage() {
             </div>
           </div>
         </div>
-        <div className="mt-3 text-xs text-muted-foreground font-mono">
-          快速查看：{JSON.stringify(metrics.data?.container?.summary || {})}
-        </div>
+        <details className="mt-3 rounded-md border border-border/60 bg-muted/10 p-3">
+          <summary className="cursor-pointer select-none text-xs text-muted-foreground">
+            Debug（可选）：container.summary（原始 JSON）
+          </summary>
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[11px] text-muted-foreground font-mono">
+            {JSON.stringify(metrics.data?.container?.summary || {}, null, 2)}
+          </pre>
+        </details>
       </Card>
 
       {list.error ? <ApiErrorBanner error={list.error} /> : null}
