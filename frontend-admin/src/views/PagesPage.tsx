@@ -214,6 +214,7 @@ export function PagesPage() {
               <tr>
                 <th className="py-2">ID</th>
                 <th className="py-2">知识库</th>
+                <th className="py-2">数据源</th>
                 <th className="py-2">标题</th>
                 <th className="py-2">URL</th>
                 <th className="py-2">HTTP</th>
@@ -242,6 +243,32 @@ export function PagesPage() {
                         </Link>
                       ) : (
                         "-"
+                      )}
+                    </td>
+                    <td className="py-2 font-mono text-xs">
+                      {it.source_id ? (
+                        it.kb_id ? (
+                          <div className="flex flex-col gap-1">
+                            <Link
+                              className="underline underline-offset-2"
+                              to={`/kbs/${it.kb_id}?tab=pages&source_id=${encodeURIComponent(it.source_id)}`}
+                              title="在该 KB 内按 source_id 查看内容"
+                            >
+                              {it.source_id}
+                            </Link>
+                            <Link
+                              className="text-[11px] text-muted-foreground underline underline-offset-2"
+                              to={`/kbs/${it.kb_id}?tab=sources`}
+                              title="查看该 KB 的数据源配置"
+                            >
+                              查看数据源配置
+                            </Link>
+                          </div>
+                        ) : (
+                          <span>{it.source_id}</span>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </td>
                     <td className="py-2 max-w-[220px] truncate">{it.title || <span className="text-muted-foreground">-</span>}</td>
@@ -274,7 +301,7 @@ export function PagesPage() {
                 ))
               ) : (
                 <tr className="border-t">
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <EmptyState description="暂无内容数据；请先配置数据源并触发抓取。" className="py-6" />
                   </td>
                 </tr>
