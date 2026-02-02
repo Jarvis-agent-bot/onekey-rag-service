@@ -38,20 +38,71 @@ export function RetrievalEventDetailPage() {
     enabled: !!workspaceId && Number.isFinite(eventId) && eventId > 0,
   });
 
+  const data = q.data;
+  const firstKbId = data?.kb_ids?.[0] || "";
+
   return (
     <div className="space-y-4">
       <div>
         <div className="text-lg font-semibold">检索事件详情</div>
-        <div className="mt-1 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <Link className="underline underline-offset-2" to="/observability">
             返回列表
           </Link>
-          {q.data?.request_id ? (
-            <span className="ml-3">
-              <Link className="underline underline-offset-2" to={`/observability?request_id=${encodeURIComponent(q.data.request_id)}`}>
-                回到列表（带 request_id）
+          {data?.request_id ? (
+            <Link className="underline underline-offset-2" to={`/observability?request_id=${encodeURIComponent(data.request_id)}`}>
+              回到列表（带 request_id）
+            </Link>
+          ) : null}
+
+          {data?.app_id ? (
+            <>
+              <span className="text-border">·</span>
+              <Link className="underline underline-offset-2" to={`/apps/${encodeURIComponent(data.app_id)}`}>
+                打开 App
               </Link>
-            </span>
+              <Link
+                className="underline underline-offset-2"
+                to={`/observability?app_id=${encodeURIComponent(data.app_id)}`}
+                title="回到观测列表，并按 app_id 过滤"
+              >
+                观测（按 App）
+              </Link>
+            </>
+          ) : null}
+
+          {firstKbId ? (
+            <>
+              <span className="text-border">·</span>
+              <Link
+                className="underline underline-offset-2"
+                to={`/kbs/${encodeURIComponent(firstKbId)}`}
+                title="打开该事件使用的第一个 KB（如有多个 KB，仅取第一个作为快捷入口）"
+              >
+                打开 KB
+              </Link>
+              <Link
+                className="underline underline-offset-2"
+                to={`/kbs/${encodeURIComponent(firstKbId)}?tab=pages`}
+                title="跳到 KB 详情的『内容』Tab"
+              >
+                KB 内容
+              </Link>
+              <Link
+                className="underline underline-offset-2"
+                to={`/kbs/${encodeURIComponent(firstKbId)}?tab=jobs`}
+                title="跳到 KB 详情的『任务』Tab"
+              >
+                KB 任务
+              </Link>
+              <Link
+                className="underline underline-offset-2"
+                to={`/observability?kb_id=${encodeURIComponent(firstKbId)}`}
+                title="回到观测列表，并按 kb_id 过滤"
+              >
+                观测（按 KB）
+              </Link>
+            </>
           ) : null}
         </div>
       </div>
