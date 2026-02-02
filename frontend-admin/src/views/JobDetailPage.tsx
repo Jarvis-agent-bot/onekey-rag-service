@@ -94,7 +94,7 @@ export function JobDetailPage() {
             </Button>
             <span className="text-lg font-semibold">任务详情</span>
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             {q.data?.kb_id ? (
               <>
                 <Link className="hover:underline" to={`/kbs/${q.data.kb_id}`}>
@@ -105,6 +105,9 @@ export function JobDetailPage() {
                 </Link>
                 <Link className="hover:underline" to={`/kbs/${q.data.kb_id}?tab=jobs`}>
                   查看任务
+                </Link>
+                <Link className="hover:underline" to={`/observability?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
+                  观测（按 KB）
                 </Link>
                 {q.data?.source_id ? (
                   <>
@@ -131,6 +134,18 @@ export function JobDetailPage() {
                 知识库列表
               </Link>
             )}
+
+            {q.data?.app_id ? (
+              <>
+                <span className="text-border">·</span>
+                <Link className="hover:underline" to={`/apps/${encodeURIComponent(q.data.app_id)}`}>
+                  App 详情
+                </Link>
+                <Link className="hover:underline" to={`/observability?app_id=${encodeURIComponent(q.data.app_id)}`}>
+                  观测（按 App）
+                </Link>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -193,15 +208,34 @@ export function JobDetailPage() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">KB</div>
-                <div className="font-mono text-xs">{q.data.kb_id || "-"}</div>
+                {q.data.kb_id ? (
+                  <Link className="font-mono text-xs underline underline-offset-2" to={`/kbs/${encodeURIComponent(q.data.kb_id)}`}>
+                    {q.data.kb_id}
+                  </Link>
+                ) : (
+                  <div className="font-mono text-xs">-</div>
+                )}
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Source</div>
-                <div className="font-mono text-xs">{q.data.source_id || "-"}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-mono text-xs">{q.data.source_id || "-"}</div>
+                  {q.data.kb_id ? (
+                    <Link className="text-xs underline underline-offset-2" to={`/kbs/${encodeURIComponent(q.data.kb_id)}?tab=sources`}>
+                      查看数据源
+                    </Link>
+                  ) : null}
+                </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">App</div>
-                <div className="font-mono text-xs">{q.data.app_id || "-"}</div>
+                {q.data.app_id ? (
+                  <Link className="font-mono text-xs underline underline-offset-2" to={`/apps/${encodeURIComponent(q.data.app_id)}`}>
+                    {q.data.app_id}
+                  </Link>
+                ) : (
+                  <div className="font-mono text-xs">-</div>
+                )}
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">开始</div>

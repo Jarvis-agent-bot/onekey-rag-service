@@ -541,11 +541,19 @@ export function DashboardPage() {
                   <div className="mt-1 text-xs text-muted-foreground">
                     {app ? (
                       <>
-                        映射：应用 <span className="font-medium">{app.name}</span>（app_id=<span className="font-mono">{app.id}</span>）
+                        映射：应用{" "}
+                        <Link className="font-medium underline underline-offset-2" to={`/apps/${encodeURIComponent(app.id)}`}>
+                          {app.name}
+                        </Link>
+                        （app_id=<span className="font-mono">{app.id}</span>）
                       </>
                     ) : (
                       <>
-                        未映射到应用：请在“应用”中配置唯一 <span className="font-mono">public_model_id</span>，并确保其对外暴露为相同的 <span className="font-mono">model_id</span>。
+                        未映射到应用：请在{" "}
+                        <Link className="underline underline-offset-2" to="/apps">
+                          应用
+                        </Link>
+                        中配置唯一 <span className="font-mono">public_model_id</span>，并确保其对外暴露为相同的 <span className="font-mono">model_id</span>。
                       </>
                     )}
                   </div>
