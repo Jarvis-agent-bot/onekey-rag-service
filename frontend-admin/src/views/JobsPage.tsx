@@ -228,7 +228,7 @@ export function JobsPage() {
                   <Button variant="destructive" size="sm" disabled={batchRetry.isPending}>
                     {batchRetry.isPending
                       ? `重试中 ${batchRetryProgress?.current || 0}/${batchRetryProgress?.total || 0}`
-                      : `批量重试失败 (${totalStats.failed})`}
+                      : `批量重试失败任务 (${totalStats.failed})`}
                   </Button>
                 }
                 title="确认批量重试？"
@@ -437,9 +437,22 @@ export function JobsPage() {
                     {group.jobs.map((job) => (
                       <tr key={job.id} className="border-t border-border/30">
                         <td className="px-4 py-2 font-mono text-xs">
-                          <Link className="hover:underline" to={`/jobs/${job.id}`}>
-                            {job.id}
-                          </Link>
+                          <div className="flex flex-col gap-1">
+                            <Link className="hover:underline" to={`/jobs/${job.id}`}>
+                              {job.id}
+                            </Link>
+                            {job.kb_id ? (
+                              <div className="font-sans text-[11px] text-muted-foreground">
+                                <Link
+                                  className="hover:underline"
+                                  to={`/kbs/${job.kb_id}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
+                                  title="跳到该 KB 的任务 Tab，并尽量保留 source_id 筛选"
+                                >
+                                  回到该知识库（任务）
+                                </Link>
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           <Badge variant="outline">
