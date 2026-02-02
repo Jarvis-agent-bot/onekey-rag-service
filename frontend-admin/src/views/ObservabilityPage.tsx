@@ -143,18 +143,34 @@ export function ObservabilityPage() {
             <div className="text-2xl font-semibold text-foreground">观测 / 请求与资源</div>
             <div className="text-sm text-muted-foreground">按请求事件检索 + 容器资源曲线（支持 1h / 24h / 7d）。</div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-muted-foreground">事件时间窗</div>
-            <Select
-              value={dateRange}
-              onChange={(e) => {
-                updateFilter([["date_range", e.target.value]]);
-              }}
-            >
-              <option value="1h">1h</option>
-              <option value="24h">24h</option>
-              <option value="7d">7d</option>
-            </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/">Dashboard</Link>
+            </Button>
+            {kbId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/kbs/${encodeURIComponent(kbId)}`}>打开 KB</Link>
+              </Button>
+            ) : null}
+            {appId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/apps/${encodeURIComponent(appId)}`}>打开 App</Link>
+              </Button>
+            ) : null}
+
+            <div className="ml-2 flex items-center gap-2">
+              <div className="text-xs text-muted-foreground">事件时间窗</div>
+              <Select
+                value={dateRange}
+                onChange={(e) => {
+                  updateFilter([["date_range", e.target.value]]);
+                }}
+              >
+                <option value="1h">1h</option>
+                <option value="24h">24h</option>
+                <option value="7d">7d</option>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -435,7 +451,28 @@ export function ObservabilityPage() {
                         </Link>
                       </td>
                     <td className="py-2 font-mono text-xs text-muted-foreground">{it.created_at || "-"}</td>
-                    <td className="py-2 font-mono text-xs">{it.app_id || "-"}</td>
+                    <td className="py-2 font-mono text-xs">
+                      {it.app_id ? (
+                        <span>
+                          <Link
+                            className="underline underline-offset-2"
+                            to={`/apps/${encodeURIComponent(it.app_id)}`}
+                            title="打开 App 详情"
+                          >
+                            {it.app_id}
+                          </Link>
+                          <Link
+                            className="ml-1 text-muted-foreground underline underline-offset-2"
+                            to={`/observability?app_id=${encodeURIComponent(it.app_id)}&date_range=${encodeURIComponent(dateRange)}`}
+                            title="在观测中按该 app_id 过滤"
+                          >
+                            ·筛选
+                          </Link>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="py-2 font-mono text-xs">
                       {(it.kb_ids || []).length ? (
                         <div className="flex flex-wrap gap-x-2 gap-y-1">
