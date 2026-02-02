@@ -16,6 +16,11 @@ import { Separator } from "../components/ui/separator";
 type NavItem = {
   to: string;
   label: string;
+  /**
+   * 可选：更长的解释（hover title）。
+   * 用于保持侧边栏精简，同时又能保留英文/补充说明。
+   */
+  title?: string;
   icon: LucideIcon;
 };
 
@@ -38,11 +43,12 @@ const navGroups: NavGroup[] = [
   {
     title: "知识构建",
     items: [
-      { to: "/kbs", label: "知识库（Collections）", icon: Database },
-      { to: "/pages", label: "内容（Documents）", icon: FileText },
-      { to: "/jobs", label: "索引/任务（Jobs）", icon: ScrollText },
-      { to: "/apps", label: "应用（Apps）", icon: Boxes },
-      { to: "/playground", label: "验证台（Playground）", icon: TestTubeDiagonal },
+      // 侧边栏的 label 尽量简短，避免括号/英文打断阅读；英文信息用 title 提示。
+      { to: "/kbs", label: "知识库", title: "知识库（Collections）", icon: Database },
+      { to: "/pages", label: "内容", title: "内容（Documents）", icon: FileText },
+      { to: "/jobs", label: "任务", title: "索引/任务（Jobs）", icon: ScrollText },
+      { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
+      { to: "/playground", label: "验证台", title: "验证台（Playground）", icon: TestTubeDiagonal },
     ],
   },
   {
@@ -136,6 +142,7 @@ export function AdminLayout() {
                         key={it.to}
                         to={it.to}
                         end={it.to === "/"}
+                        title={it.title || it.label}
                         className={({ isActive }) =>
                           cn(
                             "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted",
