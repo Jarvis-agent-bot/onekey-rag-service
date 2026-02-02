@@ -404,6 +404,13 @@ export function KbsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => navigate(`/pages?kb_id=${encodeURIComponent(it.id)}`)}
+                        >
+                          内容
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(it.id)}`)}
                         >
                           最近任务

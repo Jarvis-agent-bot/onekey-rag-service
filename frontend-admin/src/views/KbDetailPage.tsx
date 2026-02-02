@@ -598,6 +598,36 @@ export function KbDetailPage() {
             </div>
           )}
 
+          {/* 引用的应用（从 KB 快速跳到 App 详情） */}
+          {referencedBy.data?.total ? (
+            <div className="rounded-xl border border-border/70 bg-card/50">
+              <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                <div className="font-medium">被应用引用</div>
+                <Badge variant="secondary">{referencedBy.data.total} 个</Badge>
+              </div>
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {referencedBy.data.items.slice(0, 6).map((it) => (
+                    <Link
+                      key={it.app_id}
+                      to={`/apps/${it.app_id}`}
+                      className="rounded-lg border border-border/50 bg-background/30 p-3 text-sm hover:bg-muted/30"
+                    >
+                      <div className="font-medium text-foreground">{it.name || it.app_id}</div>
+                      <div className="mt-1 font-mono text-[11px] text-muted-foreground">app_id: {it.app_id}</div>
+                      {it.public_model_id ? (
+                        <div className="font-mono text-[11px] text-muted-foreground">model_id: {it.public_model_id}</div>
+                      ) : null}
+                    </Link>
+                  ))}
+                </div>
+                {referencedBy.data.total > 6 ? (
+                  <div className="mt-3 text-xs text-muted-foreground">仅展示前 6 个引用应用。</div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           {/* 最近任务状态 */}
           <div className="rounded-xl border border-border/70 bg-card/50">
             <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
@@ -804,6 +834,18 @@ export function KbDetailPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                handleTabChange("pages");
+                                setPagesSourceId(s.id);
+                                setPagesPage(1);
+                              }}
+                              title="查看该数据源抓取到的内容"
+                            >
+                              内容
+                            </Button>
                             {latestJob?.status === "failed" ? (
                               <Button
                                 variant="default"
