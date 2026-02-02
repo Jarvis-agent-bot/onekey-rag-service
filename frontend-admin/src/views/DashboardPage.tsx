@@ -209,7 +209,11 @@ export function DashboardPage() {
             </div>
             <div className="text-[11px] text-muted-foreground">排队 {formatInt(jobsQueued)} · 成功 {formatInt(jobsSucceeded)}</div>
           </Link>
-          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+          <Link
+            to="/observability"
+            className="block rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:bg-muted/40"
+            title="打开观测页查看资源曲线"
+          >
             <div className="text-xs text-muted-foreground">系统资源（容器快照）</div>
             <div className="text-2xl font-semibold text-foreground">
               {system.data?.system?.cpu_percent != null ? `${system.data.system.cpu_percent}% CPU` : "CPU -"}{" "}
@@ -224,7 +228,7 @@ export function DashboardPage() {
                 ? `${Math.round((system.data.system.disk_root.used_bytes / Math.max(1, system.data.system.disk_root.total_bytes)) * 100)}%`
                 : "-"}
             </div>
-          </div>
+          </Link>
         </div>
       </div>
 
@@ -298,6 +302,7 @@ export function DashboardPage() {
           value={overall ? formatInt(overall.requests) : "-"}
           sub={overall ? `命中率 ${pct(overall.hit_ratio)} · 错误率 ${pct(overall.error_ratio)}` : "来自质量聚合"}
           help="口径：过去 24h 的 RAG 请求数（来自观测聚合）。命中率=hits/requests；错误率=errors/requests。"
+          to="/observability"
         />
         <MetricCard
           icon={<Timer className="h-4 w-4" />}
@@ -305,6 +310,7 @@ export function DashboardPage() {
           value={overall?.p95_prepare_ms != null ? `${Math.round(overall.p95_prepare_ms)}ms` : "-"}
           sub="prepare_rag（包含 embedding/检索/重排等）"
           help="口径：prepare_rag 阶段 p95 耗时，包含 embedding/检索/重排等。单位 ms，过去 24h。"
+          to="/observability"
         />
         <MetricCard
           icon={<MessageSquareText className="h-4 w-4" />}
@@ -312,6 +318,7 @@ export function DashboardPage() {
           value={overall ? formatInt(overall.total_tokens) : "-"}
           sub={obs24h.data?.pricing_configured ? "已配置成本估算" : "未配置成本估算"}
           help="口径：过去 24h 的 tokens 用量（来自上游模型）。成本估算依赖 pricing 配置。"
+          to="/observability"
         />
         <MetricCard
           icon={<Database className="h-4 w-4" />}
@@ -319,14 +326,15 @@ export function DashboardPage() {
           value={`${Math.round((data.chunks.embedding_coverage || 0) * 100)}%`}
           sub={`${formatInt(data.chunks.with_embedding)}/${formatInt(data.chunks.total)} chunks`}
           help="口径：chunks 中 embedding 非空的比例。覆盖率=with_embedding/total（按 workspace）。"
+          to="/kbs"
         />
         <MetricCard
           icon={<ListChecks className="h-4 w-4" />}
           title="失败任务"
           value={formatInt(jobsFailed)}
-          sub="在知识库详情查看"
-          help="口径：jobs 表中 status=failed 的任务数量（全类型）。点击进入知识库列表，在具体知识库的「任务」Tab 查看。"
-          to="/kbs"
+          sub="打开任务中心查看失败原因"
+          help="口径：jobs 表中 status=failed 的任务数量（全类型）。建议先在任务中心按 failed 过滤，再回到 KB 详情定位数据源与内容。"
+          to={jobsFailed > 0 ? "/jobs?status=failed" : "/jobs"}
         />
       </div>
 
