@@ -181,15 +181,16 @@ export function AppDetailPage() {
     <div className="space-y-4">
       <div>
         <div className="text-lg font-semibold">应用详情</div>
-        <div className="mt-1 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <Link className="underline underline-offset-2" to="/apps">
             返回应用列表
           </Link>
-          <span className="ml-3">
-            <Link className="underline underline-offset-2" to={`/observability?app_id=${encodeURIComponent(appId)}`}>
-              观测（按 App）
-            </Link>
-          </span>
+          <Link className="underline underline-offset-2" to={`/kbs?app_id=${encodeURIComponent(appId)}`}>
+            查看关联 KB（筛选）
+          </Link>
+          <Link className="underline underline-offset-2" to={`/observability?app_id=${encodeURIComponent(appId)}`}>
+            观测（按 App）
+          </Link>
         </div>
 
         {bindings.data?.items?.length ? (

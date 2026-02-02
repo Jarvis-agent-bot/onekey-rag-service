@@ -388,8 +388,18 @@ export function KbsPage() {
         {chips.length ? (
           <div className="pb-3">
             <FilterChips items={chips} />
-            <div className="mt-1 text-xs text-muted-foreground">
-              当前仅展示被该应用引用的知识库。可从「应用详情」跳转过来，或清除筛选查看全部。
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>当前仅展示被该应用引用的知识库。</span>
+              {appIdFilter ? (
+                <>
+                  <span className="text-border">·</span>
+                  <Link className="underline underline-offset-2" to={`/apps/${encodeURIComponent(appIdFilter)}`}>
+                    返回应用详情
+                  </Link>
+                </>
+              ) : null}
+              <span className="text-border">·</span>
+              <span>也可清除筛选查看全部。</span>
             </div>
           </div>
         ) : null}
