@@ -115,6 +115,55 @@ export function PagesPage() {
             </Select>
           </div>
         </div>
+
+        {(kbId || sourceId) ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>快捷跳转：</span>
+            {kbId ? (
+              <>
+                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>
+                  KB 内容
+                </Link>
+                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>
+                  KB 任务
+                </Link>
+                <Link className="underline underline-offset-2" to={`/observability?kb_id=${encodeURIComponent(kbId)}`}>
+                  观测（按 KB）
+                </Link>
+              </>
+            ) : null}
+            {kbId && sourceId ? <span className="text-border">·</span> : null}
+            {kbId && sourceId ? (
+              <>
+                <Link
+                  className="underline underline-offset-2"
+                  to={`/kbs/${encodeURIComponent(kbId)}?tab=pages&source_id=${encodeURIComponent(sourceId)}`}
+                  title="跳到该 KB 的内容 Tab，并自动筛选 source_id"
+                >
+                  该数据源内容
+                </Link>
+                <Link
+                  className="underline underline-offset-2"
+                  to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs&source_id=${encodeURIComponent(sourceId)}`}
+                  title="跳到该 KB 的任务 Tab，并自动筛选 source_id"
+                >
+                  该数据源任务
+                </Link>
+              </>
+            ) : null}
+            {kbId ? (
+              <>
+                <span className="text-border">·</span>
+                <Link
+                  className="underline underline-offset-2"
+                  to={`/jobs?kb_id=${encodeURIComponent(kbId)}${sourceId ? `&source_id=${encodeURIComponent(sourceId)}` : ""}`}
+                >
+                  任务中心（带筛选）
+                </Link>
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <Card title="筛选" description="常用：按 KB 或 URL 关键字定位问题页面">
