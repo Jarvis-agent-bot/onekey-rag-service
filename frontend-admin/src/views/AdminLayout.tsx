@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, ThumbsUp, TestTubeDiagonal, type LucideIcon } from "lucide-react";
+import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, Shield, ThumbsUp, TestTubeDiagonal, type LucideIcon } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,7 +62,7 @@ const navGroups: NavGroup[] = [
   {
     title: "系统",
     items: [
-      { to: "/audit", label: "审计", icon: ScrollText },
+      { to: "/audit", label: "审计", icon: Shield },
       { to: "/settings", label: "设置", icon: Settings },
     ],
   },
