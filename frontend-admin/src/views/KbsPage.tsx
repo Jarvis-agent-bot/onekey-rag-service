@@ -161,7 +161,7 @@ export function KbsPage() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { key: "file", title: "文件导入（开发中）", desc: "拖拽上传，适合 MD / PDF / DOCX", disabled: true },
+                        { key: "file", title: "文件导入（开发中）", desc: "暂未开放，先用爬虫或空知识库", disabled: true },
                         { key: "crawler", title: "网站爬虫", desc: "从站点抓取页面，按规则过滤" },
                         { key: "empty", title: "空知识库", desc: "先创建，稍后再配置数据源" },
                       ].map((opt) => (
@@ -182,6 +182,9 @@ export function KbsPage() {
                           <div className="text-xs text-muted-foreground">{opt.desc}</div>
                         </button>
                       ))}
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground">
+                      文件导入功能尚未开放：推荐选择「网站爬虫」作为主流程；若只是先占位，也可选「空知识库」后续再配置。
                     </div>
                     <Separator />
                     <div className="grid grid-cols-2 gap-3">

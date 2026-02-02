@@ -1027,11 +1027,16 @@ export function KbDetailPage() {
           >
             <div className="rounded-lg border border-dashed border-border/70 bg-background/30 p-6 text-center">
               <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-              <div className="mt-2 text-sm text-muted-foreground">拖拽文件到这里或点击上传</div>
-              <div className="mt-1 text-xs text-muted-foreground">支持 PDF、Markdown、TXT 等格式</div>
-              <Button variant="outline" size="sm" className="mt-3" disabled>
-                选择文件（开发中）
-              </Button>
+              <div className="mt-2 text-sm text-muted-foreground">文件上传功能开发中（当前不支持直接上传）</div>
+              <div className="mt-1 text-xs text-muted-foreground">建议先通过「数据源」抓取内容；如需排障可跳转到内容/任务</div>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={`/kbs/${kbId}?tab=pages`}>查看内容</Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={`/kbs/${kbId}?tab=jobs`}>查看任务</Link>
+                </Button>
+              </div>
             </div>
 
             {fileBatches.data?.items?.length ? (
