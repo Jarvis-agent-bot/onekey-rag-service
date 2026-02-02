@@ -254,12 +254,12 @@ export function AppDetailPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[90px]">enabled</TableHead>
-                  <TableHead className="w-[180px]">kb_id</TableHead>
+                  <TableHead className="w-[220px]">kb_id</TableHead>
                   <TableHead>kb_name</TableHead>
                   <TableHead className="w-[140px]">weight</TableHead>
                   <TableHead className="w-[140px]">priority</TableHead>
                   <TableHead className="w-[140px]">topK（估算）</TableHead>
-                  <TableHead className="w-[120px]">操作</TableHead>
+                  <TableHead className="w-[180px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -275,7 +275,15 @@ export function AppDetailPage() {
                         }}
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{b.kb_id}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {b.kb_id ? (
+                        <Link className="hover:underline" to={`/kbs/${b.kb_id}`}>
+                          {b.kb_id}
+                        </Link>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                     <TableCell>{b.kb_name || <span className="text-muted-foreground">-</span>}</TableCell>
                     <TableCell>
                       <Input
@@ -301,16 +309,23 @@ export function AppDetailPage() {
                       {ragTopK > 0 && b.enabled ? allocMap.get(b.kb_id) ?? "-" : "-"}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const next = bindingDraft.filter((_, i) => i !== idx);
-                          setBindingDraft(next);
-                        }}
-                      >
-                        移除
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {b.kb_id ? (
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={`/kbs/${b.kb_id}`}>查看 KB</Link>
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const next = bindingDraft.filter((_, i) => i !== idx);
+                            setBindingDraft(next);
+                          }}
+                        >
+                          移除
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
