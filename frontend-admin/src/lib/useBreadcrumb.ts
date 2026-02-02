@@ -33,13 +33,29 @@ export function useBreadcrumb(): BreadcrumbItem[] {
     return [{ label: navLabels[path] }];
   }
 
-  // 知识库详情
+  // 知识库详情（支持根据 ?tab= 展示更细的面包屑，减少页面割裂感）
   if (path.startsWith("/kbs/")) {
     const kbId = path.replace("/kbs/", "");
-    return [
+    const sp = new URLSearchParams(location.search);
+    const tab = (sp.get("tab") || "").trim();
+
+    const tabLabel: Record<string, string> = {
+      overview: "总览",
+      sources: "数据源",
+      pages: "内容",
+      jobs: "任务",
+    };
+
+    const base: BreadcrumbItem[] = [
       { label: "知识库", to: "/kbs" },
-      { label: kbId || "详情" },
+      { label: kbId || "详情", to: kbId ? `/kbs/${encodeURIComponent(kbId)}` : undefined },
     ];
+
+    if (tab && tabLabel[tab]) {
+      base.push({ label: tabLabel[tab] });
+    }
+
+    return base;
   }
 
   // 应用详情
