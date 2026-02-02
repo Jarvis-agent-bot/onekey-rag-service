@@ -185,7 +185,34 @@ export function AppDetailPage() {
           <Link className="underline underline-offset-2" to="/apps">
             返回应用列表
           </Link>
+          <span className="ml-3">
+            <Link className="underline underline-offset-2" to={`/observability?app_id=${encodeURIComponent(appId)}`}>
+              观测（按 App）
+            </Link>
+          </span>
         </div>
+
+        {bindings.data?.items?.length ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>关联 KB：</span>
+            {bindings.data.items
+              .filter((b) => b.enabled)
+              .slice(0, 8)
+              .map((b) => (
+                <Link
+                  key={b.kb_id}
+                  className="rounded-md border border-border/60 bg-muted/30 px-2 py-1 hover:bg-muted/40"
+                  to={`/kbs/${encodeURIComponent(b.kb_id)}`}
+                  title={`打开 KB：${b.kb_name || b.kb_id}`}
+                >
+                  {b.kb_name || b.kb_id}
+                </Link>
+              ))}
+            {bindings.data.items.filter((b) => b.enabled).length > 8 ? (
+              <span className="text-muted-foreground/70">+{bindings.data.items.filter((b) => b.enabled).length - 8} 更多</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {actionError ? <ApiErrorBanner error={actionError} /> : null}

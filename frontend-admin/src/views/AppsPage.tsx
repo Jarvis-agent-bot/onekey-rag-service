@@ -148,6 +148,9 @@ export function AppsPage() {
                 <DropdownMenuItem asChild>
                   <Link to={`/kbs?app_id=${encodeURIComponent(row.id)}`}>查看关联 KB</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to={`/observability?app_id=${encodeURIComponent(row.id)}`}>观测（按 App）</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={(e) => {
