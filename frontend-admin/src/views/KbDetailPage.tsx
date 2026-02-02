@@ -195,15 +195,25 @@ export function KbDetailPage() {
   const initialTab = validTabs.includes(searchParams.get("tab") || "") ? searchParams.get("tab")! : "overview";
   const [tab, setTab] = useState(initialTab);
 
-  // 同步 tab 到 URL
+  // 同步 tab 到 URL（尽量保留其它 query，便于深链/分享）
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
+
+    const next = new URLSearchParams(searchParams);
     if (newTab !== "overview") {
-      setSearchParams({ tab: newTab }, { replace: true });
+      next.set("tab", newTab);
     } else {
-      setSearchParams({}, { replace: true });
+      next.delete("tab");
     }
+
+    // source_id 只在 pages/jobs Tab 有意义；切走时自动清理，避免误导
+    if (newTab !== "pages" && newTab !== "jobs") {
+      next.delete("source_id");
+    }
+
+    setSearchParams(next, { replace: true });
   };
+
 
   const coveragePercent = Math.round((stats.data?.chunks.embedding_coverage || 0) * 100);
 
@@ -372,11 +382,34 @@ export function KbDetailPage() {
   const [jobsPage, setJobsPage] = useState(1);
   const [jobsType, setJobsType] = useState("");
   const [jobsStatus, setJobsStatus] = useState("");
+  const [jobsSourceId, setJobsSourceId] = useState("");
+
+
+  // URL -> 过滤器：支持从 Job/Pages 详情页深链回到指定 KB Tab（并自动筛选 source_id）
+  useEffect(() => {
+    const urlSourceId = searchParams.get("source_id") || "";
+
+    if (tab === "pages") {
+      if (urlSourceId && urlSourceId !== pagesSourceId) {
+        setPagesSourceId(urlSourceId);
+        setPagesPage(1);
+      }
+      // URL 没有 source_id 时，保持用户当前选择（避免来回跳动）
+    }
+
+    if (tab === "jobs") {
+      if (urlSourceId && urlSourceId !== jobsSourceId) {
+        setJobsSourceId(urlSourceId);
+        setJobsPage(1);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, searchParams]);
   const [expandedJobId, setExpandedJobId] = useState<string>("");
   const jobsPageSize = 10;
 
   const jobsQuery = useQuery({
-    queryKey: ["kb-jobs", workspaceId, kbId, jobsPage, jobsPageSize, jobsType, jobsStatus],
+    queryKey: ["kb-jobs", workspaceId, kbId, jobsPage, jobsPageSize, jobsType, jobsStatus, jobsSourceId],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set("page", String(jobsPage));
@@ -384,6 +417,7 @@ export function KbDetailPage() {
       params.set("kb_id", kbId);
       if (jobsType) params.set("type", jobsType);
       if (jobsStatus) params.set("status", jobsStatus);
+      if (jobsSourceId) params.set("source_id", jobsSourceId);
       return apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?${params.toString()}`);
     },
     enabled: !!workspaceId && !!kbId && tab === "jobs",
@@ -1049,7 +1083,17 @@ export function KbDetailPage() {
                 <label className="text-xs text-muted-foreground">数据源</label>
                 <Select
                   value={pagesSourceId}
-                  onChange={(e) => { setPagesSourceId(e.target.value); setPagesPage(1); }}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setPagesSourceId(nextVal);
+                    setPagesPage(1);
+
+                    const next = new URLSearchParams(searchParams);
+                    next.set("tab", "pages");
+                    if (nextVal) next.set("source_id", nextVal);
+                    else next.delete("source_id");
+                    setSearchParams(next, { replace: true });
+                  }}
                 >
                   <option value="">全部</option>
                   {sources.data?.items.map((s) => (
@@ -1172,6 +1216,28 @@ export function KbDetailPage() {
                   <option value="running">运行中</option>
                   <option value="succeeded">成功</option>
                   <option value="failed">失败</option>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">数据源</label>
+                <Select
+                  value={jobsSourceId}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setJobsSourceId(nextVal);
+                    setJobsPage(1);
+
+                    const next = new URLSearchParams(searchParams);
+                    next.set("tab", "jobs");
+                    if (nextVal) next.set("source_id", nextVal);
+                    else next.delete("source_id");
+                    setSearchParams(next, { replace: true });
+                  }}
+                >
+                  <option value="">全部</option>
+                  {(sources.data?.items || []).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name || s.id}</option>
+                  ))}
                 </Select>
               </div>
             </div>

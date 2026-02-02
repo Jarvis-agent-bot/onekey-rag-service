@@ -106,6 +106,25 @@ export function JobDetailPage() {
                 <Link className="hover:underline" to={`/kbs/${q.data.kb_id}?tab=jobs`}>
                   查看任务
                 </Link>
+                {q.data?.source_id ? (
+                  <>
+                    <span className="text-border">·</span>
+                    <Link
+                      className="hover:underline"
+                      to={`/kbs/${q.data.kb_id}?tab=pages&source_id=${encodeURIComponent(q.data.source_id)}`}
+                      title="跳到该 KB 的内容 Tab，并自动筛选 source_id"
+                    >
+                      该数据源内容
+                    </Link>
+                    <Link
+                      className="hover:underline"
+                      to={`/kbs/${q.data.kb_id}?tab=jobs&source_id=${encodeURIComponent(q.data.source_id)}`}
+                      title="跳到该 KB 的任务 Tab，并自动筛选 source_id"
+                    >
+                      该数据源任务
+                    </Link>
+                  </>
+                ) : null}
               </>
             ) : (
               <Link className="hover:underline" to="/kbs">
