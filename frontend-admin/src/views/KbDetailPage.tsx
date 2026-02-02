@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Database, Play, Plus, RefreshCw, RotateCcw, Settings2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Database, Eye, Play, Plus, RefreshCw, RotateCcw, Settings2, Upload } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -481,7 +481,7 @@ export function KbDetailPage() {
             <div className="text-2xl font-semibold text-foreground">{kb.data?.name || "加载中..."}</div>
             <div className="font-mono text-[11px] text-muted-foreground">{kbId}</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="default"
               onClick={() => syncAll.mutate()}
@@ -491,6 +491,20 @@ export function KbDetailPage() {
               <RefreshCw className={`mr-2 h-4 w-4 ${syncAll.isPending ? "animate-spin" : ""}`} />
               {syncAll.isPending ? syncProgress.step || "同步中..." : "同步"}
             </Button>
+
+            <Button variant="outline" asChild>
+              <Link to={`/kbs/${kbId}?tab=pages`}>内容</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to={`/kbs/${kbId}?tab=jobs`}>任务</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to={`/observability?kb_id=${encodeURIComponent(kbId)}`}>
+                <Eye className="mr-2 h-4 w-4" />
+                观测
+              </Link>
+            </Button>
+
             <Button variant="outline" asChild>
               <Link to="/kbs">返回列表</Link>
             </Button>
