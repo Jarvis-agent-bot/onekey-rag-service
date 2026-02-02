@@ -413,7 +413,14 @@ export function KbsPage() {
                           size="sm"
                           onClick={() => navigate(`/jobs?kb_id=${encodeURIComponent(it.id)}`)}
                         >
-                          最近任务
+                          任务
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/observability?kb_id=${encodeURIComponent(it.id)}`)}
+                        >
+                          观测
                         </Button>
                       </div>
                     </td>

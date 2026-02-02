@@ -157,6 +157,34 @@ export function ObservabilityPage() {
             </Select>
           </div>
         </div>
+
+        {(appId || kbId) ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>快捷跳转：</span>
+            {kbId ? (
+              <>
+                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}`}>
+                  KB 详情
+                </Link>
+                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>
+                  KB 任务
+                </Link>
+                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>
+                  KB 内容
+                </Link>
+              </>
+            ) : null}
+            {appId ? (
+              <>
+                <span className="text-border">·</span>
+                <Link className="underline underline-offset-2" to={`/apps/${encodeURIComponent(appId)}`}>
+                  App 详情
+                </Link>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-background/50 p-4">
             <div className="text-xs text-muted-foreground">CPU（容器）</div>
@@ -408,7 +436,32 @@ export function ObservabilityPage() {
                       </td>
                     <td className="py-2 font-mono text-xs text-muted-foreground">{it.created_at || "-"}</td>
                     <td className="py-2 font-mono text-xs">{it.app_id || "-"}</td>
-                    <td className="py-2 font-mono text-xs">{(it.kb_ids || []).join(",")}</td>
+                    <td className="py-2 font-mono text-xs">
+                      {(it.kb_ids || []).length ? (
+                        <div className="flex flex-wrap gap-x-2 gap-y-1">
+                          {(it.kb_ids || []).map((kid) => (
+                            <span key={kid}>
+                              <Link
+                                className="underline underline-offset-2"
+                                to={`/kbs/${encodeURIComponent(kid)}`}
+                                title="打开 KB 详情"
+                              >
+                                {kid}
+                              </Link>
+                              <Link
+                                className="ml-1 text-muted-foreground underline underline-offset-2"
+                                to={`/observability?kb_id=${encodeURIComponent(kid)}&date_range=${encodeURIComponent(dateRange)}`}
+                                title="在观测中按该 kb_id 过滤"
+                              >
+                                ·筛选
+                              </Link>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="py-2 max-w-[340px]">
                       {it.request_id ? (
                         <TraceLink
