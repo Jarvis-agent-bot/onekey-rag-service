@@ -45,7 +45,7 @@ const navGroups: NavGroup[] = [
     items: [
       // 侧边栏的 label 尽量简短，避免括号/英文打断阅读；英文信息用 title 提示。
       { to: "/kbs", label: "知识库", title: "知识库（Collections）", icon: Database },
-      { to: "/pages", label: "内容", title: "内容（Documents）", icon: FileText },
+      { to: "/pages", label: "内容(全局)", title: "内容（全局 Documents 列表；更推荐在 KB 详情页查看内容）", icon: FileText },
       { to: "/jobs", label: "任务", title: "索引/任务（Jobs）", icon: ScrollText },
       { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
       { to: "/playground", label: "验证台", title: "验证台（Playground）", icon: TestTubeDiagonal },

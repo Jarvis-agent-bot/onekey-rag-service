@@ -106,15 +106,23 @@ export function PagesPage() {
           <div>
             <div className="text-xs uppercase tracking-[0.14em] text-primary">Pages</div>
             <div className="text-2xl font-semibold text-foreground">内容列表</div>
-            <div className="text-sm text-muted-foreground">跨知识库统一查看内容，支持按 KB/来源/索引状态过滤。</div>
+            <div className="text-sm text-muted-foreground">跨知识库统一查看内容（排障用），支持按 KB/来源/索引状态过滤。日常更推荐在「知识库详情 → 内容」查看，入口更集中。</div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-muted-foreground">时间范围</div>
-            <Select value={dateRange} onChange={(e) => updateFilter([["date_range", e.target.value]])}>
-              <option value="24h">24h</option>
-              <option value="7d">7d</option>
-              <option value="30d">30d</option>
-            </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/kbs">知识库（推荐）</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/jobs">任务中心</Link>
+            </Button>
+            <div className="ml-2 flex items-center gap-2">
+              <div className="text-xs text-muted-foreground">时间范围</div>
+              <Select value={dateRange} onChange={(e) => updateFilter([["date_range", e.target.value]])}>
+                <option value="24h">24h</option>
+                <option value="7d">7d</option>
+                <option value="30d">30d</option>
+              </Select>
+            </div>
           </div>
         </div>
 
