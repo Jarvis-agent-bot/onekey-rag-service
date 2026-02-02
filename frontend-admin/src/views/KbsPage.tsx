@@ -328,7 +328,7 @@ export function KbsPage() {
                 ) : null}
                 <DialogFooter className="flex items-center justify-between">
                   <div className="text-xs text-muted-foreground">
-                    支持 MD / PDF / DOCX / TXT / CSV / HTML 格式
+                    网站爬虫/空知识库：可立即使用；文件导入功能开发中（计划支持 MD / PDF / DOCX / TXT / CSV / HTML）。
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" disabled={wizardStep === 1} onClick={() => setWizardStep((p) => (p === 1 ? 1 : ((p - 1) as any)))}>
@@ -361,7 +361,7 @@ export function KbsPage() {
             </div>
           </div>
           <div className="rounded-xl border border-border/70 bg-card/70 p-4">
-            <div className="text-xs text-muted-foreground">有引用的应用</div>
+            <div className="text-xs text-muted-foreground">被应用引用的 KB</div>
             <div className="text-2xl font-semibold text-foreground">
               {(q.data?.items || []).filter((i) => (i.referenced_by?.total || 0) > 0).length}
             </div>
@@ -431,6 +431,26 @@ export function KbsPage() {
                     <td className="px-4 py-3">
                       <div className="font-semibold text-foreground">{it.name}</div>
                       <div className="font-mono text-[11px] text-muted-foreground">{it.id}</div>
+                      {it.referenced_by?.items?.length ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                          <span>引用：</span>
+                          {it.referenced_by.items
+                            .slice(0, 3)
+                            .map((a) => (
+                              <Link
+                                key={a.app_id}
+                                className="rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 hover:bg-muted/40"
+                                to={`/apps/${encodeURIComponent(a.app_id)}`}
+                                title={`打开应用：${a.name}（app_id=${a.app_id}）`}
+                              >
+                                {a.name || a.app_id}
+                              </Link>
+                            ))}
+                          {it.referenced_by.items.length > 3 ? (
+                            <span className="text-muted-foreground/70">+{it.referenced_by.items.length - 3} 更多</span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <KbStatsSummary
