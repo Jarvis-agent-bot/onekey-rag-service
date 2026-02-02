@@ -394,12 +394,24 @@ export function KbsPage() {
                 <>
                   <span className="text-border">·</span>
                   <Link className="underline underline-offset-2" to={`/apps/${encodeURIComponent(appIdFilter)}`}>
-                    返回应用详情
+                    应用详情
+                  </Link>
+                  <Link
+                    className="underline underline-offset-2"
+                    to={`/observability?app_id=${encodeURIComponent(appIdFilter)}`}
+                    title="按 app_id 过滤观测事件"
+                  >
+                    观测（按 App）
+                  </Link>
+                  <Link className="underline underline-offset-2" to="/apps">
+                    应用列表
                   </Link>
                 </>
               ) : null}
               <span className="text-border">·</span>
-              <span>也可清除筛选查看全部。</span>
+              <Link className="underline underline-offset-2" to="/kbs" title="移除 app_id 过滤条件">
+                清除筛选
+              </Link>
             </div>
           </div>
         ) : null}
