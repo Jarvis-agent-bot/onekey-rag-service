@@ -489,8 +489,10 @@ export function KbDetailPage() {
     },
     onSuccess: async () => {
       toast.success("同步任务已启动", {
-        description: "抓取和索引任务已提交，可在任务 Tab 查看进度",
+        description: "抓取和索引任务已提交，已为你切到『任务』Tab 便于观察进度",
       });
+      // 发起动作后直接把用户带到“看结果”的地方，减少来回找入口的割裂感
+      handleTabChange("jobs");
       await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
       await qc.invalidateQueries({ queryKey: ["kb-recent-jobs", workspaceId, kbId] });
       // 3秒后重置状态
@@ -517,8 +519,12 @@ export function KbDetailPage() {
       });
       return indexResult;
     },
-    onSuccess: async () => {
-      toast.success("同步任务已启动");
+    onSuccess: async (_data, sourceId) => {
+      toast.success("同步任务已启动", {
+        description: "已为你切到『任务』Tab，并自动筛选该数据源",
+      });
+      // 同步单个数据源时，默认把用户切到 jobs 并带上 source_id，减少“同步了但不知道去哪看”的割裂
+      jumpToTab("jobs", sourceId);
       await qc.invalidateQueries({ queryKey: ["kb-jobs", workspaceId, kbId] });
       await qc.invalidateQueries({ queryKey: ["kb-recent-jobs", workspaceId, kbId] });
     },
