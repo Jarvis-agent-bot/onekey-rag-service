@@ -180,25 +180,35 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+          <Link
+            to="/observability"
+            className="block rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:bg-muted/40"
+          >
             <div className="text-xs text-muted-foreground">24h 请求</div>
             <div className="text-2xl font-semibold text-foreground">{overall ? formatInt(overall.requests) : "-"}</div>
             <div className="text-[11px] text-muted-foreground">命中率 {overall ? pct(overall.hit_ratio) : "-"} · 错误率 {overall ? pct(overall.error_ratio) : "-"}</div>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+          </Link>
+          <Link
+            to="/kbs"
+            className="block rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:bg-muted/40"
+          >
             <div className="text-xs text-muted-foreground">Embedding 覆盖率</div>
             <div className="text-2xl font-semibold text-foreground">{Math.round((data.chunks.embedding_coverage || 0) * 100)}%</div>
             <div className="text-[11px] text-muted-foreground">
               {formatInt(data.chunks.with_embedding)}/{formatInt(data.chunks.total)} chunks
             </div>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-background/50 p-4">
+          </Link>
+          <Link
+            to={jobsFailed > 0 ? "/jobs?status=failed" : "/jobs"}
+            className="block rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:bg-muted/40"
+            title={jobsFailed > 0 ? "查看失败任务" : "打开任务中心"}
+          >
             <div className="text-xs text-muted-foreground">任务运行中 / 失败</div>
             <div className="text-2xl font-semibold text-foreground">
               {formatInt(jobsRunning)} / <span className="text-destructive">{formatInt(jobsFailed)}</span>
             </div>
             <div className="text-[11px] text-muted-foreground">排队 {formatInt(jobsQueued)} · 成功 {formatInt(jobsSucceeded)}</div>
-          </div>
+          </Link>
           <div className="rounded-xl border border-border/70 bg-background/50 p-4">
             <div className="text-xs text-muted-foreground">系统资源（容器快照）</div>
             <div className="text-2xl font-semibold text-foreground">
@@ -344,7 +354,15 @@ export function DashboardPage() {
           ) : null}
         </Card>
 
-        <Card title="任务概览" description="按 status 聚合">
+        <Card
+          title="任务概览"
+          description="按 status 聚合"
+          actions={
+            <Button asChild variant="outline" size="sm">
+              <Link to="/jobs">任务中心</Link>
+            </Button>
+          }
+        >
           <div className="space-y-2 text-sm">
             <Row k="排队中" v={<span className="font-mono">{formatInt(jobsQueued)}</span>} />
             <Row
