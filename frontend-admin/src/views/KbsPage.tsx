@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
@@ -23,6 +23,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Separator } from "../components/ui/separator";
+import { FilterChips, type FilterChip } from "../components/FilterChips";
 import { apiFetch } from "../lib/api";
 import { cn } from "../lib/utils";
 import { useWorkspace } from "../lib/workspace";
@@ -49,6 +50,19 @@ export function KbsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
+  const [sp, setSp] = useSearchParams();
+  const appIdFilter = (sp.get("app_id") || "").trim();
+
+  function updateUrlFilter(nextKV: Array<[string, string | null]>) {
+    const next = new URLSearchParams(sp);
+    for (const [k, v] of nextKV) {
+      const vv = (v || "").trim();
+      if (!vv) next.delete(k);
+      else next.set(k, vv);
+    }
+    setSp(next, { replace: true });
+  }
+
   const q = useQuery({
     queryKey: ["kbs", workspaceId],
     queryFn: () => apiFetch<KbsResp>(`/admin/api/workspaces/${workspaceId}/kbs`),
@@ -107,14 +121,30 @@ export function KbsPage() {
 
   const [search, setSearch] = useState("");
 
+  const chips: FilterChip[] = [
+    appIdFilter
+      ? {
+          key: "app_id",
+          label: "应用",
+          value: appIdFilter,
+          onRemove: () => updateUrlFilter([["app_id", null]]),
+        }
+      : null,
+  ].filter(Boolean) as FilterChip[];
+
   const filtered = useMemo(() => {
     const items = q.data?.items || [];
-    if (!search.trim()) return items;
-    return items.filter((it) => {
+
+    const byApp = appIdFilter
+      ? items.filter((it) => (it.referenced_by?.items || []).some((x) => x.app_id === appIdFilter))
+      : items;
+
+    if (!search.trim()) return byApp;
+    return byApp.filter((it) => {
       const s = search.toLowerCase();
       return it.name.toLowerCase().includes(s) || it.id.toLowerCase().includes(s);
     });
-  }, [q.data?.items, search]);
+  }, [q.data?.items, search, appIdFilter]);
 
   const stepper = (
     <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
@@ -354,6 +384,16 @@ export function KbsPage() {
       >
         {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
         {q.error ? <ApiErrorBanner error={q.error} /> : null}
+
+        {chips.length ? (
+          <div className="pb-3">
+            <FilterChips items={chips} />
+            <div className="mt-1 text-xs text-muted-foreground">
+              当前仅展示被该应用引用的知识库。可从「应用详情」跳转过来，或清除筛选查看全部。
+            </div>
+          </div>
+        ) : null}
+
         {!filtered.length ? (
           <EmptyState
             description="新建知识库后，可在详情页配置数据源，并在任务中心触发抓取与索引。"

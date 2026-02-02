@@ -145,6 +145,9 @@ export function AppsPage() {
                 <DropdownMenuItem asChild>
                   <Link to={`/apps/${row.id}`}>查看详情</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to={`/kbs?app_id=${encodeURIComponent(row.id)}`}>查看关联 KB</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={(e) => {
