@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
@@ -29,7 +30,10 @@ export function PageDetailPage() {
   const params = useParams();
   const pageId = Number(params.pageId || 0);
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
+
+  const from = (location.state as any)?.from as { kb_id?: string; source_id?: string } | undefined;
 
   const q = useQuery({
     queryKey: ["page", workspaceId, pageId],
@@ -72,11 +76,43 @@ export function PageDetailPage() {
 
   const actionError = recrawl.error || del.error;
 
+  // 智能返回逻辑：优先使用来源页面 state.from（保留 kb/source 上下文），否则退回到 KB 内容页或上一页
+  const handleGoBack = () => {
+    if (from?.kb_id) {
+      const qs = new URLSearchParams();
+      qs.set("tab", "pages");
+      if (from.source_id) qs.set("source_id", from.source_id);
+      navigate(`/kbs/${from.kb_id}?${qs.toString()}`);
+      return;
+    }
+
+    if (q.data?.kb_id) {
+      const qs = new URLSearchParams();
+      qs.set("tab", "pages");
+      if (q.data.source_id) qs.set("source_id", q.data.source_id);
+      navigate(`/kbs/${q.data.kb_id}?${qs.toString()}`);
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/pages");
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-lg font-semibold">页面详情</div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={handleGoBack} className="gap-1 px-2">
+              <ArrowLeft className="h-4 w-4" />
+              返回
+            </Button>
+            <div className="text-lg font-semibold">页面详情</div>
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {q.data?.kb_id ? (
               <>
