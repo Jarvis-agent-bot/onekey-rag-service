@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, ThumbsUp, type LucideIcon } from "lucide-react";
+import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, ThumbsUp, TestTubeDiagonal, type LucideIcon } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,11 +36,13 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "内容管理",
+    title: "知识构建",
     items: [
-      { to: "/kbs", label: "知识库", icon: Database },
-      { to: "/pages", label: "内容", icon: FileText },
-      { to: "/apps", label: "应用", icon: Boxes },
+      { to: "/kbs", label: "知识库（Collections）", icon: Database },
+      { to: "/pages", label: "内容（Documents）", icon: FileText },
+      { to: "/jobs", label: "索引/任务（Jobs）", icon: ScrollText },
+      { to: "/apps", label: "应用（Apps）", icon: Boxes },
+      { to: "/playground", label: "验证台（Playground）", icon: TestTubeDiagonal },
     ],
   },
   {
@@ -49,7 +51,6 @@ const navGroups: NavGroup[] = [
       { to: "/feedback", label: "反馈", icon: ThumbsUp },
       { to: "/quality", label: "质量", icon: BarChart3 },
       { to: "/observability", label: "观测", icon: Eye },
-      { to: "/jobs", label: "任务中心", icon: ScrollText },
     ],
   },
   {

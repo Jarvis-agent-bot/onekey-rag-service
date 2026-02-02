@@ -17,6 +17,7 @@ import { PageDetailPage } from "./views/PageDetailPage";
 import { QualityPage } from "./views/QualityPage";
 import { RetrievalEventDetailPage } from "./views/RetrievalEventDetailPage";
 import { SettingsPage } from "./views/SettingsPage";
+import { PlaygroundPage } from "./views/PlaygroundPage";
 import { requireToken } from "./lib/auth";
 import { WorkspaceProvider } from "./lib/workspace";
 
@@ -62,6 +63,9 @@ export function App() {
           <Route path="quality" element={<QualityPage />} />
           <Route path="observability" element={<ObservabilityPage />} />
           <Route path="observability/retrieval-events/:eventId" element={<RetrievalEventDetailPage />} />
+
+          {/* 验证台（Playground） */}
+          <Route path="playground" element={<PlaygroundPage />} />
 
           {/* 系统 */}
           <Route path="audit" element={<AuditPage />} />
