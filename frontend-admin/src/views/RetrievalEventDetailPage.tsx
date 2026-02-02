@@ -73,11 +73,35 @@ export function RetrievalEventDetailPage() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">app_id</div>
-                <div className="font-mono text-xs">{q.data.app_id || "-"}</div>
+                {q.data.app_id ? (
+                  <Link className="font-mono text-xs underline underline-offset-2" to={`/apps/${q.data.app_id}`}>
+                    {q.data.app_id}
+                  </Link>
+                ) : (
+                  <div className="font-mono text-xs">-</div>
+                )}
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">kb_ids</div>
-                <div className="font-mono text-xs">{(q.data.kb_ids || []).join(",")}</div>
+                {(q.data.kb_ids || []).length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {(q.data.kb_ids || []).slice(0, 4).map((kbId) => (
+                      <Link
+                        key={kbId}
+                        className="rounded border border-border/60 bg-muted/30 px-2 py-0.5 font-mono text-xs hover:bg-muted"
+                        to={`/kbs/${kbId}`}
+                        title="打开该知识库"
+                      >
+                        {kbId}
+                      </Link>
+                    ))}
+                    {(q.data.kb_ids || []).length > 4 ? (
+                      <span className="font-mono text-xs text-muted-foreground">+{(q.data.kb_ids || []).length - 4}</span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="font-mono text-xs">-</div>
+                )}
               </div>
               <div className="lg:col-span-2">
                 <div className="text-xs text-muted-foreground">request_id</div>

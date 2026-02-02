@@ -58,7 +58,12 @@ export function PageDetailPage() {
       await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
       toast.success("已删除页面");
       const kbId = q.data?.kb_id;
-      navigate(kbId ? `/pages?kb_id=${encodeURIComponent(kbId)}` : "/pages", { replace: true });
+      const sourceId = q.data?.source_id;
+      if (kbId) {
+        navigate(`/kbs/${kbId}?tab=pages${sourceId ? `&source_id=${encodeURIComponent(sourceId)}` : ""}`, { replace: true });
+      } else {
+        navigate("/pages", { replace: true });
+      }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
   });
@@ -72,24 +77,34 @@ export function PageDetailPage() {
           <div className="text-lg font-semibold">页面详情</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {q.data?.kb_id ? (
-              <Link className="underline underline-offset-2" to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
-                返回内容列表
-              </Link>
+              <>
+                <Link
+                  className="underline underline-offset-2"
+                  to={`/kbs/${q.data.kb_id}?tab=pages${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
+                  title="回到该 KB 的『内容』Tab（并尽量保留 source_id 筛选）"
+                >
+                  返回该知识库 / 内容
+                </Link>
+                <span className="ml-3">
+                  <Link
+                    className="underline underline-offset-2"
+                    to={`/kbs/${q.data.kb_id}?tab=jobs${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
+                    title="回到该 KB 的『任务』Tab（并尽量保留 source_id 筛选）"
+                  >
+                    查看相关任务
+                  </Link>
+                </span>
+                <span className="ml-3">
+                  <Link className="underline underline-offset-2" to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
+                    全局内容列表
+                  </Link>
+                </span>
+              </>
             ) : (
               <Link className="underline underline-offset-2" to="/pages">
                 返回内容列表
               </Link>
             )}
-            {q.data?.kb_id ? (
-              <span className="ml-3">
-                <Link
-                  className="underline underline-offset-2"
-                  to={`/jobs?kb_id=${encodeURIComponent(q.data.kb_id)}${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
-                >
-                  查看相关任务
-                </Link>
-              </span>
-            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
