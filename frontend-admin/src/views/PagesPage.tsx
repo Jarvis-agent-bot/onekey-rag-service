@@ -184,7 +184,11 @@ export function PagesPage() {
                     </td>
                     <td className="py-2 font-mono text-xs">
                       {it.kb_id ? (
-                        <Link className="underline underline-offset-2" to={`/kbs/${it.kb_id}`}>
+                        <Link
+                          className="underline underline-offset-2"
+                          to={`/kbs/${it.kb_id}?tab=pages`}
+                          title="打开该知识库的『内容』Tab"
+                        >
                           {it.kb_id}
                         </Link>
                       ) : (

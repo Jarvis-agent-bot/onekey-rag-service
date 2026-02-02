@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import { Card } from "../components/Card";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { Loading } from "../components/Loading";
 import { EmptyState } from "../components/EmptyState";
+import { DebouncedInput } from "../components/DebouncedInput";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
@@ -66,8 +67,10 @@ export function JobsPage() {
   const navigate = useNavigate();
 
   // 筛选状态
-  const statusFilter = sp.get("status") || "";
-  const typeFilter = sp.get("type") || "";
+  const statusFilter = (sp.get("status") || "").trim();
+  const typeFilter = (sp.get("type") || "").trim();
+  const kbIdFilter = (sp.get("kb_id") || "").trim();
+  const sourceIdFilter = (sp.get("source_id") || "").trim();
 
   // 展开状态
   const [expandedKbs, setExpandedKbs] = useState<Set<string>>(new Set());
@@ -81,13 +84,15 @@ export function JobsPage() {
 
   // 获取所有任务（最近100个）
   const jobs = useQuery({
-    queryKey: ["all-jobs", workspaceId, statusFilter, typeFilter],
+    queryKey: ["all-jobs", workspaceId, statusFilter, typeFilter, kbIdFilter, sourceIdFilter],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set("page", "1");
       params.set("page_size", "100");
       if (statusFilter) params.set("status", statusFilter);
       if (typeFilter) params.set("type", typeFilter);
+      if (kbIdFilter) params.set("kb_id", kbIdFilter);
+      if (sourceIdFilter) params.set("source_id", sourceIdFilter);
       return apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?${params.toString()}`);
     },
     enabled: !!workspaceId,
@@ -196,6 +201,14 @@ export function JobsPage() {
     setExpandedKbs(new Set());
   };
 
+  // 当从其他页面带着过滤条件跳转过来时（例如 PageDetail → Jobs），默认展开，减少“看不到内容”的割裂感。
+  useEffect(() => {
+    const hasFilter = !!(statusFilter || typeFilter || kbIdFilter || sourceIdFilter);
+    if (!hasFilter) return;
+    if (!groupedJobs.length) return;
+    setExpandedKbs(new Set(groupedJobs.map(([id]) => id)));
+  }, [statusFilter, typeFilter, kbIdFilter, sourceIdFilter, groupedJobs]);
+
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
@@ -271,7 +284,7 @@ export function JobsPage() {
           </div>
         }
       >
-        <div className="flex items-center gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">状态</div>
             <Select
@@ -290,6 +303,7 @@ export function JobsPage() {
               <option value="succeeded">成功</option>
             </Select>
           </div>
+
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">类型</div>
             <Select
@@ -306,14 +320,42 @@ export function JobsPage() {
               <option value="index">索引</option>
             </Select>
           </div>
-          <div className="flex-1" />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSp(new URLSearchParams(), { replace: true })}
-          >
-            清空筛选
-          </Button>
+
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">KB ID</div>
+            <DebouncedInput
+              value={kbIdFilter}
+              onChange={(v) => {
+                const next = new URLSearchParams(sp);
+                const vv = v.trim();
+                if (vv) next.set("kb_id", vv);
+                else next.delete("kb_id");
+                setSp(next, { replace: true });
+              }}
+              placeholder="kb_xxx"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">Source ID</div>
+            <DebouncedInput
+              value={sourceIdFilter}
+              onChange={(v) => {
+                const next = new URLSearchParams(sp);
+                const vv = v.trim();
+                if (vv) next.set("source_id", vv);
+                else next.delete("source_id");
+                setSp(next, { replace: true });
+              }}
+              placeholder="source_xxx"
+            />
+          </div>
+
+          <div className="flex items-end justify-end">
+            <Button variant="outline" size="sm" onClick={() => setSp(new URLSearchParams(), { replace: true })}>
+              清空筛选
+            </Button>
+          </div>
         </div>
       </Card>
 
