@@ -17,6 +17,7 @@ export function EntityLinksBar(props: {
   const links: Array<{ to: string; label: string }> = [];
 
   if (appId) {
+    links.push({ to: "/apps", label: "应用列表" });
     links.push({ to: `/apps/${encodeURIComponent(appId)}`, label: "查看应用" });
     links.push({ to: `/kbs?app_id=${encodeURIComponent(appId)}`, label: "该应用的 KB" });
     links.push({ to: `/observability?app_id=${encodeURIComponent(appId)}`, label: "观测（按 App）" });
@@ -24,7 +25,10 @@ export function EntityLinksBar(props: {
 
   if (kbId) {
     links.push({ to: `/kbs/${encodeURIComponent(kbId)}`, label: "查看 KB" });
-    links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=jobs`, label: "KB 内任务" });
+    // 常用流：内容/任务/数据源都在 KB 详情里，避免在全局页面间跳来跳去
+    links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=pages`, label: "KB 内容" });
+    links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=jobs`, label: "KB 任务" });
+    links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=sources`, label: "KB 数据源" });
     links.push({ to: `/observability?kb_id=${encodeURIComponent(kbId)}`, label: "观测（按 KB）" });
   }
 
