@@ -1,5 +1,5 @@
-import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, Shield, ThumbsUp, TestTubeDiagonal, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { BarChart3, Boxes, Database, Eye, Home, LogOut, ScrollText, Settings, Shield, ThumbsUp, type LucideIcon } from "lucide-react";
+import { useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -38,14 +38,12 @@ type NavGroup = {
 
 /**
  * 分组导航配置
- * 首页 + 三板块：内容管理 | 运营监控 | 系统
+ * KB-first：把“知识库”作为中心入口；减少并列世界。
  */
 const navGroups: NavGroup[] = [
   {
     title: "",
-    items: [
-      { to: "/", label: "首页", icon: Home },
-    ],
+    items: [{ to: "/", label: "首页", icon: Home }],
   },
   {
     title: "知识构建",
@@ -54,20 +52,7 @@ const navGroups: NavGroup[] = [
       { to: "/kbs", label: "知识库", title: "知识库（Collections）", icon: Database },
       { to: "/jobs", label: "任务", title: "索引/任务（Jobs）", icon: ScrollText },
       { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
-      { to: "/playground", label: "验证台", title: "验证台（Playground）", icon: TestTubeDiagonal },
-    ],
-  },
-  {
-    title: "高级（排障用）",
-    collapsible: true,
-    defaultCollapsed: true,
-    items: [
-      {
-        to: "/pages",
-        label: "内容（全局）",
-        title: "内容（全局 Documents 列表；日常更推荐在 KB 详情页查看内容，避免页面割裂）",
-        icon: FileText,
-      },
+      // 注：不再提供“验证台/内容（全局）”这类割裂入口；日常路径应从 KB 详情页出发。
     ],
   },
   {
@@ -92,6 +77,9 @@ const flatNavItems = navGroups.flatMap((g) => g.items);
 
 function normalizeNavPath(pathname: string) {
   if (pathname === "/") return "/";
+  // /pages 属于“内容”范畴，但我们不再把它作为一级入口；在导航选择上归到 KB。
+  if (pathname.startsWith("/pages")) return "/kbs";
+
   const found = flatNavItems.find((it) => it.to !== "/" && pathname.startsWith(it.to));
   return found?.to || "/";
 }
@@ -106,37 +94,7 @@ export function AdminLayout() {
   const breadcrumbItems = useBreadcrumb();
   const currentNav = normalizeNavPath(location.pathname);
 
-  // 侧边栏“高级（排障用）”默认折叠：减少把用户带到全局 Pages 的割裂路径。
-  const ADV_KEY = "admin_nav_show_advanced";
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(() => {
-    try {
-      const v = window.localStorage.getItem(ADV_KEY);
-      if (v === "1") return true;
-      if (v === "0") return false;
-      // 未设置时：默认折叠
-      return false;
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(ADV_KEY, showAdvanced ? "1" : "0");
-    } catch {
-      // ignore
-    }
-  }, [showAdvanced]);
-
-  const visibleNavGroups = useMemo(() => {
-    return navGroups.map((g) => {
-      if (!g.collapsible) return g;
-      // 若当前路由属于该组（例如直接输入 /pages），仍保留该组展开以避免“无处可去”
-      const shouldForceShow = g.items.some((it) => it.to !== "/" && location.pathname.startsWith(it.to));
-      const allowShow = showAdvanced || shouldForceShow;
-      return { ...g, items: allowShow ? g.items : [] };
-    });
-  }, [showAdvanced, location.pathname]);
+  const visibleNavGroups = navGroups;
 
   useEffect(() => {
     if (!me.error) return;
@@ -180,23 +138,11 @@ export function AdminLayout() {
           <nav className="space-y-4">
             {visibleNavGroups.map((group, groupIdx) => (
               <div key={group.title || `group-${groupIdx}`}>
-                {group.title && groupIdx > 0 && !(group.collapsible && group.items.length === 0) ? (
-                  <Separator className="mb-3" />
-                ) : null}
+                {group.title && groupIdx > 0 ? <Separator className="mb-3" /> : null}
 
-                {group.title && !(group.collapsible && group.items.length === 0) ? (
-                  <div className="mb-2 flex items-center justify-between px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                    <span>{group.title}</span>
-                    {group.collapsible ? (
-                      <button
-                        type="button"
-                        className="rounded px-1.5 py-0.5 text-[11px] normal-case text-muted-foreground hover:bg-muted"
-                        onClick={() => setShowAdvanced((v) => !v)}
-                        title={showAdvanced ? "收起高级入口" : "展开高级入口"}
-                      >
-                        {showAdvanced ? "收起" : "展开"}
-                      </button>
-                    ) : null}
+                {group.title ? (
+                  <div className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+                    {group.title}
                   </div>
                 ) : null}
 
@@ -221,18 +167,6 @@ export function AdminLayout() {
                       </NavLink>
                     );
                   })}
-
-                  {group.collapsible && group.items.length === 0 ? (
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted"
-                      onClick={() => setShowAdvanced(true)}
-                      title="展开高级入口（排障用）"
-                    >
-                      <span>高级入口（排障用）</span>
-                      <span className="text-[11px] underline underline-offset-2">展开</span>
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ))}
@@ -283,22 +217,13 @@ export function AdminLayout() {
                     navigate(e.target.value);
                   }}
                 >
-                  {(() => {
-                    // 移动端下拉也默认隐藏“高级”入口，但如果当前就在高级页（/pages），必须仍可见。
-                    const baseGroups = navGroups.map((g) => {
-                      if (!g.collapsible) return g;
-                      const shouldForceShow = g.items.some((it) => it.to !== "/" && location.pathname.startsWith(it.to));
-                      const allowShow = showAdvanced || shouldForceShow;
-                      return { ...g, items: allowShow ? g.items : [] };
-                    });
-                    return baseGroups.flatMap((group, groupIdx) =>
-                      group.items.map((it) => (
-                        <option key={`${groupIdx}-${it.to}`} value={it.to}>
-                          {group.title ? `${group.title} / ${it.label}` : it.label}
-                        </option>
-                      ))
-                    );
-                  })()}
+                  {navGroups.flatMap((group, groupIdx) =>
+                    group.items.map((it) => (
+                      <option key={`${groupIdx}-${it.to}`} value={it.to}>
+                        {group.title ? `${group.title} / ${it.label}` : it.label}
+                      </option>
+                    ))
+                  )}
                 </Select>
               </div>
               <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">

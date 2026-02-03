@@ -17,7 +17,7 @@ import { PageDetailPage } from "./views/PageDetailPage";
 import { QualityPage } from "./views/QualityPage";
 import { RetrievalEventDetailPage } from "./views/RetrievalEventDetailPage";
 import { SettingsPage } from "./views/SettingsPage";
-import { PlaygroundPage } from "./views/PlaygroundPage";
+// (removed) 验证台（Playground）入口：KB-first 减法
 import { requireToken } from "./lib/auth";
 import { WorkspaceProvider } from "./lib/workspace";
 
@@ -64,8 +64,7 @@ export function App() {
           <Route path="observability" element={<ObservabilityPage />} />
           <Route path="observability/retrieval-events/:eventId" element={<RetrievalEventDetailPage />} />
 
-          {/* 验证台（Playground） */}
-          <Route path="playground" element={<PlaygroundPage />} />
+          {/* 验证台（Playground）已删除（KB-first 减法） */}
 
           {/* 系统 */}
           <Route path="audit" element={<AuditPage />} />
