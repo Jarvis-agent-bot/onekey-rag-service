@@ -35,20 +35,7 @@ type ObsSummaryResp = {
     total_tokens: number;
   };
 };
-type SystemResp = {
-  now: string;
-  process: { pid: number; uptime_s: number; rss_bytes: number | null; cpu_cores_used?: number; cpu_percent_of_total?: number; open_fds?: number | null };
-  system: {
-    cpu_count: number | null;
-    cpu_percent?: number;
-    loadavg?: { "1m": number | null; "5m": number | null; "15m": number | null };
-    uptime_s?: number | null;
-    memory?: { total_bytes: number | null; available_bytes: number | null; used_bytes: number | null; used_percent: number | null };
-    disk_root?: { total_bytes: number; used_bytes: number; free_bytes: number } | null;
-  };
-  cgroup?: Record<string, unknown>;
-  runtime?: Record<string, unknown>;
-};
+// 系统资源快照：已从首页移除（保持 KB-first + 减少无关噪音）
 export function DashboardPage() {
   const { workspaceId } = useWorkspace();
   const [refreshing, setRefreshing] = useState(false);
@@ -89,12 +76,7 @@ export function DashboardPage() {
     enabled: !!workspaceId,
   });
 
-  const system = useQuery({
-    queryKey: ["system", workspaceId],
-    queryFn: () => apiFetch<SystemResp>(`/admin/api/workspaces/${workspaceId}/system`),
-    enabled: !!workspaceId,
-    refetchInterval: 5000,
-  });
+  // 首页已移除系统资源快照卡片：避免把运维指标放在 KB/运行之前。
 
   if (summary.isLoading) return <div className="text-sm text-muted-foreground">加载中...</div>;
   if (summary.error) return <ApiErrorBanner error={summary.error} />;
@@ -114,7 +96,7 @@ export function DashboardPage() {
       summary.refetch(),
       obs24h.refetch(),
       alerts.refetch(),
-      system.refetch(),
+      // system.refetch(),
       health.refetch(),
       settings.refetch(),
     ]);
@@ -181,26 +163,7 @@ export function DashboardPage() {
             </div>
             <div className="text-[11px] text-muted-foreground">排队 {formatInt(jobsQueued)} · 成功 {formatInt(jobsSucceeded)}</div>
           </Link>
-          <Link
-            to="/observability"
-            className="block rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:bg-muted/40"
-            title="打开观测页查看资源曲线"
-          >
-            <div className="text-xs text-muted-foreground">系统资源（容器快照）</div>
-            <div className="text-2xl font-semibold text-foreground">
-              {system.data?.system?.cpu_percent != null ? `${system.data.system.cpu_percent}% CPU` : "CPU -"}{" "}
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              内存{" "}
-              {system.data?.system?.memory?.used_percent != null
-                ? `${Math.round(system.data.system.memory.used_percent)}%`
-                : "-"}
-              ，磁盘{" "}
-              {system.data?.system?.disk_root?.used_bytes != null && system.data?.system?.disk_root?.total_bytes
-                ? `${Math.round((system.data.system.disk_root.used_bytes / Math.max(1, system.data.system.disk_root.total_bytes)) * 100)}%`
-                : "-"}
-            </div>
-          </Link>
+          {/* 系统资源卡片已从首页移除：把“行动入口”留给 KB/运行/观测 */}
         </div>
       </div>
 
