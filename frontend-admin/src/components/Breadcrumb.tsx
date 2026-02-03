@@ -26,6 +26,7 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
           <Link
             to="/"
             title="回到首页"
+            aria-label="回到首页"
             className="flex items-center text-muted-foreground hover:text-foreground transition-colors"
           >
             <Home className="h-4 w-4" />

@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -204,13 +204,26 @@ export function JobsPage() {
     setExpandedKbs(new Set());
   };
 
-  // 当从其他页面带着过滤条件跳转过来时（例如 PageDetail → Jobs），默认展开，减少“看不到内容”的割裂感。
+  // 当从其他页面带着过滤条件跳转过来时（例如 PageDetail → Jobs），默认展开一次，减少“看不到内容”的割裂感。
+  // 注意：Jobs 列表会周期性 refetch；如果每次都强制展开，会覆盖用户手动折叠。
+  const hasFilter = !!(statusFilter || typeFilter || kbIdFilter || appIdFilter || sourceIdFilter);
+  const prevHasFilterRef = useRef<boolean>(false);
+
   useEffect(() => {
-    const hasFilter = !!(statusFilter || typeFilter || kbIdFilter || appIdFilter || sourceIdFilter);
-    if (!hasFilter) return;
-    if (!groupedJobs.length) return;
-    setExpandedKbs(new Set(groupedJobs.map(([id]) => id)));
-  }, [statusFilter, typeFilter, kbIdFilter, appIdFilter, sourceIdFilter, groupedJobs]);
+    // 过滤从“无 → 有”时才触发一次自动展开
+    if (hasFilter && !prevHasFilterRef.current) {
+      if (groupedJobs.length) {
+        setExpandedKbs(new Set(groupedJobs.map(([id]) => id)));
+      }
+      prevHasFilterRef.current = true;
+      return;
+    }
+
+    // 过滤被清空时重置，方便下次再触发
+    if (!hasFilter) {
+      prevHasFilterRef.current = false;
+    }
+  }, [hasFilter, groupedJobs]);
 
   return (
     <div className="space-y-6">

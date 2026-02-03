@@ -34,7 +34,8 @@ export function RetrievalEventDetailPage() {
   const eventId = Number(params.eventId || 0);
   const location = useLocation();
 
-  const fromSearch = ((location.state as any)?.from?.search as string | undefined) || "";
+  const rawFromSearch = (location.state as any)?.from?.search as string | undefined;
+  const fromSearch = new URLSearchParams(rawFromSearch || "").toString();
   const backToList = fromSearch ? `/observability?${fromSearch}` : "/observability";
 
   const q = useQuery({
@@ -81,7 +82,7 @@ export function RetrievalEventDetailPage() {
               <div>
                 <div className="text-xs text-muted-foreground">app_id</div>
                 {q.data.app_id ? (
-                  <Link className="font-mono text-xs underline underline-offset-2" to={`/apps/${q.data.app_id}`}>
+                  <Link className="font-mono text-xs underline underline-offset-2" to={`/apps/${encodeURIComponent(q.data.app_id)}`}>
                     {q.data.app_id}
                   </Link>
                 ) : (
