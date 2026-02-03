@@ -241,6 +241,9 @@ export function JobsPage() {
   }, [hasFilter, groupedJobs]);
 
   // 若带 open_job_id，则自动展开该运行（只触发一次，避免 refetch 覆盖用户手动折叠）。
+  // 展开后会：
+  // 1) 自动滚动到该行（避免“展开了但没看到”的错觉）
+  // 2) 清理 URL 里的 open_job_id（避免参数粘住影响后续操作/分享）
   useEffect(() => {
     if (!openJobId) {
       prevOpenJobRef.current = "";
@@ -256,8 +259,19 @@ export function JobsPage() {
     if (target.kb_id) {
       setExpandedKbs((prev) => new Set(prev).add(target.kb_id));
     }
+
+    // 清理 open_job_id，避免它粘在 URL 上导致“每次刷新都自动展开”的困惑
+    const next = new URLSearchParams(sp);
+    next.delete("open_job_id");
+    setSp(next, { replace: true });
+
+    // 自动滚动到目标行（等待一次渲染）
+    setTimeout(() => {
+      document.getElementById(`job-${openJobId}`)?.scrollIntoView({ block: "center" });
+    }, 50);
+
     prevOpenJobRef.current = openJobId;
-  }, [openJobId, jobs.data]);
+  }, [openJobId, jobs.data, sp, setSp]);
 
   return (
     <div className="space-y-6">
@@ -542,7 +556,7 @@ export function JobsPage() {
 
                       return (
                         <>
-                          <tr key={job.id} className="border-t border-border/30">
+                          <tr key={job.id} id={`job-${job.id}`} className="border-t border-border/30">
                             <td className="px-4 py-2 font-mono text-xs">
                               <div className="flex items-center gap-2">
                                 <button
