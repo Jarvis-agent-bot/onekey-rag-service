@@ -471,10 +471,22 @@ export function ObservabilityPage() {
                             <span key={kid}>
                               <Link
                                 className="underline underline-offset-2"
-                                to={`/kbs/${encodeURIComponent(kid)}`}
-                                title="打开 KB 详情"
+                                to={it.app_id
+                                  ? `/kbs/${encodeURIComponent(kid)}?app_id=${encodeURIComponent(it.app_id)}`
+                                  : `/kbs/${encodeURIComponent(kid)}`}
+                                title={it.app_id ? "打开 KB（并保留 app 上下文，便于回到应用）" : "打开 KB 详情"}
                               >
                                 {kid}
+                              </Link>
+                              <Link
+                                className="ml-1 text-muted-foreground underline underline-offset-2"
+                                to={
+                                  `/kbs/${encodeURIComponent(kid)}?tab=jobs` +
+                                  (it.app_id ? `&app_id=${encodeURIComponent(it.app_id)}` : "")
+                                }
+                                title="打开该 KB 的任务 Tab"
+                              >
+                                ·任务
                               </Link>
                               <Link
                                 className="ml-1 text-muted-foreground underline underline-offset-2"

@@ -97,8 +97,10 @@ export function RetrievalEventDetailPage() {
                       <Link
                         key={kbId}
                         className="rounded border border-border/60 bg-muted/30 px-2 py-0.5 font-mono text-xs hover:bg-muted"
-                        to={`/kbs/${encodeURIComponent(kbId)}`}
-                        title="打开该知识库"
+                        to={q.data.app_id
+                          ? `/kbs/${encodeURIComponent(kbId)}?app_id=${encodeURIComponent(q.data.app_id)}`
+                          : `/kbs/${encodeURIComponent(kbId)}`}
+                        title={q.data.app_id ? "打开 KB（并保留 app 上下文）" : "打开该知识库"}
                       >
                         {kbId}
                       </Link>
