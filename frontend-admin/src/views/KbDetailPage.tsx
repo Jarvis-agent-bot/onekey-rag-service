@@ -494,8 +494,11 @@ export function KbDetailPage() {
       }
 
       // Step 1: 抓取所有数据源
-      setSyncProgress({ step: `采集  个数据源...`, status: "running" });
+      setSyncProgress({ step: `采集 ${sourceList.length} 个数据源...`, status: "running" });
+      let i = 0;
       for (const source of sourceList) {
+        i += 1;
+        setSyncProgress({ step: `采集中（${i}/${sourceList.length}）...`, status: "running" });
         await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/crawl`, {
           method: "POST",
           body: JSON.stringify({ kb_id: kbId, source_id: source.id, mode: "full" }),
