@@ -185,19 +185,19 @@ export function AppsPage() {
                   <Link to={`/kbs?app_id=${encodeURIComponent(row.id)}`}>查看关联 KB</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={`/jobs?app_id=${encodeURIComponent(row.id)}`}>运行中心（按 App）</Link>
+                  <Link to={`/jobs?app_id=${encodeURIComponent(row.id)}`}>运行中心（按应用）</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={`/observability?app_id=${encodeURIComponent(row.id)}`}>观测（按 App）</Link>
+                  <Link to={`/observability?app_id=${encodeURIComponent(row.id)}`}>观测（按应用）</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={(e) => {
                     e.preventDefault();
-                    void copyText(row.id, "已复制 app_id");
+                    void copyText(row.id, "已复制应用ID");
                   }}
                 >
-                  复制 app_id
+                  复制应用ID
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!row.public_model_id}
@@ -231,7 +231,7 @@ export function AppsPage() {
                     confirmLabel="继续禁用"
                     confirmVariant="destructive"
                     confirmText={row.id}
-                    confirmPlaceholder="输入 app_id 确认"
+                    confirmPlaceholder="输入应用ID确认"
                     confirmDisabled={updateStatus.isPending}
                     onConfirm={() => updateStatus.mutateAsync({ app_id: row.id, status: "disabled" })}
                   />
@@ -294,7 +294,7 @@ export function AppsPage() {
         actions={
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <Button>新建 App</Button>
+              <Button>新建应用</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -353,8 +353,8 @@ export function AppsPage() {
                   <div className="space-y-2">
                     <div>快速开始：</div>
                     <ol className="list-inside list-decimal text-left">
-                      <li>新建 App</li>
-                      <li>进入 App 详情绑定知识库（KB）</li>
+                      <li>新建应用</li>
+                      <li>进入应用详情绑定知识库（KB）</li>
                       <li>进入知识库详情，在「数据源/运行」中触发采集与构建索引</li>
                       <li>在客户端/Widget 调试后发布</li>
                     </ol>
@@ -362,7 +362,7 @@ export function AppsPage() {
                 }
               actions={
                 <Button type="button" onClick={() => setCreateOpen(true)}>
-                  新建 App
+                  新建应用
                 </Button>
               }
             />

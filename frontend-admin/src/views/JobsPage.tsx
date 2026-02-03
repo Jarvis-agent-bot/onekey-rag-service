@@ -420,7 +420,7 @@ export function JobsPage() {
           </div>
 
           <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">App ID</div>
+            <div className="text-xs text-muted-foreground">应用ID</div>
             <DebouncedInput
               value={appIdFilter}
               onChange={(v) => {
@@ -581,12 +581,12 @@ export function JobsPage() {
                                   <Link
                                     className="font-mono underline underline-offset-2"
                                     to={`/apps/${encodeURIComponent(job.app_id)}`}
-                                    title="打开 App 详情"
+                                    title="打开应用详情"
                                   >
-                                    app:{job.app_id}
+                                    应用:{job.app_id}
                                   </Link>
                                 ) : (
-                                  <span className="text-muted-foreground">app:-</span>
+                                  <span className="text-muted-foreground">应用:-</span>
                                 )}
 
                                 {job.kb_id && job.source_id ? (

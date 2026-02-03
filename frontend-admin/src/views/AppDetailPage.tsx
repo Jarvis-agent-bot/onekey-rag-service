@@ -212,10 +212,10 @@ export function AppDetailPage() {
             查看关联 KB（筛选）
           </Link>
           <Link className="underline underline-offset-2" to={`/jobs?app_id=${encodeURIComponent(appId)}`}>
-            运行中心（按 App）
+            运行中心（按应用）
           </Link>
           <Link className="underline underline-offset-2" to={`/observability?app_id=${encodeURIComponent(appId)}`}>
-            观测（按 App）
+            观测（按应用）
           </Link>
         </div>
 
@@ -246,7 +246,7 @@ export function AppDetailPage() {
                   <Link
                     className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     to={`/observability?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(b.kb_id)}`}
-                    title="按 App+KB 过滤观测事件"
+                    title="按应用+KB 过滤观测事件"
                   >
                     观测
                   </Link>

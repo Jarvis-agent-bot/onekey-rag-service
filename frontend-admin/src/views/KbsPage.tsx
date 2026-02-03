@@ -412,7 +412,7 @@ export function KbsPage() {
                     to={`/observability?app_id=${encodeURIComponent(appIdFilter)}`}
                     title="按 app_id 过滤观测事件"
                   >
-                    观测（按 App）
+                    观测（按应用）
                   </Link>
                   <Link className="underline underline-offset-2" to="/apps">
                     应用列表
