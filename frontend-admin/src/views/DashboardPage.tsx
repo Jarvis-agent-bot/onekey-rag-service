@@ -170,9 +170,15 @@ export function DashboardPage() {
               最后更新 <span className="font-mono">{lastUpdated || "-"}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" disabled={refreshing} onClick={() => void refreshAll()}>
               {refreshing ? "刷新中..." : "刷新"}
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/kbs?create=1">新建知识库</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/apps?create=1">新建应用</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/quality">查看质量</Link>

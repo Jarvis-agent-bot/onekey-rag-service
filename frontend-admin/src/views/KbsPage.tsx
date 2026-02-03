@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -52,6 +52,10 @@ export function KbsPage() {
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [sp, setSp] = useSearchParams();
+
+  // 允许从 Dashboard / 其他页面通过 ?create=1 直接打开创建向导
+  // 目的：把“想新建 KB”的动作连到知识库页面，而不是让用户自己再点一次按钮。
+  const createParam = (sp.get("create") || "").trim();
   const appIdFilter = (sp.get("app_id") || "").trim();
 
   function updateUrlFilter(nextKV: Array<[string, string | null]>) {
@@ -63,6 +67,16 @@ export function KbsPage() {
     }
     setSp(next, { replace: true });
   }
+
+  useEffect(() => {
+    if (createParam !== "1") return;
+    setCreateOpen(true);
+    // 用完即清：避免刷新/返回时反复弹出
+    const next = new URLSearchParams(sp);
+    next.delete("create");
+    setSp(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createParam]);
 
   const q = useQuery({
     queryKey: ["kbs", workspaceId],

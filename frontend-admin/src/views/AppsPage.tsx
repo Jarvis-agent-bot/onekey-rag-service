@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { MoreHorizontal } from "lucide-react";
@@ -43,6 +43,17 @@ export function AppsPage() {
     queryFn: () => apiFetch<AppsResp>(`/admin/api/workspaces/${workspaceId}/apps`),
     enabled: !!workspaceId,
   });
+
+  // 允许从 Dashboard / 其他页面通过 ?create=1 直接打开创建对话框
+  const createParam = (sp.get("create") || "").trim();
+  useEffect(() => {
+    if (createParam !== "1") return;
+    setCreateOpen(true);
+    const next = new URLSearchParams(sp);
+    next.delete("create");
+    setSp(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createParam]);
 
   const pageSize = 20;
   const page = Math.max(1, Number.parseInt(sp.get("page") || "1", 10) || 1);
