@@ -494,31 +494,13 @@ export function KbsPage() {
                     <td className="px-4 py-3 text-muted-foreground">{it.updated_at || "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}`)}>
-                          详情
-                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=pages`)}
-                          title="在知识库详情页内查看内容（减少在全局 Pages 列表和 KB 详情之间来回切换）"
+                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}`)}
+                          title="以知识库为中心：在详情页内完成数据源/内容/运行/观测等操作"
                         >
-                          内容
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=jobs`)}
-                          title="在知识库详情页内查看任务（默认带 KB 过滤）"
-                        >
-                          运行
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/observability?kb_id=${encodeURIComponent(it.id)}`)}
-                        >
-                          观测
+                          打开
                         </Button>
                       </div>
                     </td>
