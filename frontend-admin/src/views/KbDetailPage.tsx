@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner";
 
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
-import { EntityLinksBar } from "../components/EntityLinksBar";
+// EntityLinksBar removed: KB 详情页内通过 Tabs/按钮完成主流程，避免重复快捷跳转
 import { Card } from "../components/Card";
 import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { CopyableText } from "../components/CopyableText";
@@ -666,7 +666,7 @@ export function KbDetailPage() {
             <div className="text-xs tracking-wider text-primary">知识库详情</div>
             <div className="text-2xl font-semibold text-foreground">{kb.data?.name || "加载中..."}</div>
             <div className="font-mono text-[11px] text-muted-foreground">{kbId}</div>
-            <EntityLinksBar appId={appId} kbId={kbId} className="mt-2" />
+            {/* 快捷跳转已移除：避免在 KB 详情页出现重复入口 */}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
