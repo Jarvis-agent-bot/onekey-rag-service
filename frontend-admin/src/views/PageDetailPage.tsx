@@ -9,6 +9,7 @@ import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
 import { CopyableText } from "../components/CopyableText";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
 
@@ -113,37 +114,45 @@ export function PageDetailPage() {
             </Button>
             <div className="text-lg font-semibold">页面详情</div>
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {q.data?.kb_id ? (
-              <>
-                <Link
-                  className="underline underline-offset-2"
-                  to={`/kbs/${q.data.kb_id}?tab=pages${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
-                  title="回到该 KB 的『内容』Tab（并尽量保留 source_id 筛选）"
-                >
-                  返回该知识库 / 内容
+          <EntityLinksBar appId={undefined} kbId={q.data?.kb_id} sourceId={q.data?.source_id} className="mt-2" />
+
+          {from?.kb_id ? (
+            <div className="mt-2 text-xs text-muted-foreground">
+              来源：
+              <Link
+                className="underline underline-offset-2"
+                to={`/kbs/${encodeURIComponent(from.kb_id)}?tab=pages${from.source_id ? `&source_id=${encodeURIComponent(from.source_id)}` : ""}`}
+                title="回到触发跳转的 KB / 内容视图（尽量保留 source_id 筛选）"
+              >
+                返回来源视图
+              </Link>
+              <span className="ml-3">
+                <Link className="underline underline-offset-2" to={`/pages?kb_id=${encodeURIComponent(from.kb_id)}`}>
+                  全局内容（带 KB）
                 </Link>
-                <span className="ml-3">
-                  <Link
-                    className="underline underline-offset-2"
-                    to={`/kbs/${q.data.kb_id}?tab=jobs${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
-                    title="回到该 KB 的『任务』Tab（并尽量保留 source_id 筛选）"
-                  >
-                    查看相关任务
-                  </Link>
-                </span>
-                <span className="ml-3">
-                  <Link className="underline underline-offset-2" to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
-                    全局内容列表
-                  </Link>
-                </span>
-              </>
-            ) : (
+              </span>
+            </div>
+          ) : q.data?.kb_id ? (
+            <div className="mt-2 text-xs text-muted-foreground">
+              <Link
+                className="underline underline-offset-2"
+                to={`/kbs/${encodeURIComponent(q.data.kb_id)}?tab=pages${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
+              >
+                返回该知识库 / 内容
+              </Link>
+              <span className="ml-3">
+                <Link className="underline underline-offset-2" to={`/pages?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
+                  全局内容（带 KB）
+                </Link>
+              </span>
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-muted-foreground">
               <Link className="underline underline-offset-2" to="/pages">
                 返回内容列表
               </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" disabled={!q.data || recrawl.isPending} onClick={() => recrawl.mutate()}>

@@ -8,6 +8,7 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
 
@@ -109,59 +110,20 @@ export function JobDetailPage() {
             </Button>
             <span className="text-lg font-semibold">任务详情</span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {q.data?.kb_id ? (
-              <>
-                <Link className="hover:underline" to={`/kbs/${q.data.kb_id}`}>
-                  所属知识库
-                </Link>
-                <Link className="hover:underline" to={`/kbs/${q.data.kb_id}?tab=pages`}>
-                  查看内容
-                </Link>
-                <Link className="hover:underline" to={`/kbs/${q.data.kb_id}?tab=jobs`}>
-                  查看任务
-                </Link>
-                <Link className="hover:underline" to={`/observability?kb_id=${encodeURIComponent(q.data.kb_id)}`}>
-                  观测（按 KB）
-                </Link>
-                {q.data?.source_id ? (
-                  <>
-                    <span className="text-border">·</span>
-                    <Link
-                      className="hover:underline"
-                      to={`/kbs/${q.data.kb_id}?tab=pages&source_id=${encodeURIComponent(q.data.source_id)}`}
-                      title="跳到该 KB 的内容 Tab，并自动筛选 source_id"
-                    >
-                      该数据源内容
-                    </Link>
-                    <Link
-                      className="hover:underline"
-                      to={`/kbs/${q.data.kb_id}?tab=jobs&source_id=${encodeURIComponent(q.data.source_id)}`}
-                      title="跳到该 KB 的任务 Tab，并自动筛选 source_id"
-                    >
-                      该数据源任务
-                    </Link>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <Link className="hover:underline" to="/kbs">
-                知识库列表
-              </Link>
-            )}
+          <EntityLinksBar appId={q.data?.app_id} kbId={q.data?.kb_id} sourceId={q.data?.source_id} className="mt-2" />
 
-            {q.data?.app_id ? (
-              <>
-                <span className="text-border">·</span>
-                <Link className="hover:underline" to={`/apps/${encodeURIComponent(q.data.app_id)}`}>
-                  App 详情
-                </Link>
-                <Link className="hover:underline" to={`/observability?app_id=${encodeURIComponent(q.data.app_id)}`}>
-                  观测（按 App）
-                </Link>
-              </>
-            ) : null}
-          </div>
+          {from?.kb_id ? (
+            <div className="mt-2 text-xs text-muted-foreground">
+              来源：
+              <Link
+                className="underline underline-offset-2"
+                to={`/kbs/${encodeURIComponent(from.kb_id)}?tab=jobs${from.source_id ? `&source_id=${encodeURIComponent(from.source_id)}` : ""}`}
+                title="回到触发跳转的 KB / 任务视图（尽量保留 source_id 筛选）"
+              >
+                返回来源视图
+              </Link>
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <ConfirmDangerDialog
