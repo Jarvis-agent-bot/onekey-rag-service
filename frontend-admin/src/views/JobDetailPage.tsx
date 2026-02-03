@@ -69,7 +69,7 @@ export function JobDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["job", workspaceId, jobId] });
       await qc.invalidateQueries({ queryKey: ["jobs", workspaceId] });
-      toast.success("已取消任务");
+      toast.success("已取消运行");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "取消失败"),
   });
@@ -108,7 +108,7 @@ export function JobDetailPage() {
               <ArrowLeft className="h-4 w-4" />
               返回
             </Button>
-            <span className="text-lg font-semibold">任务详情</span>
+            <span className="text-lg font-semibold">运行详情</span>
           </div>
           <EntityLinksBar appId={q.data?.app_id} kbId={q.data?.kb_id} sourceId={q.data?.source_id} className="mt-2" />
 
@@ -145,13 +145,13 @@ export function JobDetailPage() {
           <ConfirmDangerDialog
             trigger={
               <Button variant="outline" disabled={!q.data || q.data.status !== "queued" || cancel.isPending}>
-                {cancel.isPending ? "取消中..." : "取消(仅 queued)"}
+                {cancel.isPending ? "取消中..." : "取消（仅排队）"}
               </Button>
             }
-            title="确认取消任务？"
+            title="确认取消运行？"
             description={
               <>
-                将取消 job_id=<span className="font-mono">{jobId}</span>（仅支持 queued）。此操作不可恢复。
+                将取消 job_id=<span className="font-mono">{jobId}</span>（仅支持 queued/排队中）。此操作不可恢复。
               </>
             }
             confirmLabel="继续取消"
@@ -262,7 +262,7 @@ export function JobDetailPage() {
           ) : null}
 
           {q.data.logs?.length ? (
-            <Card title="日志" description="任务进度日志摘要">
+            <Card title="日志" description="运行进度日志摘要">
               <div className="space-y-1 text-xs font-mono text-muted-foreground">
                 {q.data.logs.map((l, idx) => (
                   <div key={idx} className="truncate">

@@ -92,7 +92,7 @@ export function PagesPage() {
       return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/pages/${pageId}/recrawl`, { method: "POST" });
     },
     onSuccess: (data) => {
-      toast.success("已触发抓取任务，正在跳转详情");
+      toast.success("已触发采集运行，正在跳转详情");
       navigate(`/jobs/${data.job_id}`, {
         state: { from: { kb_id: kbId || undefined, source_id: sourceId || undefined } },
       });
@@ -170,7 +170,7 @@ export function PagesPage() {
         <FilterChips items={chips} className="pt-3" />
       </Card>
 
-      <Card title="内容列表" description="点击 ID 进入详情，支持快速重抓取">
+      <Card title="内容列表" description="点击 ID 进入详情，支持快速重新采集">
         {list.isLoading ? <Loading /> : null}
         {list.error ? <ApiErrorBanner error={list.error} /> : null}
 
@@ -271,7 +271,7 @@ export function PagesPage() {
                           disabled={recrawl.isPending}
                           onClick={() => recrawl.mutate(it.id)}
                         >
-                          重抓取
+                          重新采集
                         </Button>
                       </div>
                     </td>
