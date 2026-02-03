@@ -52,7 +52,6 @@ const navGroups: NavGroup[] = [
       { to: "/kbs", label: "知识库", title: "知识库（Collections）", icon: Database },
       { to: "/jobs", label: "运行", title: "索引/运行（Jobs）", icon: ScrollText },
       { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
-      // 注：不再提供“验证台/内容（全局）”这类割裂入口；日常路径应从 KB 详情页出发。
     ],
   },
   {
