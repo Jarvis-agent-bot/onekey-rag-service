@@ -537,6 +537,12 @@ export function KbDetailPage() {
   const hasNoSources = !sources.data?.items?.length;
   const hasNoContent = !stats.data?.pages.total;
 
+  // ======== UI 小增强：Tab 标题带上关键数量，减少来回点进点出 ========
+  const sourceCount = sources.data?.items?.length ?? 0;
+  const pageCount = stats.data?.pages?.total ?? 0;
+  const recentJobCount = recentJobs.data?.items?.length ?? 0;
+  const runningJobCount = (recentJobs.data?.items || []).filter((j) => j.status === "running" || j.status === "queued").length;
+
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
@@ -590,9 +596,18 @@ export function KbDetailPage() {
       <Tabs value={tab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="w-full justify-start gap-2 overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-2">
           <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="sources">数据源</TabsTrigger>
-          <TabsTrigger value="pages">内容</TabsTrigger>
-          <TabsTrigger value="jobs">任务</TabsTrigger>
+          <TabsTrigger value="sources">
+            数据源
+            <span className="ml-1 text-muted-foreground">({sourceCount})</span>
+          </TabsTrigger>
+          <TabsTrigger value="pages">
+            内容
+            <span className="ml-1 text-muted-foreground">({pageCount})</span>
+          </TabsTrigger>
+          <TabsTrigger value="jobs">
+            任务
+            <span className="ml-1 text-muted-foreground">({runningJobCount > 0 ? `${runningJobCount} 进行中` : recentJobCount})</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* ============ 概览 Tab ============ */}
