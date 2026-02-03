@@ -6,6 +6,7 @@ import { JsonView } from "../components/JsonView";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { TraceLink } from "../components/TraceLink";
 import { EntityLinksBar } from "../components/EntityLinksBar";
+import { Button } from "../components/ui/button";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
 
@@ -61,6 +62,34 @@ export function RetrievalEventDetailPage() {
             </Link>
           ) : null}
         </div>
+
+        {/* 快捷动作：把“观测 → 定位 KB → 看运行/数据源 → 回修复”串起来 */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {firstKbId ? (
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/kbs/${encodeURIComponent(firstKbId)}?tab=jobs${data?.app_id ? `&app_id=${encodeURIComponent(data.app_id)}` : ""}`}>
+                打开该 KB（运行）
+              </Link>
+            </Button>
+          ) : null}
+          {firstKbId ? (
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/kbs/${encodeURIComponent(firstKbId)}?tab=sources${data?.app_id ? `&app_id=${encodeURIComponent(data.app_id)}` : ""}`}>
+                打开该 KB（数据源）
+              </Link>
+            </Button>
+          ) : null}
+          {firstKbId ? (
+            <Button asChild size="sm" variant="outline">
+              <Link
+                to={`/observability?kb_id=${encodeURIComponent(firstKbId)}${data?.app_id ? `&app_id=${encodeURIComponent(data.app_id)}` : ""}`}
+              >
+                回到观测（该 KB）
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+
         <EntityLinksBar appId={data?.app_id} kbId={firstKbId} className="mt-2" />
       </div>
 
