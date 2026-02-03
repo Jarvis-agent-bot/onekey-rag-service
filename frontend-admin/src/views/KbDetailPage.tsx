@@ -196,6 +196,15 @@ export function KbDetailPage() {
     return map;
   }, [recentJobs.data]);
 
+  // source_id -> 数据源名称：用于“最近运行”里直接展示来源，减少来回跳页面找
+  const sourceNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sources.data?.items || []) {
+      map.set(s.id, s.name || s.id);
+    }
+    return map;
+  }, [sources.data]);
+
   const [expandedBatchId, setExpandedBatchId] = useState<string>("");
   const batchDetail = useQuery({
     queryKey: ["file-batch-detail", workspaceId, kbId, expandedBatchId],
@@ -878,53 +887,82 @@ export function KbDetailPage() {
               {recentJobs.data?.items.slice(0, 5).map((job) => {
                 const progress = job.progress as { done?: number; total?: number } | undefined;
                 const percent = progress?.total ? Math.round(((progress.done || 0) / progress.total) * 100) : 0;
+                const sourceLabel = job.source_id ? (sourceNameById.get(job.source_id) || job.source_id) : "-";
+
                 return (
-                  <button
-                    key={job.id}
-                    type="button"
-                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/30"
-                    onClick={() => {
-                      // 让“最近运行 → 排障/重试/看进度”闭环尽量留在 KB 内
-                      handleTabChange("jobs");
-                      setExpandedJobId(job.id);
-                      setJobsPage(1);
-                      if (job.source_id) {
-                        setJobsSourceId(job.source_id);
-                        const next = new URLSearchParams(searchParams);
-                        next.set("tab", "jobs");
-                        next.set("source_id", job.source_id);
-                        setSearchParams(next, { replace: true });
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full ${
-                        job.status === "running" ? "animate-pulse bg-blue-500" :
-                        job.status === "queued" ? "bg-amber-500" :
-                        job.status === "succeeded" ? "bg-emerald-500" :
-                        job.status === "failed" ? "bg-red-500" : "bg-muted-foreground"
-                      }`} />
-                      <div>
-                        <div className="text-sm font-medium">
-                          {job.type === "crawl" ? "采集" : job.type === "index" ? "构建索引" : job.type}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {job.started_at?.slice(0, 16) || "排队中"}
+                  <div key={job.id} className="flex w-full items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30">
+                    <button
+                      type="button"
+                      className="flex flex-1 items-center justify-between text-left"
+                      onClick={() => {
+                        // 让“最近运行 → 排障/重试/看进度”闭环尽量留在 KB 内
+                        jumpToTab("jobs", job.source_id || undefined, { expandJobId: job.id });
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            job.status === "running"
+                              ? "animate-pulse bg-blue-500"
+                              : job.status === "queued"
+                                ? "bg-amber-500"
+                                : job.status === "succeeded"
+                                  ? "bg-emerald-500"
+                                  : job.status === "failed"
+                                    ? "bg-red-500"
+                                    : "bg-muted-foreground"
+                          }`}
+                        />
+                        <div>
+                          <div className="text-sm font-medium">
+                            {job.type === "crawl" ? "采集" : job.type === "index" ? "构建索引" : job.type}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {job.started_at?.slice(0, 16) || "排队中"} · 来源：{sourceLabel}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={
-                        job.status === "failed" ? "destructive" :
-                        job.status === "succeeded" ? "default" : "secondary"
-                      }>
-                        {job.status === "running" ? `${percent}%` :
-                         job.status === "queued" ? "排队中" :
-                         job.status === "succeeded" ? "成功" :
-                         job.status === "failed" ? "失败" : job.status}
-                      </Badge>
-                    </div>
-                  </button>
+
+                      <div className="shrink-0 text-right">
+                        <Badge
+                          variant={
+                            job.status === "failed" ? "destructive" : job.status === "succeeded" ? "default" : "secondary"
+                          }
+                        >
+                          {job.status === "running"
+                            ? `${percent}%`
+                            : job.status === "queued"
+                              ? "排队中"
+                              : job.status === "succeeded"
+                                ? "成功"
+                                : job.status === "failed"
+                                  ? "失败"
+                                  : job.status}
+                        </Badge>
+                      </div>
+                    </button>
+
+                    {job.source_id ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+
+                          const next = new URLSearchParams(searchParams);
+                          next.set("tab", "sources");
+                          next.set("source_id", job.source_id);
+                          setSearchParams(next, { replace: true });
+                          setTab("sources");
+                        }}
+                        title="直接打开该数据源配置"
+                      >
+                        数据源
+                      </Button>
+                    ) : null}
+                  </div>
                 );
               })}
               {!recentJobs.data?.items?.length && (
