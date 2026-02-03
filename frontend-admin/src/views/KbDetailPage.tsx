@@ -417,7 +417,7 @@ export function KbDetailPage() {
     },
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
-      toast.success("已触发 reindex");
+      toast.success("已触发 构建索引");
       navigate(`/jobs/${data.job_id}`, {
         state: { from: { kb_id: kbId, source_id: pagesSourceId || undefined } },
       });
@@ -475,7 +475,7 @@ export function KbDetailPage() {
     },
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
-      toast.success("已触发 recrawl");
+      toast.success("已触发 重新采集");
       navigate(`/jobs/${data.job_id}`, {
         state: { from: { kb_id: kbId, source_id: pagesSourceId || undefined } },
       });
@@ -1438,24 +1438,25 @@ export function KbDetailPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={recrawlPage.isPending || !pageIdParam}
-                      onClick={() => recrawlPage.mutate(pageIdParam)}
-                    >
-                      {recrawlPage.isPending ? "触发中..." : "重新采集"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={reindexPage.isPending || !pageIdParam}
-                      onClick={() => reindexPage.mutate(pageIdParam)}
-                    >
-                      {reindexPage.isPending ? "触发中..." : "重新索引"}
-                    </Button>
-                    <ConfirmDangerDialog
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={recrawlPage.isPending || !pageIdParam}
+                        onClick={() => recrawlPage.mutate(pageIdParam)}
+                      >
+                        {recrawlPage.isPending ? "触发中..." : "重新采集"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={reindexPage.isPending || !pageIdParam}
+                        onClick={() => reindexPage.mutate(pageIdParam)}
+                      >
+                        {reindexPage.isPending ? "触发中..." : "重新构建索引"}
+                      </Button>
+                      <ConfirmDangerDialog
                       trigger={
                         <Button variant="outline" size="sm" disabled={deletePage.isPending || !pageIdParam}>
                           删除
@@ -1474,6 +1475,10 @@ export function KbDetailPage() {
                       confirmDisabled={deletePage.isPending || !pageIdParam}
                       onConfirm={() => deletePage.mutateAsync(pageIdParam)}
                     />
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      采集=从来源拉取最新内容；构建索引=把内容变成可检索的 chunks
+                    </div>
                   </div>
 
                   <div className="space-y-2">
