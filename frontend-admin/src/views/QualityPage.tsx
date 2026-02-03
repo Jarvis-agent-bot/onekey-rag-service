@@ -326,7 +326,7 @@ export function QualityPage() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {r.kb_id ? (
-                          <Link className="underline underline-offset-2" to={`/kbs/${r.kb_id}`}>
+                          <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(r.kb_id)}`}>
                             {r.kb_id}
                           </Link>
                         ) : (

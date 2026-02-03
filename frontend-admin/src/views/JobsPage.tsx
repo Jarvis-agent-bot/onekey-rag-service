@@ -491,7 +491,7 @@ export function JobsPage() {
                               <div className="font-sans text-[11px] text-muted-foreground">
                                 <Link
                                   className="hover:underline"
-                                  to={`/kbs/${job.kb_id}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
+                                  to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
                                   title="跳到该 KB 的任务 Tab，并尽量保留 source_id 筛选"
                                 >
                                   回到该知识库（任务）

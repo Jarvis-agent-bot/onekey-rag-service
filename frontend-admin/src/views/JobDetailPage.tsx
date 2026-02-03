@@ -82,12 +82,12 @@ export function JobDetailPage() {
       const qs = new URLSearchParams();
       qs.set("tab", "jobs");
       if (from.source_id) qs.set("source_id", from.source_id);
-      navigate(`/kbs/${from.kb_id}?${qs.toString()}`);
+      navigate(`/kbs/${encodeURIComponent(from.kb_id)}?${qs.toString()}`);
       return;
     }
 
     if (q.data?.kb_id) {
-      navigate(`/kbs/${q.data.kb_id}?tab=jobs`);
+      navigate(`/kbs/${encodeURIComponent(q.data.kb_id)}?tab=jobs`);
       return;
     }
 

@@ -96,7 +96,7 @@ export function RetrievalEventDetailPage() {
                       <Link
                         key={kbId}
                         className="rounded border border-border/60 bg-muted/30 px-2 py-0.5 font-mono text-xs hover:bg-muted"
-                        to={`/kbs/${kbId}`}
+                        to={`/kbs/${encodeURIComponent(kbId)}`}
                         title="打开该知识库"
                       >
                         {kbId}

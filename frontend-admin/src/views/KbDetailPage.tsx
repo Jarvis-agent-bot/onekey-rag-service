@@ -585,10 +585,10 @@ export function KbDetailPage() {
             </Button>
 
             <Button variant="outline" asChild>
-              <Link to={`/kbs/${kbId}?tab=pages`}>内容</Link>
+              <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>内容</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to={`/kbs/${kbId}?tab=jobs`}>任务</Link>
+              <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>任务</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link to={`/observability?kb_id=${encodeURIComponent(kbId)}`}>
@@ -1079,10 +1079,10 @@ export function KbDetailPage() {
               <div className="mt-1 text-xs text-muted-foreground">建议先通过「数据源」抓取内容；如需排障可跳转到内容/任务</div>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/kbs/${kbId}?tab=pages`}>查看内容</Link>
+                  <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>查看内容</Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/kbs/${kbId}?tab=jobs`}>查看任务</Link>
+                  <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>查看任务</Link>
                 </Button>
               </div>
             </div>

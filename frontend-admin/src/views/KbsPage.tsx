@@ -118,7 +118,7 @@ export function KbsPage() {
       setCreateOpen(false);
       await qc.invalidateQueries({ queryKey: ["kbs", workspaceId] });
       toast.success("已创建知识库，前往配置数据源");
-      navigate(`/kbs/${data.id}`);
+      navigate(`/kbs/${encodeURIComponent(data.id)}`);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "创建失败"),
   });
@@ -494,7 +494,7 @@ export function KbsPage() {
                     <td className="px-4 py-3 text-muted-foreground">{it.updated_at || "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/kbs/${it.id}`)}>
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}`)}>
                           详情
                         </Button>
                         <Button

@@ -179,7 +179,7 @@ export function AppsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
-                  <Link to={`/apps/${row.id}`}>查看详情</Link>
+                  <Link to={`/apps/${encodeURIComponent(row.id)}`}>查看详情</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to={`/kbs?app_id=${encodeURIComponent(row.id)}`}>查看关联 KB</Link>

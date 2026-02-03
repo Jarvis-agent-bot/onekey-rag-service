@@ -250,7 +250,7 @@ export function PagesPage() {
                       {it.kb_id ? (
                         <Link
                           className="underline underline-offset-2"
-                          to={`/kbs/${it.kb_id}?tab=pages`}
+                          to={`/kbs/${encodeURIComponent(it.kb_id)}?tab=pages`}
                           title="打开该知识库的『内容』Tab"
                         >
                           {it.kb_id}
@@ -265,14 +265,14 @@ export function PagesPage() {
                           <div className="flex flex-col gap-1">
                             <Link
                               className="underline underline-offset-2"
-                              to={`/kbs/${it.kb_id}?tab=pages&source_id=${encodeURIComponent(it.source_id)}`}
+                              to={`/kbs/${encodeURIComponent(it.kb_id)}?tab=pages&source_id=${encodeURIComponent(it.source_id)}`}
                               title="在该 KB 内按 source_id 查看内容"
                             >
                               {it.source_id}
                             </Link>
                             <Link
                               className="text-[11px] text-muted-foreground underline underline-offset-2"
-                              to={`/kbs/${it.kb_id}?tab=sources`}
+                              to={`/kbs/${encodeURIComponent(it.kb_id)}?tab=sources`}
                               title="查看该 KB 的数据源配置"
                             >
                               查看数据源配置
