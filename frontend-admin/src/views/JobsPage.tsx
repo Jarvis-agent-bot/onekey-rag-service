@@ -352,6 +352,7 @@ export function JobsPage() {
               <option value="crawl">采集</option>
               <option value="index">构建索引</option>
             </Select>
+            <div className="text-[11px] text-muted-foreground">采集=从数据源拉取内容；构建索引=让内容可检索</div>
           </div>
 
           <div className="space-y-2">

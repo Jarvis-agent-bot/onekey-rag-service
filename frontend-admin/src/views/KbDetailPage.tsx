@@ -582,7 +582,7 @@ export function KbDetailPage() {
     },
     onSuccess: async () => {
       toast.success("同步任务已启动", {
-        description: "采集和构建索引已提交，已为你切到『运行』Tab 便于观察进度",
+        description: "同步=采集数据源+构建索引。已提交任务，并为你切到『运行』Tab 便于观察进度",
       });
       // 发起动作后直接把用户带到“看结果”的地方，减少来回找入口的割裂感
       handleTabChange("jobs");
@@ -650,7 +650,7 @@ export function KbDetailPage() {
               variant="default"
               onClick={() => syncAll.mutate()}
               disabled={syncAll.isPending || !sources.data?.items?.length}
-              title="采集所有数据源并构建索引"
+              title="同步 = 采集数据源 + 构建索引"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${syncAll.isPending ? "animate-spin" : ""}`} />
               {syncAll.isPending ? syncProgress.step || "同步中..." : "同步"}
