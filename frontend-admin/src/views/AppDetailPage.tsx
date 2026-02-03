@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -52,6 +53,27 @@ export function AppDetailPage() {
   const params = useParams();
   const appId = params.appId || "";
   const qc = useQueryClient();
+
+  // 调试区默认折叠：减少“占屏的大段 JSON”对主流程的干扰
+  const DEBUG_KEY = "admin_app_show_debug";
+  const [showDebug, setShowDebug] = useState<boolean>(() => {
+    try {
+      const v = window.localStorage.getItem(DEBUG_KEY);
+      if (v === "1") return true;
+      if (v === "0") return false;
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DEBUG_KEY, showDebug ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [showDebug]);
 
   const app = useQuery({
     queryKey: ["app", workspaceId, appId],
@@ -188,6 +210,9 @@ export function AppDetailPage() {
           </Link>
           <Link className="underline underline-offset-2" to={`/kbs?app_id=${encodeURIComponent(appId)}`}>
             查看关联 KB（筛选）
+          </Link>
+          <Link className="underline underline-offset-2" to={`/jobs?app_id=${encodeURIComponent(appId)}`}>
+            任务中心（按 App）
           </Link>
           <Link className="underline underline-offset-2" to={`/observability?app_id=${encodeURIComponent(appId)}`}>
             观测（按 App）
@@ -424,9 +449,24 @@ export function AppDetailPage() {
             </div>
           </Card>
 
-          <Card title="调试" description="服务端返回的原始数据（只读）">
-            <JsonView value={{ app: app.data, bindings: bindings.data }} />
-          </Card>
+          <div className="rounded-xl border border-border/70 bg-card/50">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/30"
+              onClick={() => setShowDebug((v) => !v)}
+            >
+              <div>
+                <div className="font-medium">调试（只读）</div>
+                <div className="mt-1 text-xs text-muted-foreground">服务端返回的原始数据；默认折叠以避免干扰主流程</div>
+              </div>
+              {showDebug ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+            {showDebug ? (
+              <div className="border-t border-border/50 p-4">
+                <JsonView value={{ app: app.data, bindings: bindings.data }} />
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
