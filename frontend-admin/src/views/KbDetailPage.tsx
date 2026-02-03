@@ -4,8 +4,8 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { Card } from "../components/Card";
 import { ConfirmDangerDialog } from "../components/ConfirmDangerDialog";
 import { CopyableText } from "../components/CopyableText";
@@ -191,6 +191,9 @@ export function KbDetailPage() {
 
   // ======== Tab 状态（支持 URL ?tab= 参数） ========
   const [searchParams, setSearchParams] = useSearchParams();
+  // 当从「应用详情 → KB」跳转过来时，保留 app_id 用于提供 App+KB 的观测/任务深链，减少路径割裂。
+  const appId = (searchParams.get("app_id") || "").trim();
+
   const validTabs = ["overview", "sources", "pages", "jobs"];
   const initialTab = validTabs.includes(searchParams.get("tab") || "") ? searchParams.get("tab")! : "overview";
   const [tab, setTab] = useState(initialTab);
@@ -572,6 +575,7 @@ export function KbDetailPage() {
             <div className="text-xs tracking-wider text-primary">知识库详情</div>
             <div className="text-2xl font-semibold text-foreground">{kb.data?.name || "加载中..."}</div>
             <div className="font-mono text-[11px] text-muted-foreground">{kbId}</div>
+            <EntityLinksBar appId={appId} kbId={kbId} className="mt-2" />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -596,6 +600,12 @@ export function KbDetailPage() {
                 观测
               </Link>
             </Button>
+
+            {appId ? (
+              <Button variant="outline" asChild>
+                <Link to={`/apps/${encodeURIComponent(appId)}`}>返回应用</Link>
+              </Button>
+            ) : null}
 
             <Button variant="outline" asChild>
               <Link to="/kbs">返回列表</Link>

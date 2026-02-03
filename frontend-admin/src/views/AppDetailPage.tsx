@@ -231,14 +231,14 @@ export function AppDetailPage() {
                 <span key={b.kb_id} className="inline-flex flex-wrap items-center gap-2">
                   <Link
                     className="rounded-md border border-border/60 bg-muted/30 px-2 py-1 hover:bg-muted/40"
-                    to={`/kbs/${encodeURIComponent(b.kb_id)}`}
+                    to={`/kbs/${encodeURIComponent(b.kb_id)}?app_id=${encodeURIComponent(appId)}`}
                     title={`打开 KB：${b.kb_name || b.kb_id}`}
                   >
                     {b.kb_name || b.kb_id}
                   </Link>
                   <Link
                     className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    to={`/kbs/${encodeURIComponent(b.kb_id)}?tab=jobs`}
+                    to={`/kbs/${encodeURIComponent(b.kb_id)}?tab=jobs&app_id=${encodeURIComponent(appId)}`}
                     title="打开该 KB 的任务 Tab（更接近实际运维动作）"
                   >
                     任务
