@@ -134,7 +134,7 @@ export function DashboardPage() {
             <div className="text-sm text-muted-foreground">
               workspace <span className="font-mono">{workspaceId}</span>
               <span className="mx-2 text-border">·</span>
-              最近抓取 <span className="font-mono">{data.pages.last_crawled_at || "-"}</span>
+              最近采集 <span className="font-mono">{data.pages.last_crawled_at || "-"}</span>
               <span className="mx-2 text-border">·</span>
               最后更新 <span className="font-mono">{lastUpdated || "-"}</span>
             </div>
@@ -322,7 +322,7 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        <Card title="内容规模" description="抓取/索引规模（按 workspace）">
+        <Card title="内容规模" description="采集/索引规模（按 workspace）">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Link to="/kbs" className="block rounded-md border bg-muted/30 p-3 transition-colors hover:bg-muted/40">
               <div className="flex items-center justify-between gap-3">
@@ -333,7 +333,7 @@ export function DashboardPage() {
                 <span className="font-mono text-sm">{formatInt(data.pages.total)}</span>
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
-                近 24h 抓取 <span className="font-mono">{formatInt(data.pages.last_24h)}</span> · 失败{" "}
+                近 24h 采集 <span className="font-mono">{formatInt(data.pages.last_24h)}</span> · 失败{" "}
                 <span className="font-mono">{formatInt(data.pages.failed)}</span>
               </div>
             </Link>

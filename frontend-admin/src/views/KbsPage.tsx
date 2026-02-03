@@ -429,7 +429,7 @@ export function KbsPage() {
 
         {!filtered.length ? (
           <EmptyState
-            description="新建知识库后，可在详情页配置数据源，并在运行中心触发抓取与索引。"
+            description="新建知识库后，可在详情页配置数据源，并在运行中心触发采集与构建索引。"
             actions={
               <Button type="button" onClick={() => setCreateOpen(true)}>
                 新建知识库

@@ -355,7 +355,7 @@ export function AppsPage() {
                     <ol className="list-inside list-decimal text-left">
                       <li>新建 App</li>
                       <li>进入 App 详情绑定知识库（KB）</li>
-                      <li>进入知识库详情，在「数据源/运行」中触发抓取与索引</li>
+                      <li>进入知识库详情，在「数据源/运行」中触发采集与构建索引</li>
                       <li>在客户端/Widget 调试后发布</li>
                     </ol>
                   </div>
