@@ -428,7 +428,16 @@ export function ObservabilityPage() {
                 return (
                   <tr key={it.id} className="border-t align-top">
                       <td className="py-2 font-mono text-xs">
-                        <Link className="underline underline-offset-2" to={`/observability/retrieval-events/${it.id}`}>
+                        <Link
+                          className="underline underline-offset-2"
+                          to={`/observability/retrieval-events/${it.id}`}
+                          state={{
+                            from: {
+                              // 保留当前筛选：减少「列表 → 详情 → 回列表」时的割裂感
+                              search: sp.toString(),
+                            },
+                          }}
+                        >
                           {it.id}
                         </Link>
                       </td>
@@ -489,6 +498,7 @@ export function ObservabilityPage() {
                           toastText="已复制 request_id"
                           to={`/observability/retrieval-events/${it.id}`}
                           toLabel="事件详情"
+                          linkState={{ from: { search: sp.toString() } }}
                         />
                       ) : (
                         <span className="text-muted-foreground">-</span>

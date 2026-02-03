@@ -98,8 +98,10 @@ export function useBreadcrumb(): BreadcrumbItem[] {
   // 观测详情
   if (path.startsWith("/observability/retrieval-events/")) {
     const eventId = path.replace("/observability/retrieval-events/", "");
+    const fromSearch = ((location.state as any)?.from?.search as string | undefined) || "";
+    const fromTo = fromSearch ? `/observability?${fromSearch}` : "/observability";
     return [
-      { label: "观测", to: "/observability" },
+      { label: "观测", to: fromTo },
       { label: eventId || "详情" },
     ];
   }

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
@@ -32,6 +32,10 @@ export function RetrievalEventDetailPage() {
   const { workspaceId } = useWorkspace();
   const params = useParams();
   const eventId = Number(params.eventId || 0);
+  const location = useLocation();
+
+  const fromSearch = ((location.state as any)?.from?.search as string | undefined) || "";
+  const backToList = fromSearch ? `/observability?${fromSearch}` : "/observability";
 
   const q = useQuery({
     queryKey: ["retrieval-event", workspaceId, eventId],
@@ -47,8 +51,8 @@ export function RetrievalEventDetailPage() {
       <div>
         <div className="text-lg font-semibold">检索事件详情</div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <Link className="underline underline-offset-2" to="/observability">
-            返回列表
+          <Link className="underline underline-offset-2" to={backToList}>
+            返回列表{fromSearch ? "（保留筛选）" : ""}
           </Link>
           {data?.request_id ? (
             <Link className="underline underline-offset-2" to={`/observability?request_id=${encodeURIComponent(data.request_id)}`}>
