@@ -5,6 +5,7 @@ import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { TraceLink } from "../components/TraceLink";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
 
@@ -54,57 +55,8 @@ export function RetrievalEventDetailPage() {
               回到列表（带 request_id）
             </Link>
           ) : null}
-
-          {data?.app_id ? (
-            <>
-              <span className="text-border">·</span>
-              <Link className="underline underline-offset-2" to={`/apps/${encodeURIComponent(data.app_id)}`}>
-                打开 App
-              </Link>
-              <Link
-                className="underline underline-offset-2"
-                to={`/observability?app_id=${encodeURIComponent(data.app_id)}`}
-                title="回到观测列表，并按 app_id 过滤"
-              >
-                观测（按 App）
-              </Link>
-            </>
-          ) : null}
-
-          {firstKbId ? (
-            <>
-              <span className="text-border">·</span>
-              <Link
-                className="underline underline-offset-2"
-                to={`/kbs/${encodeURIComponent(firstKbId)}`}
-                title="打开该事件使用的第一个 KB（如有多个 KB，仅取第一个作为快捷入口）"
-              >
-                打开 KB
-              </Link>
-              <Link
-                className="underline underline-offset-2"
-                to={`/kbs/${encodeURIComponent(firstKbId)}?tab=pages`}
-                title="跳到 KB 详情的『内容』Tab"
-              >
-                KB 内容
-              </Link>
-              <Link
-                className="underline underline-offset-2"
-                to={`/kbs/${encodeURIComponent(firstKbId)}?tab=jobs`}
-                title="跳到 KB 详情的『任务』Tab"
-              >
-                KB 任务
-              </Link>
-              <Link
-                className="underline underline-offset-2"
-                to={`/observability?kb_id=${encodeURIComponent(firstKbId)}`}
-                title="回到观测列表，并按 kb_id 过滤"
-              >
-                观测（按 KB）
-              </Link>
-            </>
-          ) : null}
         </div>
+        <EntityLinksBar appId={data?.app_id} kbId={firstKbId} className="mt-2" />
       </div>
 
       {q.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}

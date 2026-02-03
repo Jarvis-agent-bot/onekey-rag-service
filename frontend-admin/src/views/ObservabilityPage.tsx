@@ -176,32 +176,7 @@ export function ObservabilityPage() {
           </div>
         </div>
 
-        {(appId || kbId) ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>快捷跳转：</span>
-            {kbId ? (
-              <>
-                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}`}>
-                  KB 详情
-                </Link>
-                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>
-                  KB 任务
-                </Link>
-                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>
-                  KB 内容
-                </Link>
-              </>
-            ) : null}
-            {appId ? (
-              <>
-                <span className="text-border">·</span>
-                <Link className="underline underline-offset-2" to={`/apps/${encodeURIComponent(appId)}`}>
-                  App 详情
-                </Link>
-              </>
-            ) : null}
-          </div>
-        ) : null}
+        {/* 已在标题区使用 EntityLinksBar 提供上下文跳转，避免重复入口 */}
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-background/50 p-4">
