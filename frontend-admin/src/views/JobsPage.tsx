@@ -86,7 +86,7 @@ export function JobsPage() {
     enabled: !!workspaceId,
   });
 
-  // 获取所有任务（最近100个）
+  // 获取所有运行记录（最近100条）
   const jobs = useQuery({
     queryKey: ["all-jobs", workspaceId, statusFilter, typeFilter, kbIdFilter, appIdFilter, sourceIdFilter],
     queryFn: () => {
@@ -104,7 +104,7 @@ export function JobsPage() {
     refetchInterval: 10000, // 每10秒刷新
   });
 
-  // 按知识库分组任务
+  // 按知识库分组运行记录
   const groupedJobs = useMemo(() => {
     const items = jobs.data?.items || [];
     const groups = new Map<string, { kb: KbItem | null; jobs: JobItem[]; stats: { running: number; failed: number; queued: number } }>();
@@ -122,7 +122,7 @@ export function JobsPage() {
       if (job.status === "queued") group.stats.queued++;
     }
 
-    // 按任务数量排序，有问题的排前面
+    // 按运行数量排序，有问题的排前面
     return Array.from(groups.entries()).sort((a, b) => {
       // 有失败或运行中的排前面
       const aScore = a[1].stats.failed * 100 + a[1].stats.running * 10 + a[1].stats.queued;
@@ -143,13 +143,13 @@ export function JobsPage() {
     };
   }, [jobs.data]);
 
-  // 批量重试所有失败任务
+  // 批量重试所有失败运行
   const [batchRetryProgress, setBatchRetryProgress] = useState<{ current: number; total: number } | null>(null);
 
   const batchRetry = useMutation({
     mutationFn: async () => {
       const failedJobs = (jobs.data?.items || []).filter((j) => j.status === "failed");
-      if (failedJobs.length === 0) throw new Error("没有失败任务");
+      if (failedJobs.length === 0) throw new Error("没有失败运行");
 
       setBatchRetryProgress({ current: 0, total: failedJobs.length });
       let success = 0;
@@ -168,7 +168,7 @@ export function JobsPage() {
     },
     onSuccess: (data) => {
       setBatchRetryProgress(null);
-      toast.success(`已重试 ${data.success}/${data.total} 个任务`);
+      toast.success(`已重试 ${data.success}/${data.total} 次运行`);
       jobs.refetch();
     },
     onError: (e) => {
@@ -177,7 +177,7 @@ export function JobsPage() {
     },
   });
 
-  // 单个任务重试
+  // 单次运行重试
   const requeue = useMutation({
     mutationFn: async (jobId: string) => {
       return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/jobs/${jobId}/requeue`, { method: "POST" });
@@ -264,11 +264,11 @@ export function JobsPage() {
                   <Button variant="destructive" size="sm" disabled={batchRetry.isPending}>
                     {batchRetry.isPending
                       ? `重试中 ${batchRetryProgress?.current || 0}/${batchRetryProgress?.total || 0}`
-                      : `批量重试失败任务 (${totalStats.failed})`}
+                      : `批量重试失败运行 (${totalStats.failed})`}
                   </Button>
                 }
                 title="确认批量重试？"
-                description={<>将重试所有 {totalStats.failed} 个失败任务。</>}
+                description={<>将重试所有 {totalStats.failed} 次失败运行。</>}
                 confirmLabel="开始重试"
                 onConfirm={() => batchRetry.mutateAsync()}
               />
@@ -433,13 +433,13 @@ export function JobsPage() {
         </div>
       </Card>
 
-      {/* 按知识库分组的任务列表 */}
+      {/* 按知识库分组的运行记录 */}
       {jobs.isLoading ? <Loading /> : null}
       {jobs.error ? <ApiErrorBanner error={jobs.error} /> : null}
 
       {groupedJobs.length === 0 && !jobs.isLoading && (
-        <Card title="任务列表">
-          <EmptyState description="暂无任务记录" />
+        <Card title="运行记录">
+          <EmptyState description="暂无运行记录" />
         </Card>
       )}
 
@@ -478,7 +478,7 @@ export function JobsPage() {
                     {group.stats.failed} 失败
                   </Badge>
                 )}
-                <Badge variant="outline">{group.jobs.length} 个任务</Badge>
+                <Badge variant="outline">{group.jobs.length} 次运行</Badge>
                 {kbId !== "__no_kb__" && (
                   <Button
                     variant="ghost"
@@ -498,7 +498,7 @@ export function JobsPage() {
               </div>
             </button>
 
-            {/* 任务列表 */}
+            {/* 运行列表 */}
             {isExpanded && (
               <div className="border-t border-border/50">
                 <table className="w-full text-left text-sm">
