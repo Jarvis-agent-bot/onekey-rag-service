@@ -74,6 +74,8 @@ export function JobsPage() {
   const kbIdFilter = (sp.get("kb_id") || "").trim();
   const appIdFilter = (sp.get("app_id") || "").trim();
   const sourceIdFilter = (sp.get("source_id") || "").trim();
+  // 从其他页面跳转时，可携带 open_job_id 直接把某次运行展开（减少跳转到稀疏详情页）。
+  const openJobId = (sp.get("open_job_id") || "").trim();
 
   // 展开状态
   const [expandedKbs, setExpandedKbs] = useState<Set<string>>(new Set());
@@ -219,6 +221,7 @@ export function JobsPage() {
   // 注意：Jobs 列表会周期性 refetch；如果每次都强制展开，会覆盖用户手动折叠。
   const hasFilter = !!(statusFilter || typeFilter || kbIdFilter || appIdFilter || sourceIdFilter);
   const prevHasFilterRef = useRef<boolean>(false);
+  const prevOpenJobRef = useRef<string>("");
 
   useEffect(() => {
     // 过滤从“无 → 有”时才触发一次自动展开
@@ -235,6 +238,25 @@ export function JobsPage() {
       prevHasFilterRef.current = false;
     }
   }, [hasFilter, groupedJobs]);
+
+  // 若带 open_job_id，则自动展开该运行（只触发一次，避免 refetch 覆盖用户手动折叠）。
+  useEffect(() => {
+    if (!openJobId) {
+      prevOpenJobRef.current = "";
+      return;
+    }
+    if (prevOpenJobRef.current === openJobId) return;
+
+    const items = jobs.data?.items || [];
+    const target = items.find((j) => j.id === openJobId);
+    if (!target) return;
+
+    setExpandedJobs((prev) => new Set(prev).add(openJobId));
+    if (target.kb_id) {
+      setExpandedKbs((prev) => new Set(prev).add(target.kb_id));
+    }
+    prevOpenJobRef.current = openJobId;
+  }, [openJobId, jobs.data]);
 
   return (
     <div className="space-y-6">
@@ -627,7 +649,7 @@ export function JobsPage() {
                                       }}
                                     >
                                       <Link to={`/jobs/${job.id}`} state={{ from: { kb_id: kbIdFilter || job.kb_id, source_id: sourceIdFilter || job.source_id } }}>
-                                        打开详情页
+                                        打开详情页（备用）
                                       </Link>
                                     </Button>
                                     {job.kb_id ? (
