@@ -253,7 +253,8 @@ export function AdminLayout() {
                   onChange={(e) => {
                     ws.setWorkspaceId(e.target.value);
                     qc.invalidateQueries();
-                    navigate("/kbs", { replace: true });
+                    // 与桌面端一致：切换工作区后回到 Dashboard，减少“切换后落在割裂子页面”的困惑
+                    navigate("/", { replace: true });
                   }}
                 >
                   {(ws.workspaces || []).length ? (

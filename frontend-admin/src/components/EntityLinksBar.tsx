@@ -16,6 +16,14 @@ export function EntityLinksBar(props: {
 
   const links: Array<{ to: string; label: string }> = [];
 
+  // 组合条件：尽量提供“带上下文”的深链，减少页面间来回切换造成的割裂感。
+  if (appId && kbId) {
+    links.push({
+      to: `/observability?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(kbId)}`,
+      label: "观测（按 App+KB）",
+    });
+  }
+
   if (appId) {
     links.push({ to: "/apps", label: "应用列表" });
     links.push({ to: `/apps/${encodeURIComponent(appId)}`, label: "查看应用" });
@@ -41,6 +49,11 @@ export function EntityLinksBar(props: {
       to: `/kbs/${encodeURIComponent(kbId)}?tab=pages&source_id=${encodeURIComponent(sourceId)}`,
       label: "该数据源的页面",
     });
+  }
+
+  // source_id 但缺少 kb_id 时（一般是从日志/任务跳转来的）：提供一个最小可用的排障入口
+  if (sourceId && !kbId) {
+    links.push({ to: `/jobs?source_id=${encodeURIComponent(sourceId)}`, label: "任务中心（按 Source）" });
   }
 
   // 去重（同 to 的只保留第一个）
