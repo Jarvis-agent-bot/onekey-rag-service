@@ -319,19 +319,45 @@ export function JobsPage() {
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">KB ID</div>
-            <DebouncedInput
-              value={kbIdFilter}
-              onChange={(v) => {
-                const next = new URLSearchParams(sp);
-                const vv = v.trim();
-                if (vv) next.set("kb_id", vv);
-                else next.delete("kb_id");
-                setSp(next, { replace: true });
-              }}
-              placeholder="kb_xxx"
-            />
+          <div className="space-y-2">
+            <div>
+              <div className="text-xs text-muted-foreground">知识库</div>
+              <Select
+                value={kbIdFilter}
+                onChange={(e) => {
+                  const next = new URLSearchParams(sp);
+                  const vv = (e.target.value || "").trim();
+                  if (vv) next.set("kb_id", vv);
+                  else next.delete("kb_id");
+                  setSp(next, { replace: true });
+                }}
+              >
+                <option value="">全部</option>
+                {(kbs.data?.items || [])
+                  .slice()
+                  .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+                  .map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.name || k.id}
+                    </option>
+                  ))}
+              </Select>
+            </div>
+
+            <div>
+              <div className="text-[11px] text-muted-foreground">或直接输入 KB ID</div>
+              <DebouncedInput
+                value={kbIdFilter}
+                onChange={(v) => {
+                  const next = new URLSearchParams(sp);
+                  const vv = v.trim();
+                  if (vv) next.set("kb_id", vv);
+                  else next.delete("kb_id");
+                  setSp(next, { replace: true });
+                }}
+                placeholder="kb_xxx"
+              />
+            </div>
           </div>
 
           <div className="space-y-1">
