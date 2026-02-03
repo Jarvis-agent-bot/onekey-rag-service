@@ -723,17 +723,45 @@ export function KbDetailPage() {
               <div className="p-4">
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                   {referencedBy.data.items.slice(0, 6).map((it) => (
-                    <Link
+                    <div
                       key={it.app_id}
-                      to={`/apps/${encodeURIComponent(it.app_id)}`}
                       className="rounded-lg border border-border/50 bg-background/30 p-3 text-sm hover:bg-muted/30"
                     >
-                      <div className="font-medium text-foreground">{it.name || it.app_id}</div>
-                      <div className="mt-1 font-mono text-[11px] text-muted-foreground">app_id: {it.app_id}</div>
-                      {it.public_model_id ? (
-                        <div className="font-mono text-[11px] text-muted-foreground">model_id: {it.public_model_id}</div>
-                      ) : null}
-                    </Link>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link
+                            to={`/apps/${encodeURIComponent(it.app_id)}`}
+                            className="font-medium text-foreground hover:underline"
+                            title={`打开应用：${it.name || it.app_id}`}
+                          >
+                            {it.name || it.app_id}
+                          </Link>
+                          <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">app_id: {it.app_id}</div>
+                          {it.public_model_id ? (
+                            <div className="truncate font-mono text-[11px] text-muted-foreground">model_id: {it.public_model_id}</div>
+                          ) : null}
+                        </div>
+
+                        <div className="shrink-0 text-right text-xs text-muted-foreground">
+                          <div className="flex flex-col items-end gap-1">
+                            <Link
+                              className="underline underline-offset-2 hover:text-foreground"
+                              to={`/jobs?app_id=${encodeURIComponent(it.app_id)}&kb_id=${encodeURIComponent(kbId)}`}
+                              title="按 App+KB 过滤任务中心"
+                            >
+                              任务
+                            </Link>
+                            <Link
+                              className="underline underline-offset-2 hover:text-foreground"
+                              to={`/observability?app_id=${encodeURIComponent(it.app_id)}&kb_id=${encodeURIComponent(kbId)}`}
+                              title="按 App+KB 过滤观测事件"
+                            >
+                              观测
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
                 {referencedBy.data.total > 6 ? (
