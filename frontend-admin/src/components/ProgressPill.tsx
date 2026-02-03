@@ -43,21 +43,21 @@ export function ProgressPill(props: {
       const done = fetched ?? null;
       const percent = total != null && done != null ? formatPercent(done, total) : "";
       const parts = [
-        done != null && total != null ? `fetched ${done}/${total} ${percent}`.trim() : null,
-        failed != null ? `fail ${failed}` : null,
+        done != null && total != null ? `已采集 / `.trim() : null,
+        failed != null ? `失败 ` : null,
       ].filter(Boolean) as string[];
 
-      return { text: parts.length ? parts.join(" · ") : "crawl", variant: "secondary" as const };
+      return { text: parts.length ? parts.join(" · ") : "采集", variant: "secondary" as const };
     }
 
     if (props.type === "index") {
       const pages = getFiniteNumber(p, "pages");
       const chunks = getFiniteNumber(p, "chunks");
       const parts = [
-        pages != null ? `pages ${pages}` : null,
-        chunks != null ? `chunks ${chunks}` : null,
+        pages != null ? `页面 ` : null,
+        chunks != null ? `分段 ` : null,
       ].filter(Boolean) as string[];
-      return { text: parts.length ? parts.join(" · ") : "index", variant: "secondary" as const };
+      return { text: parts.length  ? parts.join(" · ") : "构建索引", variant: "secondary" as const };
     }
 
     return { text: "progress", variant: "secondary" as const };

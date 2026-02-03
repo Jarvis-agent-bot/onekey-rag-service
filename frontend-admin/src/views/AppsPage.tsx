@@ -270,7 +270,7 @@ export function AppsPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Apps</div>
+            <div className="text-xs tracking-wider text-primary">应用</div>
             <div className="text-2xl font-semibold text-foreground">应用</div>
             <div className="text-sm text-muted-foreground">管理对外 model_id（public_model_id），并绑定知识库（KB）与检索策略。</div>
           </div>

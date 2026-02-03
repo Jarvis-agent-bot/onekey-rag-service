@@ -140,14 +140,14 @@ export function ObservabilityPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Observability</div>
+            <div className="text-xs tracking-wider text-primary">观测</div>
             <div className="text-2xl font-semibold text-foreground">观测 / 请求与资源</div>
             <div className="text-sm text-muted-foreground">按请求事件检索 + 容器资源曲线（支持 1h / 24h / 7d）。</div>
             <EntityLinksBar appId={appId} kbId={kbId} className="mt-2" />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link to="/">Dashboard</Link>
+              <Link to="/">首页</Link>
             </Button>
             {kbId ? (
               <Button asChild variant="outline" size="sm">

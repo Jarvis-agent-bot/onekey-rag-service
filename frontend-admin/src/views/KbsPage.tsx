@@ -184,7 +184,7 @@ export function KbsPage() {
       <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 via-card/60 to-background p-6 shadow-xl shadow-black/30">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.15em] text-primary">Knowledge</div>
+            <div className="text-xs tracking-wider text-primary">知识库</div>
             <div className="text-2xl font-semibold text-foreground">知识库</div>
             <div className="text-sm text-muted-foreground">
               统一管理数据源、抓取与索引。支持文件导入与网站爬虫。
@@ -216,7 +216,7 @@ export function KbsPage() {
                           onClick={() => setSourceType(opt.key as typeof sourceType)}
                           className={cn(
                             "group rounded-xl border border-border/70 bg-card/60 p-4 text-left transition hover:border-primary/60 hover:bg-card/90",
-                            sourceType === opt.key ? "border-primary/80 shadow-[0_0_0_1px_rgba(181,255,102,0.6)]" : ""
+                            sourceType === opt.key ? "border-primary/80 shadow-[0_0_0_1px_hsl(var(--primary)/0.55)]" : ""
                           )}
                         >
                           <div className="text-sm font-semibold text-foreground">{opt.title}</div>
@@ -302,7 +302,7 @@ export function KbsPage() {
                           onClick={() => setScheduleMode(opt.key as typeof scheduleMode)}
                           className={cn(
                             "group rounded-xl border border-border/70 bg-card/60 p-4 text-left transition hover:border-primary/60 hover:bg-card/90",
-                            scheduleMode === opt.key ? "border-primary/80 shadow-[0_0_0_1px_rgba(181,255,102,0.6)]" : ""
+                            scheduleMode === opt.key ? "border-primary/80 shadow-[0_0_0_1px_hsl(var(--primary)/0.55)]" : ""
                           )}
                         >
                           <div className="text-sm font-semibold text-foreground">{opt.title}</div>

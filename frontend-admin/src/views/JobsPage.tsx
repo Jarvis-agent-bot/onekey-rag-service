@@ -231,7 +231,7 @@ export function JobsPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Jobs</div>
+            <div className="text-xs tracking-wider text-primary">任务</div>
             <div className="text-2xl font-semibold text-foreground">任务中心</div>
             <div className="text-sm text-muted-foreground">
               按知识库分组查看任务状态，失败任务可批量重试
@@ -329,8 +329,8 @@ export function JobsPage() {
               }}
             >
               <option value="">全部</option>
-              <option value="crawl">抓取</option>
-              <option value="index">索引</option>
+              <option value="crawl">采集</option>
+              <option value="index">构建索引</option>
             </Select>
           </div>
 
@@ -525,7 +525,7 @@ export function JobsPage() {
                         </td>
                         <td className="px-4 py-2">
                           <Badge variant="outline">
-                            {job.type === "crawl" ? "抓取" : job.type === "index" ? "索引" : job.type}
+                            {job.type === "crawl" ? "采集" : job.type === "index" ? "构建索引" : job.type}
                           </Badge>
                         </td>
                         <td className="px-4 py-2">

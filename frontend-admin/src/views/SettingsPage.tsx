@@ -113,7 +113,7 @@ export function SettingsPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Settings</div>
+            <div className="text-xs tracking-wider text-primary">设置</div>
             <div className="text-2xl font-semibold text-foreground">系统设置</div>
             <div className="text-sm text-muted-foreground">模型/检索/作业/监控配置，支持一键测试与健康检查。</div>
           </div>
@@ -122,7 +122,7 @@ export function SettingsPage() {
               workspace <span className="font-mono">{workspaceId}</span>
             </div>
             <Button asChild variant="outline" size="sm">
-              <Link to="/">Dashboard</Link>
+              <Link to="/">首页</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/observability">观测</Link>

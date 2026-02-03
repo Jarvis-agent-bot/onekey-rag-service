@@ -160,7 +160,7 @@ export function DashboardPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Dashboard</div>
+            <div className="text-xs tracking-wider text-primary">首页</div>
             <div className="text-2xl font-semibold text-foreground">总览</div>
             <div className="text-sm text-muted-foreground">
               workspace <span className="font-mono">{workspaceId}</span>

@@ -164,7 +164,7 @@ export function KbDetailPage() {
     refetchInterval: 5000, // 每 5 秒刷新一次，跟踪进行中的任务
   });
 
-  // 获取合约索引统计
+  // 获取索引构建统计
   const contractStats = useQuery({
     queryKey: ["contract-stats"],
     queryFn: getContractStats,
@@ -494,7 +494,7 @@ export function KbDetailPage() {
       }
 
       // Step 1: 抓取所有数据源
-      setSyncProgress({ step: `抓取 ${sourceList.length} 个数据源...`, status: "running" });
+      setSyncProgress({ step: `采集  个数据源...`, status: "running" });
       for (const source of sourceList) {
         await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/crawl`, {
           method: "POST",
@@ -503,7 +503,7 @@ export function KbDetailPage() {
       }
 
       // Step 2: 索引（会自动触发 contract_index）
-      setSyncProgress({ step: "生成索引...", status: "running" });
+      setSyncProgress({ step: "构建索引...", status: "running" });
       await apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/jobs/index`, {
         method: "POST",
         body: JSON.stringify({ kb_id: kbId, mode: "full" }),
@@ -514,7 +514,7 @@ export function KbDetailPage() {
     },
     onSuccess: async () => {
       toast.success("同步任务已启动", {
-        description: "抓取和索引任务已提交，已为你切到『任务』Tab 便于观察进度",
+        description: "采集和构建索引任务已提交，已为你切到『任务』Tab 便于观察进度",
       });
       // 发起动作后直接把用户带到“看结果”的地方，减少来回找入口的割裂感
       handleTabChange("jobs");
@@ -582,7 +582,7 @@ export function KbDetailPage() {
               variant="default"
               onClick={() => syncAll.mutate()}
               disabled={syncAll.isPending || !sources.data?.items?.length}
-              title="抓取所有数据源并生成索引"
+              title="采集所有数据源并构建索引"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${syncAll.isPending ? "animate-spin" : ""}`} />
               {syncAll.isPending ? syncProgress.step || "同步中..." : "同步"}
@@ -648,7 +648,7 @@ export function KbDetailPage() {
               <div className="text-center">
                 <Database className="mx-auto h-10 w-10 text-primary/60" />
                 <div className="mt-3 text-lg font-medium">开始配置知识库</div>
-                <div className="mt-1 text-sm text-muted-foreground">添加数据源后，点击「同步」即可抓取和索引内容</div>
+                <div className="mt-1 text-sm text-muted-foreground">添加数据源后，点击「同步」即可采集和构建索引内容</div>
                 <Button className="mt-4" onClick={() => { handleTabChange("sources"); setShowSourceForm(true); }}>
                   <Plus className="mr-2 h-4 w-4" />
                   添加数据源
@@ -661,7 +661,7 @@ export function KbDetailPage() {
                 <div>
                   <div className="text-lg font-medium">数据源已就绪</div>
                   <div className="mt-1 text-sm text-muted-foreground">
-                    已配置 {sources.data?.items.length || 0} 个数据源，点击同步开始抓取
+                    已配置 {sources.data?.items.length || 0} 个数据源，点击同步开始采集
                   </div>
                 </div>
                 <Button onClick={() => syncAll.mutate()} disabled={syncAll.isPending}>
@@ -696,11 +696,11 @@ export function KbDetailPage() {
             </div>
           </div>
 
-          {/* 合约索引统计 */}
+          {/* 索引构建统计 */}
           {contractStats.data && contractStats.data.total_contracts > 0 && (
             <div className="rounded-xl border border-border/70 bg-card/50">
               <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
-                <div className="font-medium">合约索引</div>
+                <div className="font-medium">索引构建</div>
                 <Badge variant="secondary">{contractStats.data.total_contracts} 个合约</Badge>
               </div>
               <div className="p-4">
@@ -809,7 +809,7 @@ export function KbDetailPage() {
                       }`} />
                       <div>
                         <div className="text-sm font-medium">
-                          {job.type === "crawl" ? "抓取" : job.type === "index" ? "索引" : job.type}
+                          {job.type === "crawl" ? "采集" : job.type === "index" ? "构建索引" : job.type}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {job.started_at?.slice(0, 16) || "排队中"}
@@ -880,7 +880,7 @@ export function KbDetailPage() {
                       title="确认删除知识库？"
                       description={
                         <>
-                          <div>将删除 KB=<span className="font-mono">{kbId}</span> 的记录与数据源（不会清理已抓取的页面/片段）。</div>
+                          <div>将删除 KB=<span className="font-mono">{kbId}</span> 的记录与数据源（不会清理已采集的页面/片段）。</div>
                           {referencedBy.data?.total ? (
                             <div className="mt-2 text-amber-500">
                               警告：当前被 {referencedBy.data.total} 个应用引用！
@@ -996,7 +996,7 @@ export function KbDetailPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => jumpToTab("pages", s.id)}
-                              title="查看该数据源抓取到的内容（并写入 URL，便于分享/刷新保留筛选）"
+                              title="查看该数据源采集到的内容（并写入 URL，便于分享/刷新保留筛选）"
                             >
                               内容
                             </Button>
@@ -1036,7 +1036,7 @@ export function KbDetailPage() {
                             <ConfirmDangerDialog
                               trigger={<Button variant="outline" size="sm">删除</Button>}
                               title="确认删除数据源？"
-                              description={<>将删除 <span className="font-mono">{s.name || s.id}</span>（不影响已抓取的页面）。</>}
+                              description={<>将删除 <span className="font-mono">{s.name || s.id}</span>（不影响已采集的页面）。</>}
                               confirmLabel="删除"
                               confirmVariant="destructive"
                               confirmText={s.id}
@@ -1054,7 +1054,7 @@ export function KbDetailPage() {
               <EmptyState
                 icon={<Database className="h-10 w-10" />}
                 title="暂无数据源"
-                description="添加数据源后，可以开始抓取和索引内容"
+                description="添加数据源后，可以开始采集和构建索引内容"
                 action={
                   <Button onClick={() => setShowSourceForm(true)}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -1114,7 +1114,7 @@ export function KbDetailPage() {
             <div className="rounded-lg border border-dashed border-border/70 bg-background/30 p-6 text-center">
               <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
               <div className="mt-2 text-sm text-muted-foreground">文件上传功能开发中（当前不支持直接上传）</div>
-              <div className="mt-1 text-xs text-muted-foreground">建议先通过「数据源」抓取内容；如需排障可跳转到内容/任务</div>
+              <div className="mt-1 text-xs text-muted-foreground">建议先通过「数据源」采集内容；如需排障可跳转到内容/任务</div>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button variant="outline" size="sm" asChild>
                   <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>查看内容</Link>
@@ -1293,7 +1293,7 @@ export function KbDetailPage() {
                             详情
                           </Button>
                           <Button variant="outline" size="sm" disabled={recrawlPage.isPending} onClick={() => recrawlPage.mutate(p.id)}>
-                            重新抓取
+                            重新采集
                           </Button>
                         </div>
                       </TableCell>
@@ -1302,7 +1302,7 @@ export function KbDetailPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={6}>
-                      <EmptyState description="暂无内容，请先配置数据源并触发抓取任务" />
+                      <EmptyState description="暂无内容，请先配置数据源并触发采集任务" />
                     </TableCell>
                   </TableRow>
                 )}
@@ -1322,7 +1322,7 @@ export function KbDetailPage() {
         <TabsContent value="jobs" className="space-y-4">
           <Card
             title="任务历史"
-            description="该知识库的抓取和索引任务记录"
+            description="该知识库的采集和构建索引任务记录"
             actions={
               <Button variant="outline" size="sm" onClick={() => jobsQuery.refetch()} disabled={jobsQuery.isFetching}>
                 刷新
@@ -1337,8 +1337,8 @@ export function KbDetailPage() {
                   onChange={(e) => { setJobsType(e.target.value); setJobsPage(1); }}
                 >
                   <option value="">全部</option>
-                  <option value="crawl">抓取</option>
-                  <option value="index">索引</option>
+                  <option value="crawl">采集</option>
+                  <option value="index">构建索引</option>
                 </Select>
               </div>
               <div className="space-y-1">
@@ -1421,7 +1421,7 @@ export function KbDetailPage() {
                             </Link>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{j.type === "crawl" ? "抓取" : j.type === "index" ? "索引" : j.type}</Badge>
+                            <Badge variant="outline">{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={j.status === "failed" ? "destructive" : j.status === "succeeded" ? "default" : "secondary"}>
@@ -1453,7 +1453,7 @@ export function KbDetailPage() {
                                     <div className="text-muted-foreground">任务 ID</div>
                                     <div className="font-mono">{j.id}</div>
                                     <div className="text-muted-foreground">类型</div>
-                                    <div>{j.type === "crawl" ? "抓取" : j.type === "index" ? "索引" : j.type}</div>
+                                    <div>{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</div>
                                     <div className="text-muted-foreground">数据源</div>
                                     <div>{sourceName || j.source_id || "-"}</div>
                                     <div className="text-muted-foreground">开始时间</div>
