@@ -195,6 +195,14 @@ export function KbDetailPage() {
   const initialTab = validTabs.includes(searchParams.get("tab") || "") ? searchParams.get("tab")! : "overview";
   const [tab, setTab] = useState(initialTab);
 
+  // URL -> Tab：支持浏览器前进/后退或外部深链进入时，Tab 状态能正确同步
+  useEffect(() => {
+    const urlTab = (searchParams.get("tab") || "").trim();
+    const nextTab = validTabs.includes(urlTab) ? urlTab : "overview";
+    if (nextTab !== tab) setTab(nextTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // 同步 tab 到 URL（尽量保留其它 query，便于深链/分享）
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
