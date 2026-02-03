@@ -12,6 +12,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Card } from "../components/Card";
 import { JsonView } from "../components/JsonView";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { apiFetch } from "../lib/api";
 import { allocateTopK } from "../lib/kbAllocation";
 import { useWorkspace } from "../lib/workspace";
@@ -193,6 +194,8 @@ export function AppDetailPage() {
           </Link>
         </div>
 
+        <EntityLinksBar appId={appId} className="mt-2" />
+
         {bindings.data?.items?.length ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>关联 KB：</span>
@@ -200,14 +203,29 @@ export function AppDetailPage() {
               .filter((b) => b.enabled)
               .slice(0, 8)
               .map((b) => (
-                <Link
-                  key={b.kb_id}
-                  className="rounded-md border border-border/60 bg-muted/30 px-2 py-1 hover:bg-muted/40"
-                  to={`/kbs/${encodeURIComponent(b.kb_id)}`}
-                  title={`打开 KB：${b.kb_name || b.kb_id}`}
-                >
-                  {b.kb_name || b.kb_id}
-                </Link>
+                <span key={b.kb_id} className="inline-flex flex-wrap items-center gap-2">
+                  <Link
+                    className="rounded-md border border-border/60 bg-muted/30 px-2 py-1 hover:bg-muted/40"
+                    to={`/kbs/${encodeURIComponent(b.kb_id)}`}
+                    title={`打开 KB：${b.kb_name || b.kb_id}`}
+                  >
+                    {b.kb_name || b.kb_id}
+                  </Link>
+                  <Link
+                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    to={`/kbs/${encodeURIComponent(b.kb_id)}?tab=jobs`}
+                    title="打开该 KB 的任务 Tab（更接近实际运维动作）"
+                  >
+                    任务
+                  </Link>
+                  <Link
+                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    to={`/observability?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(b.kb_id)}`}
+                    title="按 App+KB 过滤观测事件"
+                  >
+                    观测
+                  </Link>
+                </span>
               ))}
             {bindings.data.items.filter((b) => b.enabled).length > 8 ? (
               <span className="text-muted-foreground/70">+{bindings.data.items.filter((b) => b.enabled).length - 8} 更多</span>
