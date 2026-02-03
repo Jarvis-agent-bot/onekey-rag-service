@@ -187,7 +187,7 @@ export function KbsPage() {
             <div className="text-xs tracking-wider text-primary">知识库</div>
             <div className="text-2xl font-semibold text-foreground">知识库</div>
             <div className="text-sm text-muted-foreground">
-              统一管理数据源、抓取与索引。支持文件导入与网站爬虫。
+              统一管理数据源、采集与构建索引。支持文件导入与网站采集（爬虫）。
             </div>
             <EntityLinksBar appId={appIdFilter} className="mt-2" />
           </div>
@@ -207,7 +207,7 @@ export function KbsPage() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { key: "crawler", title: "网站爬虫", desc: "从站点抓取页面，按规则过滤" },
+                        { key: "crawler", title: "网站爬虫", desc: "从站点采集页面，按规则过滤" },
                         { key: "empty", title: "空知识库", desc: "先创建，稍后再配置数据源" },
                       ].map((opt) => (
                         <button
@@ -293,7 +293,7 @@ export function KbsPage() {
                     <div className="grid grid-cols-3 gap-3">
                       {[
                         { key: "manual", title: "手动触发", desc: "创建后在运行中心触发" },
-                        { key: "daily", title: "每日调度", desc: "每天定时抓取/索引" },
+                        { key: "daily", title: "每日调度", desc: "每天定时采集/构建索引" },
                         { key: "weekly", title: "每周调度", desc: "每周巡检更新" },
                       ].map((opt) => (
                         <button
@@ -515,7 +515,7 @@ export function KbsPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=pages`)}
-                          title="直接进入：内容（抓取到的页面/文档）"
+                          title="直接进入：内容（已采集的页面/文档）"
                         >
                           内容
                         </Button>
