@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { Card } from "../components/Card";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
-import { CopyableText } from "../components/CopyableText";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card as UiCard, CardContent, CardHeader } from "../components/ui/card";
@@ -57,8 +56,6 @@ type StorageResp = {
     tables?: Array<{ name: string; total_bytes: number; table_bytes: number; index_bytes: number }>;
   };
 };
-type AppsResp = { items: Array<{ id: string; name: string; public_model_id: string }> };
-
 export function DashboardPage() {
   const { workspaceId } = useWorkspace();
   const [refreshing, setRefreshing] = useState(false);
@@ -113,17 +110,6 @@ export function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const models = useQuery({
-    queryKey: ["models"],
-    queryFn: () => apiFetch<{ data: Array<{ id: string }> }>("/v1/models"),
-  });
-
-  const apps = useQuery({
-    queryKey: ["apps", workspaceId],
-    queryFn: () => apiFetch<AppsResp>(`/admin/api/workspaces/${workspaceId}/apps`),
-    enabled: !!workspaceId,
-  });
-
   if (summary.isLoading) return <div className="text-sm text-muted-foreground">加载中...</div>;
   if (summary.error) return <ApiErrorBanner error={summary.error} />;
   const data = summary.data!;
@@ -134,7 +120,6 @@ export function DashboardPage() {
   const jobsRunning = sumJobStatus(data.jobs.by_type || {}, "running");
   const jobsSucceeded = sumJobStatus(data.jobs.by_type || {}, "succeeded");
   const healthStatus = health.data?.status;
-  const appByPublicModelId = new Map((apps.data?.items || []).map((a) => [a.public_model_id, a]));
 
   async function refreshAll() {
     if (refreshing) return;
@@ -147,7 +132,6 @@ export function DashboardPage() {
       storage.refetch(),
       health.refetch(),
       settings.refetch(),
-      models.refetch(),
     ]);
     setLastUpdated(new Date().toLocaleString("zh-CN"));
     const failed = results.filter((r) => r.status === "rejected").length;
@@ -540,45 +524,6 @@ export function DashboardPage() {
               </div>
             </div>
           ) : null}
-        </Card>
-
-        <Card title="对外 Models" description="来自 /v1/models（每个应用对外暴露一个 model_id）">
-          {models.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-          {models.error ? <ApiErrorBanner error={models.error} /> : null}
-          {apps.error ? <ApiErrorBanner error={apps.error} /> : null}
-          <div className="space-y-2">
-            {(models.data?.data || []).map((m) => {
-              const app = appByPublicModelId.get(m.id);
-              return (
-                <div key={m.id} className="rounded-md border bg-muted/30 p-3">
-                  <CopyableText text={m.id} toastText="已复制 model_id" textClassName="font-mono text-xs" />
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {app ? (
-                      <>
-                        映射：应用{" "}
-                        <Link className="font-medium underline underline-offset-2" to={`/apps/${encodeURIComponent(app.id)}`}>
-                          {app.name}
-                        </Link>
-                        （app_id=<span className="font-mono">{app.id}</span>）
-                      </>
-                    ) : (
-                      <>
-                        未映射到应用：请在{" "}
-                        <Link className="underline underline-offset-2" to="/apps">
-                          应用
-                        </Link>
-                        中配置唯一 <span className="font-mono">public_model_id</span>，并确保其对外暴露为相同的 <span className="font-mono">model_id</span>。
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {!models.data?.data?.length ? <div className="text-sm text-muted-foreground">暂无数据</div> : null}
-          </div>
-          <div className="pt-2 text-xs text-muted-foreground">
-            提示：若对外 model_id 无法对应到应用，可在 <Link className="underline underline-offset-2" to="/apps">应用列表</Link> 调整 public_model_id。
-          </div>
         </Card>
       </div>
 
