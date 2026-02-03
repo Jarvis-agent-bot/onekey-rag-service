@@ -41,7 +41,7 @@ export function App() {
           {/* 首页 - 系统总览 */}
           <Route index element={<DashboardPage />} />
 
-          {/* 内容管理 */}
+          {/* KB-first：知识库为中心；其他入口尽量弱化为“承接/配置”。 */}
           <Route path="kbs" element={<KbsPage />} />
           <Route path="kbs/:kbId" element={<KbDetailPage />} />
           <Route path="apps" element={<AppsPage />} />

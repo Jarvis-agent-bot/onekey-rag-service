@@ -1,5 +1,17 @@
-import { Boxes, Database, Eye, Home, LogOut, ScrollText, Settings, ThumbsUp, type LucideIcon } from "lucide-react";
-import { useEffect } from "react";
+import {
+  Boxes,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  Eye,
+  Home,
+  LogOut,
+  ScrollText,
+  Settings,
+  ThumbsUp,
+  type LucideIcon,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -51,7 +63,6 @@ const navGroups: NavGroup[] = [
       // 侧边栏的 label 尽量简短，避免括号/英文打断阅读；英文信息用 title 提示。
       { to: "/kbs", label: "知识库", title: "知识库（Collections）", icon: Database },
       { to: "/jobs", label: "运行", title: "索引/运行（Jobs）", icon: ScrollText },
-      { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
     ],
   },
   {
@@ -60,10 +71,14 @@ const navGroups: NavGroup[] = [
       { to: "/feedback", label: "反馈", icon: ThumbsUp },
       { to: "/observability", label: "观测", icon: Eye },
     ],
+    collapsible: true,
+    defaultCollapsed: true,
   },
   {
     title: "系统",
     items: [
+      // Apps 入口先弱化：避免把“应用”当成和“知识库”并列的一级世界。
+      { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
       { to: "/settings", label: "设置", icon: Settings },
     ],
   },
@@ -88,6 +103,10 @@ export function AdminLayout() {
   const wsLabel = ws.workspaces.find((w) => w.id === ws.workspaceId)?.name || ws.workspaceId;
   const breadcrumbItems = useBreadcrumb();
   const currentNav = normalizeNavPath(location.pathname);
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(navGroups.filter((g) => g.collapsible).map((g) => [g.title, !!g.defaultCollapsed]))
+  );
 
   const visibleNavGroups = navGroups;
 
@@ -131,40 +150,60 @@ export function AdminLayout() {
           </div>
 
           <nav className="space-y-4">
-            {visibleNavGroups.map((group, groupIdx) => (
-              <div key={group.title || `group-${groupIdx}`}>
-                {group.title && groupIdx > 0 ? <Separator className="mb-3" /> : null}
+            {visibleNavGroups.map((group, groupIdx) => {
+              const isCollapsed = group.collapsible ? !!collapsedGroups[group.title] : false;
+              const Chevron = isCollapsed ? ChevronRight : ChevronDown;
 
-                {group.title ? (
-                  <div className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                    {group.title}
-                  </div>
-                ) : null}
+              return (
+                <div key={group.title || `group-${groupIdx}`}>
+                  {group.title && groupIdx > 0 ? <Separator className="mb-3" /> : null}
 
-                <div className="space-y-1">
-                  {group.items.map((it) => {
-                    const Icon = it.icon;
-                    return (
-                      <NavLink
-                        key={it.to}
-                        to={it.to}
-                        end={it.to === "/"}
-                        title={it.title || it.label}
-                        className={({ isActive }) =>
-                          cn(
-                            "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted",
-                            isActive ? "bg-muted font-medium text-foreground" : "text-muted-foreground"
-                          )
-                        }
+                  {group.title ? (
+                    group.collapsible ? (
+                      <button
+                        type="button"
+                        className="mb-2 flex w-full items-center justify-between px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground"
+                        onClick={() => {
+                          setCollapsedGroups((prev) => ({ ...prev, [group.title]: !prev[group.title] }));
+                        }}
                       >
-                        <Icon className="h-4 w-4" />
-                        {it.label}
-                      </NavLink>
-                    );
-                  })}
+                        <span>{group.title}</span>
+                        <Chevron className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <div className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+                        {group.title}
+                      </div>
+                    )
+                  ) : null}
+
+                  {isCollapsed ? null : (
+                    <div className="space-y-1">
+                      {group.items.map((it) => {
+                        const Icon = it.icon;
+                        return (
+                          <NavLink
+                            key={it.to}
+                            to={it.to}
+                            end={it.to === "/"}
+                            title={it.title || it.label}
+                            className={({ isActive }) =>
+                              cn(
+                                "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted",
+                                isActive ? "bg-muted font-medium text-foreground" : "text-muted-foreground"
+                              )
+                            }
+                          >
+                            <Icon className="h-4 w-4" />
+                            {it.label}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </nav>
 
           <div className="mt-auto pt-4">
