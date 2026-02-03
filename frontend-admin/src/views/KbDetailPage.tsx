@@ -862,11 +862,23 @@ export function KbDetailPage() {
                 const progress = job.progress as { done?: number; total?: number } | undefined;
                 const percent = progress?.total ? Math.round(((progress.done || 0) / progress.total) * 100) : 0;
                 return (
-                  <Link
+                  <button
                     key={job.id}
-                    to={`/jobs/${job.id}`}
-                    state={{ from: { kb_id: job.kb_id, source_id: job.source_id } }}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-muted/30"
+                    type="button"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/30"
+                    onClick={() => {
+                      // 让“最近运行 → 排障/重试/看进度”闭环尽量留在 KB 内
+                      handleTabChange("jobs");
+                      setExpandedJobId(job.id);
+                      setJobsPage(1);
+                      if (job.source_id) {
+                        setJobsSourceId(job.source_id);
+                        const next = new URLSearchParams(searchParams);
+                        next.set("tab", "jobs");
+                        next.set("source_id", job.source_id);
+                        setSearchParams(next, { replace: true });
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`h-2 w-2 rounded-full ${
@@ -895,7 +907,7 @@ export function KbDetailPage() {
                          job.status === "failed" ? "失败" : job.status}
                       </Badge>
                     </div>
-                  </Link>
+                  </button>
                 );
               })}
               {!recentJobs.data?.items?.length && (
@@ -1577,15 +1589,14 @@ export function KbDetailPage() {
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
-                            <Link
-                              className="hover:underline"
-                              to={`/jobs/${j.id}`}
-                              state={{ from: { kb_id: kbId, source_id: j.source_id || undefined } }}
-                              title="打开运行详情（保留返回路径：KB 运行）"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {j.id}
-                            </Link>
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <CopyableText
+                                text={j.id}
+                                toastText="已复制运行 ID"
+                                className="max-w-[240px]"
+                                textClassName="font-mono text-xs"
+                              />
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</Badge>
