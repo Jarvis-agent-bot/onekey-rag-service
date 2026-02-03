@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, Cpu, Database, Info, ListChecks, MessageSquareText, ShieldAlert, Timer } from "lucide-react";
+import { Activity, Database, Info, ListChecks, MessageSquareText, ShieldAlert, Timer } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -49,13 +49,6 @@ type SystemResp = {
   cgroup?: Record<string, unknown>;
   runtime?: Record<string, unknown>;
 };
-type StorageResp = {
-  now: string;
-  postgres?: {
-    db_bytes?: number;
-    tables?: Array<{ name: string; total_bytes: number; table_bytes: number; index_bytes: number }>;
-  };
-};
 export function DashboardPage() {
   const { workspaceId } = useWorkspace();
   const [refreshing, setRefreshing] = useState(false);
@@ -103,13 +96,6 @@ export function DashboardPage() {
     refetchInterval: 5000,
   });
 
-  const storage = useQuery({
-    queryKey: ["storage", workspaceId],
-    queryFn: () => apiFetch<StorageResp>(`/admin/api/workspaces/${workspaceId}/storage`),
-    enabled: !!workspaceId,
-    refetchInterval: 30000,
-  });
-
   if (summary.isLoading) return <div className="text-sm text-muted-foreground">加载中...</div>;
   if (summary.error) return <ApiErrorBanner error={summary.error} />;
   const data = summary.data!;
@@ -129,7 +115,6 @@ export function DashboardPage() {
       obs24h.refetch(),
       alerts.refetch(),
       system.refetch(),
-      storage.refetch(),
       health.refetch(),
       settings.refetch(),
     ]);
@@ -417,116 +402,6 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="系统资源" description="容器视角的 CPU/内存/磁盘（每 5s 刷新）">
-          {system.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
-          {system.error ? <ApiErrorBanner error={system.error} /> : null}
-          {storage.error ? <ApiErrorBanner error={storage.error} /> : null}
-          {system.data ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="rounded-md border bg-muted/30 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Cpu className="h-4 w-4" />
-                    CPU（容器/VM）
-                  </div>
-                  <div className="font-mono text-sm">
-                    {pickNumber((system.data.cgroup as any)?.cpu, "usage_percent_of_limit") != null
-                      ? `${pickNumber((system.data.cgroup as any)?.cpu, "usage_percent_of_limit")}%`
-                      : system.data.system.cpu_percent == null
-                        ? "-"
-                        : `${system.data.system.cpu_percent}%`}
-                  </div>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  本服务：≈ {system.data.process.cpu_cores_used == null ? "-" : system.data.process.cpu_cores_used} 核（单核≈{" "}
-                  {system.data.process.cpu_cores_used == null ? "-" : Math.round(system.data.process.cpu_cores_used * 100)}%）
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  {pickNumber((system.data.cgroup as any)?.cpu, "usage_cores_used") != null ? (
-                    <>
-                      cgroup：≈ {pickNumber((system.data.cgroup as any)?.cpu, "usage_cores_used")} 核 /{" "}
-                      {pickNumber((system.data.cgroup as any)?.cpu, "effective_limit_cores") ??
-                        pickNumber((system.data.cgroup as any)?.cpu, "limit_cores") ??
-                        system.data.system.cpu_count ??
-                        "-"}
-                      {" "}核（更接近 `docker stats`）
-                    </>
-                  ) : (
-                    <>说明：CPU% 来自 Linux VM 的 /proc/stat；不是 macOS 宿主机指标</>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-md border bg-muted/30 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Activity className="h-4 w-4" />
-                    内存（容器/VM）
-                  </div>
-                  <div className="font-mono text-sm">
-                    {pickNumber((system.data.cgroup as any)?.memory, "used_percent_of_effective_limit") != null
-                      ? `${pickNumber((system.data.cgroup as any)?.memory, "used_percent_of_effective_limit")}%`
-                      : system.data.system.memory?.used_percent == null
-                        ? "-"
-                        : `${system.data.system.memory.used_percent}%`}
-                  </div>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {pickNumber((system.data.cgroup as any)?.memory, "current_bytes") != null ? (
-                    <>
-                      容器 {fmtBytes(pickNumber((system.data.cgroup as any)?.memory, "current_bytes"))} /{" "}
-                      {pickNumber((system.data.cgroup as any)?.memory, "effective_limit_bytes") != null
-                        ? fmtBytes(pickNumber((system.data.cgroup as any)?.memory, "effective_limit_bytes"))
-                        : system.data.system.memory?.total_bytes
-                          ? fmtBytes(system.data.system.memory.total_bytes)
-                          : "未知"}
-                      {" "}· RSS {fmtBytes(system.data.process.rss_bytes)}
-                    </>
-                  ) : (
-                    <>
-                      RSS {fmtBytes(system.data.process.rss_bytes)} · VM 总计 {fmtBytes(system.data.system.memory?.total_bytes ?? null)}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-md border bg-muted/30 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Database className="h-4 w-4" />
-                    数据库存储（Postgres）
-                  </div>
-                  <div className="font-mono text-sm">
-                    {storage.data?.postgres?.db_bytes ? fmtBytes(storage.data.postgres.db_bytes) : "-"}
-                  </div>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {(storage.data?.postgres?.tables || [])
-                    .slice(0, 3)
-                    .map((t) => `${t.name}:${fmtBytes(t.total_bytes)}`)
-                    .join(" · ") || "—"}
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">包含表+索引体积（pg_total_relation_size），更贴近 RAG 成本</div>
-              </div>
-
-              <div className="rounded-md border bg-muted/30 p-3">
-                <div className="text-sm text-muted-foreground">运行信息</div>
-                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  <div>
-                    pid <span className="font-mono text-foreground">{system.data.process.pid}</span> · uptime{" "}
-                    <span className="font-mono text-foreground">{Math.round(system.data.process.uptime_s)}s</span>
-                  </div>
-                  <div>
-                    open_fds <span className="font-mono text-foreground">{system.data.process.open_fds ?? "-"}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </Card>
-      </div>
-
       <UiCard>
         <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
           <div>
@@ -569,23 +444,6 @@ function pct(v: number): string {
   return `${Math.round(v * 100)}%`;
 }
 
-function fmtBytes(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "-";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let x = Math.max(0, v);
-  let i = 0;
-  while (x >= 1024 && i < units.length - 1) {
-    x /= 1024;
-    i += 1;
-  }
-  return `${x.toFixed(i >= 2 ? 1 : 0)}${units[i]}`;
-}
-
-function pickNumber(obj: unknown, key: string): number | null {
-  if (!obj || typeof obj !== "object") return null;
-  const v = (obj as any)[key];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
 
 function Row(props: { k: string; v: ReactNode }) {
   return (

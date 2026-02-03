@@ -10,6 +10,7 @@ import { Loading } from "../components/Loading";
 import { EmptyState } from "../components/EmptyState";
 import { DebouncedInput } from "../components/DebouncedInput";
 import { EntityLinksBar } from "../components/EntityLinksBar";
+import { ProgressPill } from "../components/ProgressPill";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
@@ -76,6 +77,7 @@ export function JobsPage() {
 
   // 展开状态
   const [expandedKbs, setExpandedKbs] = useState<Set<string>>(new Set());
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
 
   // 获取知识库列表（用于显示名称）
   const kbs = useQuery({
@@ -192,6 +194,15 @@ export function JobsPage() {
       const next = new Set(prev);
       if (next.has(kbId)) next.delete(kbId);
       else next.add(kbId);
+      return next;
+    });
+  };
+
+  const toggleJob = (jobId: string) => {
+    setExpandedJobs((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
       return next;
     });
   };
