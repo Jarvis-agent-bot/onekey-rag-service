@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 export type BreadcrumbItem = {
   label: string;
   to?: string;
+  /** optional hover text (e.g. show raw id while label uses friendly name) */
+  title?: string;
 };
 
 interface BreadcrumbProps {
@@ -38,12 +40,15 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
             {item.to ? (
               <Link
                 to={item.to}
+                title={item.title || item.label}
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 {item.label}
               </Link>
             ) : (
-              <span className="text-foreground font-medium">{item.label}</span>
+              <span title={item.title || item.label} className="text-foreground font-medium">
+                {item.label}
+              </span>
             )}
           </li>
         ))}
