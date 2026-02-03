@@ -465,7 +465,11 @@ export function JobsPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/kbs/${encodeURIComponent(kbId)}?tab=jobs`);
+                      const qs = new URLSearchParams();
+                      qs.set("tab", "jobs");
+                      // 若当前 Jobs 列表已按 source_id 过滤，则“查看知识库”也尽量带上 source 视角，减少跳转割裂
+                      if (sourceIdFilter) qs.set("source_id", sourceIdFilter);
+                      navigate(`/kbs/${encodeURIComponent(kbId)}?${qs.toString()}`);
                     }}
                   >
                     查看知识库
@@ -496,7 +500,13 @@ export function JobsPage() {
                             <Link
                               className="hover:underline"
                               to={`/jobs/${job.id}`}
-                              state={{ from: { kb_id: job.kb_id, source_id: job.source_id } }}
+                              state={{
+                                from: {
+                                  // 让详情页的“返回”尽量回到用户当前的筛选视角，而不是“某个 job 的默认归属”。
+                                  kb_id: kbIdFilter || job.kb_id,
+                                  source_id: sourceIdFilter || job.source_id,
+                                },
+                              }}
                             >
                               {job.id}
                             </Link>
