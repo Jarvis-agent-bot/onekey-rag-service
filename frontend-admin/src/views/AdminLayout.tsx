@@ -1,5 +1,5 @@
 import { BarChart3, Boxes, Database, Eye, FileText, Home, LogOut, ScrollText, Settings, Shield, ThumbsUp, TestTubeDiagonal, type LucideIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -27,6 +27,13 @@ type NavItem = {
 type NavGroup = {
   title: string;
   items: NavItem[];
+  /**
+   * 可选：用于把不常用的入口弱化（默认折叠）。
+   * 目的：避免侧边栏把用户带到“全局 Pages/排障”这类割裂页面。
+   */
+  collapsible?: boolean;
+  /** 默认折叠（仅当 collapsible=true 生效） */
+  defaultCollapsed?: boolean;
 };
 
 /**
@@ -52,6 +59,8 @@ const navGroups: NavGroup[] = [
   },
   {
     title: "高级（排障用）",
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
       {
         to: "/pages",
@@ -97,6 +106,38 @@ export function AdminLayout() {
   const breadcrumbItems = useBreadcrumb();
   const currentNav = normalizeNavPath(location.pathname);
 
+  // 侧边栏“高级（排障用）”默认折叠：减少把用户带到全局 Pages 的割裂路径。
+  const ADV_KEY = "admin_nav_show_advanced";
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(() => {
+    try {
+      const v = window.localStorage.getItem(ADV_KEY);
+      if (v === "1") return true;
+      if (v === "0") return false;
+      // 未设置时：默认折叠
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ADV_KEY, showAdvanced ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [showAdvanced]);
+
+  const visibleNavGroups = useMemo(() => {
+    return navGroups.map((g) => {
+      if (!g.collapsible) return g;
+      // 若当前路由属于该组（例如直接输入 /pages），仍保留该组展开以避免“无处可去”
+      const shouldForceShow = g.items.some((it) => it.to !== "/" && location.pathname.startsWith(it.to));
+      const allowShow = showAdvanced || shouldForceShow;
+      return { ...g, items: allowShow ? g.items : [] };
+    });
+  }, [showAdvanced, location.pathname]);
+
   useEffect(() => {
     if (!me.error) return;
     const msg = me.error instanceof Error ? me.error.message : String(me.error);
@@ -136,14 +177,26 @@ export function AdminLayout() {
           </div>
 
           <nav className="space-y-4">
-            {navGroups.map((group, groupIdx) => (
+            {visibleNavGroups.map((group, groupIdx) => (
               <div key={group.title || `group-${groupIdx}`}>
                 {group.title && groupIdx > 0 && <Separator className="mb-3" />}
-                {group.title && (
-                  <div className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                    {group.title}
+
+                {group.title ? (
+                  <div className="mb-2 flex items-center justify-between px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+                    <span>{group.title}</span>
+                    {group.collapsible ? (
+                      <button
+                        type="button"
+                        className="rounded px-1.5 py-0.5 text-[11px] normal-case text-muted-foreground hover:bg-muted"
+                        onClick={() => setShowAdvanced((v) => !v)}
+                        title={showAdvanced ? "收起高级入口" : "展开高级入口"}
+                      >
+                        {showAdvanced ? "收起" : "展开"}
+                      </button>
+                    ) : null}
                   </div>
-                )}
+                ) : null}
+
                 <div className="space-y-1">
                   {group.items.map((it) => {
                     const Icon = it.icon;
@@ -165,6 +218,10 @@ export function AdminLayout() {
                       </NavLink>
                     );
                   })}
+
+                  {group.collapsible && group.items.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">已折叠（排障用）</div>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -214,13 +271,22 @@ export function AdminLayout() {
                     navigate(e.target.value);
                   }}
                 >
-                  {navGroups.flatMap((group, groupIdx) =>
-                    group.items.map((it) => (
-                      <option key={`${groupIdx}-${it.to}`} value={it.to}>
-                        {group.title ? `${group.title} / ${it.label}` : it.label}
-                      </option>
-                    ))
-                  )}
+                  {(() => {
+                    // 移动端下拉也默认隐藏“高级”入口，但如果当前就在高级页（/pages），必须仍可见。
+                    const baseGroups = navGroups.map((g) => {
+                      if (!g.collapsible) return g;
+                      const shouldForceShow = g.items.some((it) => it.to !== "/" && location.pathname.startsWith(it.to));
+                      const allowShow = showAdvanced || shouldForceShow;
+                      return { ...g, items: allowShow ? g.items : [] };
+                    });
+                    return baseGroups.flatMap((group, groupIdx) =>
+                      group.items.map((it) => (
+                        <option key={`${groupIdx}-${it.to}`} value={it.to}>
+                          {group.title ? `${group.title} / ${it.label}` : it.label}
+                        </option>
+                      ))
+                    );
+                  })()}
                 </Select>
               </div>
               <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
