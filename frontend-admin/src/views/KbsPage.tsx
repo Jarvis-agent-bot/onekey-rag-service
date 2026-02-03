@@ -506,24 +506,8 @@ export function KbsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=sources`)}
-                          title="直接进入：数据源（配置/采集入口）"
-                        >
-                          数据源
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=pages`)}
-                          title="直接进入：内容（已采集的页面/文档）"
-                        >
-                          内容
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
                           onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=jobs`)}
-                          title="直接进入：运行（采集/构建索引的记录与排障）"
+                          title="直接进入：运行（采集/构建索引记录与排障）"
                         >
                           运行
                         </Button>

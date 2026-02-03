@@ -9,9 +9,9 @@ const navLabels: Record<string, string> = {
   "/kbs": "知识库",
   "/apps": "应用",
   "/feedback": "反馈",
-  "/observability": "观测",
+  "/observability": "观测/排障",
   "/settings": "设置",
-  "/jobs": "运行",
+  "/jobs": "运行中心",
 };
 
 /**
@@ -122,7 +122,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
       : "/jobs";
 
     return [
-      { label: "运行", to: fromTo },
+      { label: "运行中心", to: fromTo },
       { label: jobId || "详情" },
     ];
   }
@@ -133,7 +133,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
     const fromSearch = ((location.state as any)?.from?.search as string | undefined) || "";
     const fromTo = fromSearch ? `/observability?${fromSearch}` : "/observability";
     return [
-      { label: "观测", to: fromTo },
+      { label: "观测/排障", to: fromTo },
       { label: eventId || "详情" },
     ];
   }
