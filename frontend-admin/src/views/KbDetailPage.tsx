@@ -22,6 +22,7 @@ import { Select } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { getContractStats } from "../api/contracts";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
@@ -98,6 +99,19 @@ type PagesResp = {
     indexed: boolean;
     changed: boolean;
   }>;
+};
+
+type PageDetail = {
+  id: number;
+  kb_id: string;
+  source_id: string;
+  url: string;
+  title: string;
+  http_status: number;
+  last_crawled_at: string | null;
+  content_markdown: string;
+  chunk_stats: { total: number; with_embedding: number; embedding_coverage: number; embedding_models: Record<string, number> };
+  meta: Record<string, unknown>;
 };
 
 type JobsResp = {
@@ -387,6 +401,57 @@ export function KbDetailPage() {
   const [pagesIndexed, setPagesIndexed] = useState("");
   const [pagesQ, setPagesQ] = useState("");
   const pagesPageSize = 10;
+
+  const pageIdParam = Number.parseInt(searchParams.get("page_id") || "0", 10) || 0;
+  const isPageDetailOpen = tab === "pages" && Number.isFinite(pageIdParam) && pageIdParam > 0;
+
+  const pageDetailQuery = useQuery({
+    queryKey: ["page", workspaceId, pageIdParam],
+    queryFn: () => apiFetch<PageDetail>(`/admin/api/workspaces/${workspaceId}/pages/${pageIdParam}`),
+    enabled: !!workspaceId && isPageDetailOpen,
+  });
+
+  const reindexPage = useMutation({
+    mutationFn: async (pageId: number) => {
+      return apiFetch<{ job_id: string }>(`/admin/api/workspaces/${workspaceId}/pages/${pageId}/reindex`, { method: "POST" });
+    },
+    onSuccess: async (data) => {
+      await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
+      toast.success("已触发 reindex");
+      navigate(`/jobs/${data.job_id}`, {
+        state: { from: { kb_id: kbId, source_id: pagesSourceId || undefined } },
+      });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
+  });
+
+  const deletePage = useMutation({
+    mutationFn: async (pageId: number) => {
+      return apiFetch<{ ok: boolean }>(`/admin/api/workspaces/${workspaceId}/pages/${pageId}`, { method: "DELETE" });
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
+      toast.success("已删除内容");
+      const next = new URLSearchParams(searchParams);
+      next.delete("page_id");
+      setSearchParams(next, { replace: true });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
+  });
+
+  function openPageDetail(pageId: number, sourceId?: string) {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "pages");
+    next.set("page_id", String(pageId));
+    if (sourceId) next.set("source_id", sourceId);
+    setSearchParams(next);
+  }
+
+  function closePageDetail() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("page_id");
+    setSearchParams(next, { replace: true });
+  }
 
   const pagesQuery = useQuery({
     queryKey: ["kb-pages", workspaceId, kbId, pagesPage, pagesPageSize, pagesSourceId, pagesIndexed, pagesQ],
@@ -1263,14 +1328,14 @@ export function KbDetailPage() {
                   pagesQuery.data.items.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-xs">
-                        <Link
+                        <button
+                          type="button"
                           className="hover:underline"
-                          to={`/pages/${p.id}`}
-                          state={{ from: { kb_id: kbId, source_id: p.source_id || undefined } }}
-                          title="打开页面详情（保留返回路径：KB 内容）"
+                          onClick={() => openPageDetail(p.id, p.source_id || undefined)}
+                          title="打开内容详情（弹窗）"
                         >
                           {p.id}
-                        </Link>
+                        </button>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{p.title || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="max-w-[300px]">
@@ -1284,15 +1349,7 @@ export function KbDetailPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              navigate(`/pages/${p.id}`, {
-                                state: { from: { kb_id: kbId, source_id: p.source_id || undefined } },
-                              })
-                            }
-                          >
+                          <Button variant="outline" size="sm" onClick={() => openPageDetail(p.id, p.source_id || undefined)}>
                             详情
                           </Button>
                           <Button variant="outline" size="sm" disabled={recrawlPage.isPending} onClick={() => recrawlPage.mutate(p.id)}>
@@ -1319,6 +1376,113 @@ export function KbDetailPage() {
               onPageChange={setPagesPage}
             />
           </Card>
+
+          <Dialog
+            open={isPageDetailOpen}
+            onOpenChange={(open) => {
+              if (!open) closePageDetail();
+            }}
+          >
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>内容详情</DialogTitle>
+                <DialogDescription>
+                  page_id=<span className="font-mono">{pageIdParam || "-"}</span>（已下沉到 KB：不再有独立“验证台”页面）
+                </DialogDescription>
+              </DialogHeader>
+
+              {pageDetailQuery.isLoading ? <Loading size="sm" /> : null}
+              {pageDetailQuery.error ? <ApiErrorBanner error={pageDetailQuery.error} /> : null}
+
+              {pageDetailQuery.data ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">URL</div>
+                      <CopyableText text={pageDetailQuery.data.url} href={pageDetailQuery.data.url} />
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">HTTP</div>
+                      <div className={pageDetailQuery.data.http_status >= 400 ? "font-mono text-red-400" : "font-mono"}>{pageDetailQuery.data.http_status || "-"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">数据源</div>
+                      <Button
+                        variant="link"
+                        className="h-auto px-0 text-left text-sm"
+                        onClick={() => {
+                          const next = new URLSearchParams(searchParams);
+                          next.set("tab", "sources");
+                          if (pageDetailQuery.data?.source_id) next.set("source_id", pageDetailQuery.data.source_id);
+                          setSearchParams(next);
+                        }}
+                      >
+                        <span className="font-mono">{pageDetailQuery.data.source_id || "-"}</span>（查看配置）
+                      </Button>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Chunks</div>
+                      <div className="font-mono">{pageDetailQuery.data.chunk_stats?.total ?? "-"}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={recrawlPage.isPending || !pageIdParam}
+                      onClick={() => recrawlPage.mutate(pageIdParam)}
+                    >
+                      {recrawlPage.isPending ? "触发中..." : "重新采集"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={reindexPage.isPending || !pageIdParam}
+                      onClick={() => reindexPage.mutate(pageIdParam)}
+                    >
+                      {reindexPage.isPending ? "触发中..." : "重新索引"}
+                    </Button>
+                    <ConfirmDangerDialog
+                      trigger={
+                        <Button variant="outline" size="sm" disabled={deletePage.isPending || !pageIdParam}>
+                          删除
+                        </Button>
+                      }
+                      title="确认删除内容？"
+                      description={
+                        <>
+                          将删除 page_id=<span className="font-mono">{pageIdParam}</span>，并级联删除其 chunks（如存在）。此操作不可恢复。
+                        </>
+                      }
+                      confirmLabel="继续删除"
+                      confirmVariant="destructive"
+                      confirmText={String(pageIdParam)}
+                      confirmPlaceholder="输入 page_id 确认"
+                      confirmDisabled={deletePage.isPending || !pageIdParam}
+                      onConfirm={() => deletePage.mutateAsync(pageIdParam)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">标题</div>
+                    <div className="text-sm">{pageDetailQuery.data.title || <span className="text-muted-foreground">-</span>}</div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">内容预览（Markdown）</div>
+                    <Textarea value={pageDetailQuery.data.content_markdown || ""} readOnly className="min-h-[240px] font-mono text-xs" />
+                  </div>
+                </div>
+              ) : null}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closePageDetail}>
+                  关闭
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ============ 运行 Tab ============ */}

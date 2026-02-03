@@ -12,7 +12,6 @@ const navLabels: Record<string, string> = {
   "/observability": "观测",
   "/audit": "审计",
   "/settings": "设置",
-  "/pages": "内容",
   "/jobs": "运行",
 };
 
@@ -21,8 +20,6 @@ const navLabels: Record<string, string> = {
  * 规则：
  * - /kbs → [知识库]
  * - /kbs/:id → [知识库, 详情]
- * - /pages → [内容]
- * - /pages/:id → [内容, 详情]
  * - /jobs → [运行]
  * - /jobs/:id → [运行, 详情]
  */
@@ -114,20 +111,6 @@ export function useBreadcrumb(): BreadcrumbItem[] {
     return [
       { label: "应用", to: "/apps" },
       { label: appLabel.label || appId || "详情", title: appLabel.title },
-    ];
-  }
-
-  // 内容详情
-  if (path.startsWith("/pages/")) {
-    const pageId = path.replace("/pages/", "");
-    const from = (location.state as any)?.from as { kb_id?: string; source_id?: string } | undefined;
-    const fromTo = from?.kb_id
-      ? `/kbs/${encodeURIComponent(from.kb_id)}?tab=pages${from?.source_id ? `&source_id=${encodeURIComponent(from.source_id)}` : ""}`
-      : "/pages";
-
-    return [
-      { label: "内容", to: fromTo },
-      { label: pageId || "详情" },
     ];
   }
 

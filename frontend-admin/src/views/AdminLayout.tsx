@@ -75,8 +75,6 @@ const flatNavItems = navGroups.flatMap((g) => g.items);
 
 function normalizeNavPath(pathname: string) {
   if (pathname === "/") return "/";
-  // /pages 属于“内容”范畴，但我们不再把它作为一级入口；在导航选择上归到 KB。
-  if (pathname.startsWith("/pages")) return "/kbs";
 
   const found = flatNavItems.find((it) => it.to !== "/" && pathname.startsWith(it.to));
   return found?.to || "/";

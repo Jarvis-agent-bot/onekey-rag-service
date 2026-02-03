@@ -39,7 +39,12 @@ function resolveObjectLink(objectType: string, objectId: string, meta?: Record<s
   if (t === "kb") return `/kbs/${encodeURIComponent(id)}`;
   if (t === "app") return `/apps/${encodeURIComponent(id)}`;
   if (t === "job") return `/jobs/${encodeURIComponent(id)}`;
-  if (t === "page") return `/pages/${encodeURIComponent(id)}`;
+  if (t === "page") {
+    const kbId = typeof meta?.kb_id === "string" ? (meta.kb_id as string) : "";
+    // Page 没有独立“验证台”入口：尽量回到对应 KB 的『内容』Tab，并打开详情弹窗
+    if (kbId) return `/kbs/${encodeURIComponent(kbId)}?tab=pages&page_id=${encodeURIComponent(id)}`;
+    return null;
+  }
 
   // source 没有独立详情页：尽量跳回 KB 详情的 sources tab，并带上 source_id
   if (t === "source") {
