@@ -647,16 +647,6 @@ export function JobsPage() {
                                       className="max-w-[320px]"
                                       textClassName="font-mono text-xs text-muted-foreground"
                                     />
-
-                                    <Link
-                                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                                      to={`/jobs/${job.id}`}
-                                      state={{ from: { kb_id: kbIdFilter || job.kb_id, source_id: sourceIdFilter || job.source_id } }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      title="详情页仅作兜底（优先在列表/KB 内完成排障）"
-                                    >
-                                      详情页（兜底）
-                                    </Link>
                                     {job.kb_id ? (
                                       <>
                                         <Button asChild variant="outline" size="sm">
