@@ -180,9 +180,11 @@ export function AdminLayout() {
           <nav className="space-y-4">
             {visibleNavGroups.map((group, groupIdx) => (
               <div key={group.title || `group-${groupIdx}`}>
-                {group.title && groupIdx > 0 && <Separator className="mb-3" />}
+                {group.title && groupIdx > 0 && !(group.collapsible && group.items.length === 0) ? (
+                  <Separator className="mb-3" />
+                ) : null}
 
-                {group.title ? (
+                {group.title && !(group.collapsible && group.items.length === 0) ? (
                   <div className="mb-2 flex items-center justify-between px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
                     <span>{group.title}</span>
                     {group.collapsible ? (
@@ -221,7 +223,15 @@ export function AdminLayout() {
                   })}
 
                   {group.collapsible && group.items.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">已折叠（排障用）</div>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted"
+                      onClick={() => setShowAdvanced(true)}
+                      title="展开高级入口（排障用）"
+                    >
+                      <span>高级入口（排障用）</span>
+                      <span className="text-[11px] underline underline-offset-2">展开</span>
+                    </button>
                   ) : null}
                 </div>
               </div>
