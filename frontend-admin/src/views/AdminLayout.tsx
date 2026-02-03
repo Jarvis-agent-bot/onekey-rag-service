@@ -66,10 +66,10 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "运营监控",
+    title: "观测/排障",
     items: [
       { to: "/feedback", label: "反馈", icon: ThumbsUp },
-      { to: "/observability", label: "观测", icon: Eye },
+      { to: "/observability", label: "观测/排障", title: "观测/排障（Observability）", icon: Eye },
     ],
     collapsible: true,
     defaultCollapsed: true,

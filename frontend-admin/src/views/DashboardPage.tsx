@@ -147,7 +147,7 @@ export function DashboardPage() {
               <Link to="/kbs?create=1">新建知识库</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/observability">查看观测</Link>
+              <Link to="/observability">观测/排障</Link>
             </Button>
           </div>
         </div>

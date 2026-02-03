@@ -51,7 +51,7 @@ export function App() {
           <Route path="jobs" element={<JobsPage />} />
           <Route path="jobs/:jobId" element={<JobDetailPage />} />
 
-          {/* 运营监控 */}
+          {/* 观测/排障 */}
           <Route path="feedback" element={<FeedbackPage />} />
           <Route path="observability" element={<ObservabilityPage />} />
           <Route path="observability/retrieval-events/:eventId" element={<RetrievalEventDetailPage />} />
