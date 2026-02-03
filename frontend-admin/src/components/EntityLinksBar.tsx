@@ -22,12 +22,17 @@ export function EntityLinksBar(props: {
       to: `/observability?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(kbId)}`,
       label: "观测（按 App+KB）",
     });
+    links.push({
+      to: `/jobs?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(kbId)}`,
+      label: "任务中心（按 App+KB）",
+    });
   }
 
   if (appId) {
     links.push({ to: "/apps", label: "应用列表" });
     links.push({ to: `/apps/${encodeURIComponent(appId)}`, label: "查看应用" });
     links.push({ to: `/kbs?app_id=${encodeURIComponent(appId)}`, label: "该应用的 KB" });
+    links.push({ to: `/jobs?app_id=${encodeURIComponent(appId)}`, label: "任务中心（按 App）" });
     links.push({ to: `/observability?app_id=${encodeURIComponent(appId)}`, label: "观测（按 App）" });
   }
 

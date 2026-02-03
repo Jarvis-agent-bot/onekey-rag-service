@@ -71,6 +71,7 @@ export function JobsPage() {
   const statusFilter = (sp.get("status") || "").trim();
   const typeFilter = (sp.get("type") || "").trim();
   const kbIdFilter = (sp.get("kb_id") || "").trim();
+  const appIdFilter = (sp.get("app_id") || "").trim();
   const sourceIdFilter = (sp.get("source_id") || "").trim();
 
   // 展开状态
@@ -85,7 +86,7 @@ export function JobsPage() {
 
   // 获取所有任务（最近100个）
   const jobs = useQuery({
-    queryKey: ["all-jobs", workspaceId, statusFilter, typeFilter, kbIdFilter, sourceIdFilter],
+    queryKey: ["all-jobs", workspaceId, statusFilter, typeFilter, kbIdFilter, appIdFilter, sourceIdFilter],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set("page", "1");
@@ -93,6 +94,7 @@ export function JobsPage() {
       if (statusFilter) params.set("status", statusFilter);
       if (typeFilter) params.set("type", typeFilter);
       if (kbIdFilter) params.set("kb_id", kbIdFilter);
+      if (appIdFilter) params.set("app_id", appIdFilter);
       if (sourceIdFilter) params.set("source_id", sourceIdFilter);
       return apiFetch<JobsResp>(`/admin/api/workspaces/${workspaceId}/jobs?${params.toString()}`);
     },
@@ -204,11 +206,11 @@ export function JobsPage() {
 
   // 当从其他页面带着过滤条件跳转过来时（例如 PageDetail → Jobs），默认展开，减少“看不到内容”的割裂感。
   useEffect(() => {
-    const hasFilter = !!(statusFilter || typeFilter || kbIdFilter || sourceIdFilter);
+    const hasFilter = !!(statusFilter || typeFilter || kbIdFilter || appIdFilter || sourceIdFilter);
     if (!hasFilter) return;
     if (!groupedJobs.length) return;
     setExpandedKbs(new Set(groupedJobs.map(([id]) => id)));
-  }, [statusFilter, typeFilter, kbIdFilter, sourceIdFilter, groupedJobs]);
+  }, [statusFilter, typeFilter, kbIdFilter, appIdFilter, sourceIdFilter, groupedJobs]);
 
   return (
     <div className="space-y-6">
@@ -245,7 +247,7 @@ export function JobsPage() {
           </div>
         </div>
 
-        <EntityLinksBar kbId={kbIdFilter} sourceId={sourceIdFilter} className="mt-3" />
+        <EntityLinksBar appId={appIdFilter} kbId={kbIdFilter} sourceId={sourceIdFilter} className="mt-3" />
       </div>
 
       {/* 汇总统计 */}
@@ -282,7 +284,7 @@ export function JobsPage() {
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">状态</div>
             <Select
@@ -358,6 +360,21 @@ export function JobsPage() {
                 placeholder="kb_xxx"
               />
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">App ID</div>
+            <DebouncedInput
+              value={appIdFilter}
+              onChange={(v) => {
+                const next = new URLSearchParams(sp);
+                const vv = v.trim();
+                if (vv) next.set("app_id", vv);
+                else next.delete("app_id");
+                setSp(next, { replace: true });
+              }}
+              placeholder="app_xxx"
+            />
           </div>
 
           <div className="space-y-1">
