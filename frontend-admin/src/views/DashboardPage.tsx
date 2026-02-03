@@ -259,12 +259,12 @@ export function DashboardPage() {
               <div className="text-sm font-medium">存在失败任务</div>
             </div>
             <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-100 hover:bg-amber-400/20">
-              <Link to="/kbs">查看知识库</Link>
+              <Link to="/jobs?status=failed">查看失败任务</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <div className="text-xs text-amber-100/80">
-              failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（请在对应知识库的「任务」Tab 查看详情）
+              failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（建议先在「任务中心」按 failed 过滤，再回到 KB 详情定位 source）
             </div>
           </CardContent>
         </UiCard>
@@ -407,11 +407,11 @@ export function DashboardPage() {
               </div>
             </Link>
 
-            <div className="rounded-md border bg-muted/30 p-3">
+            <Link to="/feedback" className="block rounded-md border bg-muted/30 p-3 transition-colors hover:bg-muted/40" title="打开反馈列表">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <MessageSquareText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Feedback</span>
+                  <span className="text-muted-foreground">反馈</span>
                 </div>
                 <span className="font-mono text-sm">{formatInt(data.feedback.total)}</span>
               </div>
@@ -422,7 +422,7 @@ export function DashboardPage() {
                 </span>
                 <span className="font-mono">{pct(data.feedback.up_ratio)}</span>
               </div>
-            </div>
+            </Link>
           </div>
         </Card>
       </div>
