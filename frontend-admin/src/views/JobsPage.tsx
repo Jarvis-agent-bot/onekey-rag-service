@@ -630,11 +630,21 @@ export function JobsPage() {
                                       </Link>
                                     </Button>
                                     {job.kb_id ? (
-                                      <Button asChild variant="outline" size="sm">
-                                        <Link to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}>
-                                          回到知识库
-                                        </Link>
-                                      </Button>
+                                      <>
+                                        <Button asChild variant="outline" size="sm">
+                                          <Link
+                                            to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=pages${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
+                                            title="查看该知识库的内容（默认按数据源过滤）"
+                                          >
+                                            看内容
+                                          </Link>
+                                        </Button>
+                                        <Button asChild variant="outline" size="sm">
+                                          <Link to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}>
+                                            回到知识库
+                                          </Link>
+                                        </Button>
+                                      </>
                                     ) : null}
                                   </div>
 
