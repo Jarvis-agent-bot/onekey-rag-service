@@ -56,7 +56,8 @@ export function JobDetailPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["job", workspaceId, jobId] });
-      await qc.invalidateQueries({ queryKey: ["jobs", workspaceId] });
+      // JobsPage 使用 all-jobs 作为 queryKey（含筛选）；这里用前缀失效，确保列表能立刻刷新。
+      await qc.invalidateQueries({ queryKey: ["all-jobs", workspaceId] });
       toast.success("已重新入队");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "重新入队失败"),
@@ -68,7 +69,7 @@ export function JobDetailPage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["job", workspaceId, jobId] });
-      await qc.invalidateQueries({ queryKey: ["jobs", workspaceId] });
+      await qc.invalidateQueries({ queryKey: ["all-jobs", workspaceId] });
       toast.success("已取消运行");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "取消失败"),
@@ -103,13 +104,30 @@ export function JobDetailPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" size="sm" onClick={handleGoBack} className="gap-1 px-2">
               <ArrowLeft className="h-4 w-4" />
               返回
             </Button>
             <span className="text-lg font-semibold">运行详情</span>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              title="回到运行中心，并自动展开这次运行（更适合排障/重试）"
+            >
+              <Link
+                to={`/jobs?${new URLSearchParams({
+                  ...(from?.kb_id ? { kb_id: from.kb_id } : q.data?.kb_id ? { kb_id: q.data.kb_id } : {}),
+                  ...(from?.source_id ? { source_id: from.source_id } : q.data?.source_id ? { source_id: q.data.source_id } : {}),
+                  open_job_id: jobId,
+                }).toString()}`}
+              >
+                回到运行中心（展开）
+              </Link>
+            </Button>
           </div>
+          <div className="mt-1 text-xs text-muted-foreground">提示：详情页是兜底；日常从「知识库详情页 → 运行」或「运行中心」看更顺。</div>
           <EntityLinksBar appId={q.data?.app_id} kbId={q.data?.kb_id} sourceId={q.data?.source_id} className="mt-2" />
 
           {from?.kb_id ? (
