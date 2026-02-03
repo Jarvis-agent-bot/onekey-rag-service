@@ -76,11 +76,15 @@ const navGroups: NavGroup[] = [
   },
   {
     title: "系统",
-    items: [
-      // Apps 入口先弱化：避免把“应用”当成和“知识库”并列的一级世界。
-      { to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes },
-      { to: "/settings", label: "设置", icon: Settings },
-    ],
+    items: [{ to: "/settings", label: "设置", icon: Settings }],
+  },
+  {
+    // Apps 入口弱化：避免把“应用”当成和“知识库”并列的一级世界。
+    // 仍保留可访问性（需要时可从 KB / 运行 / 引用处跳转）。
+    title: "其他",
+    collapsible: true,
+    defaultCollapsed: true,
+    items: [{ to: "/apps", label: "应用", title: "应用（Apps）", icon: Boxes }],
   },
 ];
 
