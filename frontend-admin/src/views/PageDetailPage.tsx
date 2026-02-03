@@ -208,7 +208,11 @@ export function PageDetailPage() {
                 <div className="flex items-center gap-2">
                   <div className="font-mono text-xs">{q.data.source_id || "-"}</div>
                   {q.data.kb_id ? (
-                    <Link className="text-xs underline underline-offset-2" to={`/kbs/${encodeURIComponent(q.data.kb_id)}?tab=sources`}>
+                    <Link
+                      className="text-xs underline underline-offset-2"
+                      to={`/kbs/${encodeURIComponent(q.data.kb_id)}?tab=sources${q.data.source_id ? `&source_id=${encodeURIComponent(q.data.source_id)}` : ""}`}
+                      title="打开 KB 详情 → 数据源（并尽量定位到当前 source_id）"
+                    >
                       查看数据源
                     </Link>
                   ) : null}
