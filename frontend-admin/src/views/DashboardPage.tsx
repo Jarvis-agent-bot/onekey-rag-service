@@ -150,7 +150,7 @@ export function DashboardPage() {
               <Link to="/apps?create=1">新建应用</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/quality">查看质量</Link>
+              <Link to="/observability">查看观测</Link>
             </Button>
           </div>
         </div>
@@ -253,7 +253,7 @@ export function DashboardPage() {
               <div className="text-sm font-medium">告警（最近 24h）</div>
             </div>
             <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-100 hover:bg-amber-400/20">
-              <Link to="/quality">去处理</Link>
+              <Link to="/observability">去处理</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">

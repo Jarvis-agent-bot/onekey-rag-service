@@ -9,7 +9,6 @@ const navLabels: Record<string, string> = {
   "/kbs": "知识库",
   "/apps": "应用",
   "/feedback": "反馈",
-  "/quality": "质量",
   "/observability": "观测",
   "/audit": "审计",
   "/settings": "设置",

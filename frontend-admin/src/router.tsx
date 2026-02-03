@@ -14,7 +14,6 @@ import { LoginPage } from "./views/LoginPage";
 import { ObservabilityPage } from "./views/ObservabilityPage";
 import { PagesPage } from "./views/PagesPage";
 import { PageDetailPage } from "./views/PageDetailPage";
-import { QualityPage } from "./views/QualityPage";
 import { RetrievalEventDetailPage } from "./views/RetrievalEventDetailPage";
 import { SettingsPage } from "./views/SettingsPage";
 import { requireToken } from "./lib/auth";
@@ -59,7 +58,6 @@ export function App() {
 
           {/* 运营监控 */}
           <Route path="feedback" element={<FeedbackPage />} />
-          <Route path="quality" element={<QualityPage />} />
           <Route path="observability" element={<ObservabilityPage />} />
           <Route path="observability/retrieval-events/:eventId" element={<RetrievalEventDetailPage />} />
 
