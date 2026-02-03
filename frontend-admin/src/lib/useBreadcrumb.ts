@@ -10,7 +10,6 @@ const navLabels: Record<string, string> = {
   "/apps": "应用",
   "/feedback": "反馈",
   "/observability": "观测",
-  "/audit": "审计",
   "/settings": "设置",
   "/jobs": "运行",
 };

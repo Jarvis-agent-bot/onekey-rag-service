@@ -2,7 +2,6 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-d
 
 import { AdminLayout } from "./views/AdminLayout";
 import { AppDetailPage } from "./views/AppDetailPage";
-import { AuditPage } from "./views/AuditPage";
 import { AppsPage } from "./views/AppsPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { FeedbackPage } from "./views/FeedbackPage";
@@ -58,7 +57,6 @@ export function App() {
           <Route path="observability/retrieval-events/:eventId" element={<RetrievalEventDetailPage />} />
 
           {/* 系统 */}
-          <Route path="audit" element={<AuditPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
