@@ -9,6 +9,7 @@ import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { Loading } from "../components/Loading";
 import { EmptyState } from "../components/EmptyState";
 import { DebouncedInput } from "../components/DebouncedInput";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
@@ -244,43 +245,7 @@ export function JobsPage() {
           </div>
         </div>
 
-        {(kbIdFilter || sourceIdFilter) ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>快捷跳转：</span>
-            {kbIdFilter ? (
-              <>
-                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbIdFilter)}?tab=jobs`}>
-                  KB 任务
-                </Link>
-                <Link className="underline underline-offset-2" to={`/kbs/${encodeURIComponent(kbIdFilter)}?tab=pages`}>
-                  KB 内容
-                </Link>
-                <Link className="underline underline-offset-2" to={`/observability?kb_id=${encodeURIComponent(kbIdFilter)}`}>
-                  观测（按 KB）
-                </Link>
-              </>
-            ) : null}
-            {kbIdFilter && sourceIdFilter ? <span className="text-border">·</span> : null}
-            {kbIdFilter && sourceIdFilter ? (
-              <>
-                <Link
-                  className="underline underline-offset-2"
-                  to={`/kbs/${encodeURIComponent(kbIdFilter)}?tab=jobs&source_id=${encodeURIComponent(sourceIdFilter)}`}
-                  title="跳到该 KB 的任务 Tab，并自动筛选 source_id"
-                >
-                  该数据源任务
-                </Link>
-                <Link
-                  className="underline underline-offset-2"
-                  to={`/kbs/${encodeURIComponent(kbIdFilter)}?tab=pages&source_id=${encodeURIComponent(sourceIdFilter)}`}
-                  title="跳到该 KB 的内容 Tab，并自动筛选 source_id"
-                >
-                  该数据源内容
-                </Link>
-              </>
-            ) : null}
-          </div>
-        ) : null}
+        <EntityLinksBar kbId={kbIdFilter} sourceId={sourceIdFilter} className="mt-3" />
       </div>
 
       {/* 汇总统计 */}

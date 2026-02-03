@@ -10,6 +10,7 @@ import { Pagination } from "../components/Pagination";
 import { EmptyState } from "../components/EmptyState";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
 import { FilterChips, type FilterChip } from "../components/FilterChips";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { TraceLink } from "../components/TraceLink";
 import { apiFetch } from "../lib/api";
 import { useWorkspace } from "../lib/workspace";
@@ -142,6 +143,7 @@ export function ObservabilityPage() {
             <div className="text-xs uppercase tracking-[0.14em] text-primary">Observability</div>
             <div className="text-2xl font-semibold text-foreground">观测 / 请求与资源</div>
             <div className="text-sm text-muted-foreground">按请求事件检索 + 容器资源曲线（支持 1h / 24h / 7d）。</div>
+            <EntityLinksBar appId={appId} kbId={kbId} className="mt-2" />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">

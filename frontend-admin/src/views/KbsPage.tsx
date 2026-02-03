@@ -24,6 +24,7 @@ import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Separator } from "../components/ui/separator";
 import { FilterChips, type FilterChip } from "../components/FilterChips";
+import { EntityLinksBar } from "../components/EntityLinksBar";
 import { apiFetch } from "../lib/api";
 import { cn } from "../lib/utils";
 import { useWorkspace } from "../lib/workspace";
@@ -174,6 +175,7 @@ export function KbsPage() {
             <div className="text-sm text-muted-foreground">
               统一管理数据源、抓取与索引。支持文件导入与网站爬虫。
             </div>
+            <EntityLinksBar appId={appIdFilter} className="mt-2" />
           </div>
           <div className="flex items-center gap-2">
             <Dialog open={createOpen} onOpenChange={(open) => (setCreateOpen(open), open || setWizardStep(1))}>
