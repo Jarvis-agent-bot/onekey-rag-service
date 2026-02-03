@@ -107,14 +107,14 @@ export function PagesPage() {
           <div>
             <div className="text-xs tracking-wider text-primary">内容</div>
             <div className="text-2xl font-semibold text-foreground">内容列表</div>
-            <div className="text-sm text-muted-foreground">跨知识库统一查看内容（排障用）。常见路径：观测/任务 → 定位页面 → 重抓取 → 回看任务/内容 → 回修复数据源配置。</div>
+            <div className="text-sm text-muted-foreground">跨知识库统一查看内容（排障用）。常见路径：观测/运行 → 定位页面 → 重抓取 → 回看运行/内容 → 回修复数据源配置。</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">
               <Link to="/kbs">知识库（推荐）</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/jobs">任务中心</Link>
+              <Link to="/jobs">运行中心</Link>
             </Button>
             <div className="ml-2 flex items-center gap-2">
               <div className="text-xs text-muted-foreground">时间范围</div>

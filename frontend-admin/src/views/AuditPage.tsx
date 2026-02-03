@@ -150,7 +150,7 @@ export function AuditPage() {
               <option value="source">数据源</option>
               <option value="app">应用</option>
               <option value="page">内容</option>
-              <option value="job">任务</option>
+              <option value="job">运行</option>
             </Select>
           </div>
           <div className="space-y-1">

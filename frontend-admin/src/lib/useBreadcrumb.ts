@@ -14,7 +14,7 @@ const navLabels: Record<string, string> = {
   "/audit": "审计",
   "/settings": "设置",
   "/pages": "内容",
-  "/jobs": "任务",
+  "/jobs": "运行",
 };
 
 /**
@@ -24,8 +24,8 @@ const navLabels: Record<string, string> = {
  * - /kbs/:id → [知识库, 详情]
  * - /pages → [内容]
  * - /pages/:id → [内容, 详情]
- * - /jobs → [任务]
- * - /jobs/:id → [任务, 详情]
+ * - /jobs → [运行]
+ * - /jobs/:id → [运行, 详情]
  */
 export function useBreadcrumb(): BreadcrumbItem[] {
   const location = useLocation();
@@ -87,7 +87,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
       overview: "总览",
       sources: "数据源",
       pages: "内容",
-      jobs: "任务",
+      jobs: "运行",
     };
 
     const kbLabel = getKbLabel(kbId);
@@ -132,7 +132,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
     ];
   }
 
-  // 任务详情
+  // 运行详情
   if (path.startsWith("/jobs/")) {
     const jobId = path.replace("/jobs/", "");
     const from = (location.state as any)?.from as { kb_id?: string; source_id?: string } | undefined;
@@ -141,7 +141,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
       : "/jobs";
 
     return [
-      { label: "任务", to: fromTo },
+      { label: "运行", to: fromTo },
       { label: jobId || "详情" },
     ];
   }

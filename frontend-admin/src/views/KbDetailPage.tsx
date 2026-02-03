@@ -230,7 +230,7 @@ export function KbDetailPage() {
 
   /**
    * 从任意位置跳转到 KB 详情内的指定 Tab，并可选携带 source_id。
-   * 目的：减少「数据源列表 → 内容/任务」的割裂感；同时把筛选写入 URL，便于刷新/分享。
+   * 目的：减少「数据源列表 → 内容/运行」的割裂感；同时把筛选写入 URL，便于刷新/分享。
    */
   const jumpToTab = (targetTab: "pages" | "jobs", sourceId?: string) => {
     const next = new URLSearchParams(searchParams);
@@ -418,7 +418,7 @@ export function KbDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
 
-  // ======== 任务 (Jobs) Tab ========
+  // ======== 运行 (Jobs) Tab ========
   const [jobsPage, setJobsPage] = useState(1);
   const [jobsType, setJobsType] = useState("");
   const [jobsStatus, setJobsStatus] = useState("");
@@ -514,7 +514,7 @@ export function KbDetailPage() {
     },
     onSuccess: async () => {
       toast.success("同步任务已启动", {
-        description: "采集和构建索引任务已提交，已为你切到『任务』Tab 便于观察进度",
+        description: "采集和构建索引已提交，已为你切到『运行』Tab 便于观察进度",
       });
       // 发起动作后直接把用户带到“看结果”的地方，减少来回找入口的割裂感
       handleTabChange("jobs");
@@ -546,7 +546,7 @@ export function KbDetailPage() {
     },
     onSuccess: async (_data, sourceId) => {
       toast.success("同步任务已启动", {
-        description: "已为你切到『任务』Tab，并自动筛选该数据源",
+        description: "已为你切到『运行』Tab，并自动筛选该数据源",
       });
       // 同步单个数据源时，默认把用户切到 jobs 并带上 source_id，减少“同步了但不知道去哪看”的割裂
       jumpToTab("jobs", sourceId);
@@ -592,7 +592,7 @@ export function KbDetailPage() {
               <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>内容</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>任务</Link>
+              <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>运行</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link to={`/observability?kb_id=${encodeURIComponent(kbId)}`}>
@@ -635,7 +635,7 @@ export function KbDetailPage() {
             <span className="ml-1 text-muted-foreground">({pageCount})</span>
           </TabsTrigger>
           <TabsTrigger value="jobs">
-            任务
+            运行
             <span className="ml-1 text-muted-foreground">({runningJobCount > 0 ? `${runningJobCount} 进行中` : recentJobCount})</span>
           </TabsTrigger>
         </TabsList>
@@ -757,9 +757,9 @@ export function KbDetailPage() {
                             <Link
                               className="underline underline-offset-2 hover:text-foreground"
                               to={`/jobs?app_id=${encodeURIComponent(it.app_id)}&kb_id=${encodeURIComponent(kbId)}`}
-                              title="按 App+KB 过滤任务中心"
+                              title="按 App+KB 过滤运行中心"
                             >
-                              任务
+                              运行
                             </Link>
                             <Link
                               className="underline underline-offset-2 hover:text-foreground"
@@ -781,10 +781,10 @@ export function KbDetailPage() {
             </div>
           ) : null}
 
-          {/* 最近任务状态 */}
+          {/* 最近运行状态 */}
           <div className="rounded-xl border border-border/70 bg-card/50">
             <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
-              <div className="font-medium">最近任务</div>
+              <div className="font-medium">最近运行</div>
               <Button variant="ghost" size="sm" onClick={() => handleTabChange("jobs")}>
                 查看全部
               </Button>
@@ -926,7 +926,7 @@ export function KbDetailPage() {
                     <TableHead className="w-[100px]">类型</TableHead>
                     <TableHead className="w-[80px]">状态</TableHead>
                     <TableHead className="w-[180px]">网站地址</TableHead>
-                    <TableHead className="w-[140px]">最近任务</TableHead>
+                    <TableHead className="w-[140px]">最近运行</TableHead>
                     <TableHead className="w-[180px]">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1004,9 +1004,9 @@ export function KbDetailPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => jumpToTab("jobs", s.id)}
-                              title="查看该数据源相关任务（并写入 URL，便于分享/刷新保留筛选）"
+                              title="查看该数据源相关运行（并写入 URL，便于分享/刷新保留筛选）"
                             >
-                              任务
+                              运行
                             </Button>
                             {latestJob?.status === "failed" ? (
                               <Button
@@ -1114,7 +1114,7 @@ export function KbDetailPage() {
             <div className="rounded-lg border border-dashed border-border/70 bg-background/30 p-6 text-center">
               <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
               <div className="mt-2 text-sm text-muted-foreground">文件上传功能开发中（当前不支持直接上传）</div>
-              <div className="mt-1 text-xs text-muted-foreground">建议先通过「数据源」采集内容；如需排障可跳转到内容/任务</div>
+              <div className="mt-1 text-xs text-muted-foreground">建议先通过「数据源」采集内容；如需排障可跳转到内容/运行</div>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button variant="outline" size="sm" asChild>
                   <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>查看内容</Link>
@@ -1318,7 +1318,7 @@ export function KbDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* ============ 任务 Tab ============ */}
+        {/* ============ 运行 Tab ============ */}
         <TabsContent value="jobs" className="space-y-4">
           <Card
             title="任务历史"
@@ -1385,7 +1385,7 @@ export function KbDetailPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[40px]" />
-                  <TableHead className="w-[140px]">任务 ID</TableHead>
+                  <TableHead className="w-[140px]">运行 ID</TableHead>
                   <TableHead className="w-[80px]">类型</TableHead>
                   <TableHead className="w-[80px]">状态</TableHead>
                   <TableHead>进度</TableHead>
@@ -1414,7 +1414,7 @@ export function KbDetailPage() {
                               className="hover:underline"
                               to={`/jobs/${j.id}`}
                               state={{ from: { kb_id: kbId, source_id: j.source_id || undefined } }}
-                              title="打开任务详情（保留返回路径：KB 任务）"
+                              title="打开运行详情（保留返回路径：KB 运行）"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {j.id}
@@ -1450,7 +1450,7 @@ export function KbDetailPage() {
                                 <div className="space-y-3">
                                   <div className="text-sm font-medium">任务详情</div>
                                   <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div className="text-muted-foreground">任务 ID</div>
+                                    <div className="text-muted-foreground">运行 ID</div>
                                     <div className="font-mono">{j.id}</div>
                                     <div className="text-muted-foreground">类型</div>
                                     <div>{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</div>

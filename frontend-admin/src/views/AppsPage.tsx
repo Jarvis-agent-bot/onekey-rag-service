@@ -185,7 +185,7 @@ export function AppsPage() {
                   <Link to={`/kbs?app_id=${encodeURIComponent(row.id)}`}>查看关联 KB</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={`/jobs?app_id=${encodeURIComponent(row.id)}`}>任务中心（按 App）</Link>
+                  <Link to={`/jobs?app_id=${encodeURIComponent(row.id)}`}>运行中心（按 App）</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to={`/observability?app_id=${encodeURIComponent(row.id)}`}>观测（按 App）</Link>
@@ -355,7 +355,7 @@ export function AppsPage() {
                     <ol className="list-inside list-decimal text-left">
                       <li>新建 App</li>
                       <li>进入 App 详情绑定知识库（KB）</li>
-                      <li>进入知识库详情，在「数据源/任务」中触发抓取与索引</li>
+                      <li>进入知识库详情，在「数据源/运行」中触发抓取与索引</li>
                       <li>在客户端/Widget 调试后发布</li>
                     </ol>
                   </div>

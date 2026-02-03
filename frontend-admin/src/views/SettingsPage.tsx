@@ -357,7 +357,7 @@ export function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="运行配置（脱敏 JSON）" description="用于排障：检索/索引/任务/观测开关">
+        <Card title="运行配置（脱敏 JSON）" description="用于排障：检索/索引/运行/观测开关">
           {settings.isLoading ? <div className="text-sm text-muted-foreground">加载中...</div> : null}
           {settings.error ? <ApiErrorBanner error={settings.error} /> : null}
           {settings.data ? <JsonView value={settings.data} defaultCollapsed /> : null}

@@ -292,7 +292,7 @@ export function KbsPage() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { key: "manual", title: "手动触发", desc: "创建后在任务中心触发" },
+                        { key: "manual", title: "手动触发", desc: "创建后在运行中心触发" },
                         { key: "daily", title: "每日调度", desc: "每天定时抓取/索引" },
                         { key: "weekly", title: "每周调度", desc: "每周巡检更新" },
                       ].map((opt) => (
@@ -429,7 +429,7 @@ export function KbsPage() {
 
         {!filtered.length ? (
           <EmptyState
-            description="新建知识库后，可在详情页配置数据源，并在任务中心触发抓取与索引。"
+            description="新建知识库后，可在详情页配置数据源，并在运行中心触发抓取与索引。"
             actions={
               <Button type="button" onClick={() => setCreateOpen(true)}>
                 新建知识库
@@ -511,7 +511,7 @@ export function KbsPage() {
                           onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=jobs`)}
                           title="在知识库详情页内查看任务（默认带 KB 过滤）"
                         >
-                          任务
+                          运行
                         </Button>
                         <Button
                           variant="outline"

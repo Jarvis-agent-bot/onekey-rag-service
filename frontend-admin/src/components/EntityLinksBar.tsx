@@ -24,7 +24,7 @@ export function EntityLinksBar(props: {
     });
     links.push({
       to: `/jobs?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(kbId)}`,
-      label: "任务中心（按 App+KB）",
+      label: "运行中心（按 App+KB）",
     });
   }
 
@@ -32,15 +32,15 @@ export function EntityLinksBar(props: {
     links.push({ to: "/apps", label: "应用列表" });
     links.push({ to: `/apps/${encodeURIComponent(appId)}`, label: "查看应用" });
     links.push({ to: `/kbs?app_id=${encodeURIComponent(appId)}`, label: "该应用的 KB" });
-    links.push({ to: `/jobs?app_id=${encodeURIComponent(appId)}`, label: "任务中心（按 App）" });
+    links.push({ to: `/jobs?app_id=${encodeURIComponent(appId)}`, label: "运行中心（按 App）" });
     links.push({ to: `/observability?app_id=${encodeURIComponent(appId)}`, label: "观测（按 App）" });
   }
 
   if (kbId) {
     links.push({ to: `/kbs/${encodeURIComponent(kbId)}`, label: "查看 KB" });
-    // 常用流：内容/任务/数据源都在 KB 详情里，避免在全局页面间跳来跳去
+    // 常用流：内容/运行/数据源都在 KB 详情里，避免在全局页面间跳来跳去
     links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=pages`, label: "KB 内容" });
-    links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=jobs`, label: "KB 任务" });
+    links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=jobs`, label: "KB 运行" });
     links.push({ to: `/kbs/${encodeURIComponent(kbId)}?tab=sources`, label: "KB 数据源" });
     links.push({ to: `/observability?kb_id=${encodeURIComponent(kbId)}`, label: "观测（按 KB）" });
   }
@@ -48,7 +48,7 @@ export function EntityLinksBar(props: {
   if (kbId && sourceId) {
     links.push({
       to: `/kbs/${encodeURIComponent(kbId)}?tab=jobs&source_id=${encodeURIComponent(sourceId)}`,
-      label: "该数据源的任务",
+      label: "该数据源的运行",
     });
     links.push({
       to: `/kbs/${encodeURIComponent(kbId)}?tab=pages&source_id=${encodeURIComponent(sourceId)}`,
@@ -58,7 +58,7 @@ export function EntityLinksBar(props: {
 
   // source_id 但缺少 kb_id 时（一般是从日志/任务跳转来的）：提供一个最小可用的排障入口
   if (sourceId && !kbId) {
-    links.push({ to: `/jobs?source_id=${encodeURIComponent(sourceId)}`, label: "任务中心（按 Source）" });
+    links.push({ to: `/jobs?source_id=${encodeURIComponent(sourceId)}`, label: "运行中心（按 Source）" });
   }
 
   // 去重（同 to 的只保留第一个）

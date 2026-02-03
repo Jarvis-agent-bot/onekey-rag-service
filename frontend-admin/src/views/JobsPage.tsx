@@ -231,10 +231,10 @@ export function JobsPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs tracking-wider text-primary">任务</div>
-            <div className="text-2xl font-semibold text-foreground">任务中心</div>
+            <div className="text-xs tracking-wider text-primary">运行</div>
+            <div className="text-2xl font-semibold text-foreground">运行中心</div>
             <div className="text-sm text-muted-foreground">
-              按知识库分组查看任务状态，失败任务可批量重试
+              按知识库分组查看运行状态，失败记录可批量重试
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -267,7 +267,7 @@ export function JobsPage() {
       <div className="grid gap-4 md:grid-cols-5">
         <div className="rounded-lg border border-border/50 bg-card/50 p-4">
           <div className="text-3xl font-semibold">{totalStats.total}</div>
-          <div className="text-sm text-muted-foreground">总任务数</div>
+          <div className="text-sm text-muted-foreground">总运行数</div>
         </div>
         <div className="rounded-lg border border-border/50 bg-card/50 p-4">
           <div className="text-3xl font-semibold text-blue-500">{totalStats.running}</div>
@@ -484,7 +484,7 @@ export function JobsPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/30 text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-2">任务 ID</th>
+                      <th className="px-4 py-2">运行 ID</th>
                       <th className="px-4 py-2 w-[80px]">类型</th>
                       <th className="px-4 py-2 w-[80px]">状态</th>
                       <th className="px-4 py-2">关联</th>
@@ -517,7 +517,7 @@ export function JobsPage() {
                                   to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
                                   title="跳到该 KB 的任务 Tab，并尽量保留 source_id 筛选"
                                 >
-                                  回到该知识库（任务）
+                                  回到该知识库（运行）
                                 </Link>
                               </div>
                             ) : null}

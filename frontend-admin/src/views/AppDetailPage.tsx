@@ -212,7 +212,7 @@ export function AppDetailPage() {
             查看关联 KB（筛选）
           </Link>
           <Link className="underline underline-offset-2" to={`/jobs?app_id=${encodeURIComponent(appId)}`}>
-            任务中心（按 App）
+            运行中心（按 App）
           </Link>
           <Link className="underline underline-offset-2" to={`/observability?app_id=${encodeURIComponent(appId)}`}>
             观测（按 App）
@@ -239,9 +239,9 @@ export function AppDetailPage() {
                   <Link
                     className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     to={`/kbs/${encodeURIComponent(b.kb_id)}?tab=jobs&app_id=${encodeURIComponent(appId)}`}
-                    title="打开该 KB 的任务 Tab（更接近实际运维动作）"
+                    title="打开该 KB 的运行 Tab（更接近实际运维动作）"
                   >
-                    任务
+                    运行
                   </Link>
                   <Link
                     className="text-muted-foreground underline underline-offset-2 hover:text-foreground"

@@ -486,7 +486,7 @@ export function ObservabilityPage() {
                                 }
                                 title="打开该 KB 的任务 Tab"
                               >
-                                ·任务
+                                ·运行
                               </Link>
                               <Link
                                 className="ml-1 text-muted-foreground underline underline-offset-2"

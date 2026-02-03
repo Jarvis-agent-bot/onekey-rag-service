@@ -207,9 +207,9 @@ export function DashboardPage() {
           <Link
             to={jobsFailed > 0 ? "/jobs?status=failed" : "/jobs"}
             className="block rounded-xl border border-border/70 bg-background/50 p-4 transition-colors hover:bg-muted/40"
-            title={jobsFailed > 0 ? "查看失败任务" : "打开任务中心"}
+            title={jobsFailed > 0 ? "查看失败运行" : "打开运行中心"}
           >
-            <div className="text-xs text-muted-foreground">任务运行中 / 失败</div>
+            <div className="text-xs text-muted-foreground">运行中 / 失败</div>
             <div className="text-2xl font-semibold text-foreground">
               {formatInt(jobsRunning)} / <span className="text-destructive">{formatInt(jobsFailed)}</span>
             </div>
@@ -262,15 +262,15 @@ export function DashboardPage() {
           <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <div className="flex items-center gap-2">
               <ListChecks className="h-4 w-4" />
-              <div className="text-sm font-medium">存在失败任务</div>
+              <div className="text-sm font-medium">存在失败运行</div>
             </div>
             <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-amber-100 hover:bg-amber-400/20">
-              <Link to="/jobs?status=failed">查看失败任务</Link>
+              <Link to="/jobs?status=failed">查看失败运行</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <div className="text-xs text-amber-100/80">
-              failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（建议先在「任务中心」按 failed 过滤，再回到 KB 详情定位 source）
+              failed=<span className="font-mono">{formatInt(jobsFailed)}</span>（建议先在「运行中心」按 failed 过滤，再回到 KB 详情定位 source）
             </div>
           </CardContent>
         </UiCard>
@@ -336,10 +336,10 @@ export function DashboardPage() {
         />
         <MetricCard
           icon={<ListChecks className="h-4 w-4" />}
-          title="失败任务"
+          title="失败运行"
           value={formatInt(jobsFailed)}
-          sub="打开任务中心查看失败原因"
-          help="口径：jobs 表中 status=failed 的任务数量（全类型）。建议先在任务中心按 failed 过滤，再回到 KB 详情定位数据源与内容。"
+          sub="打开运行中心查看失败原因"
+          help="口径：jobs 表中 status=failed 的运行数量（全类型）。建议先在运行中心按 failed 过滤，再回到 KB 详情定位数据源与内容。"
           to={jobsFailed > 0 ? "/jobs?status=failed" : "/jobs"}
         />
       </div>
@@ -369,11 +369,11 @@ export function DashboardPage() {
         </Card>
 
         <Card
-          title="任务概览"
+          title="运行概览"
           description="按 status 聚合"
           actions={
             <Button asChild variant="outline" size="sm">
-              <Link to="/jobs">任务中心</Link>
+              <Link to="/jobs">运行中心</Link>
             </Button>
           }
         >
@@ -393,7 +393,7 @@ export function DashboardPage() {
             />
           </div>
           <div className="pt-2 text-xs text-muted-foreground">
-            提示：在 <Link className="underline underline-offset-2" to="/kbs">知识库详情</Link> 的「任务」Tab 查看具体任务。
+            提示：在 <Link className="underline underline-offset-2" to="/kbs">知识库详情</Link> 的「运行」Tab 查看具体运行记录。
           </div>
         </Card>
 
