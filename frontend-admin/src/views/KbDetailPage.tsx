@@ -214,8 +214,11 @@ export function KbDetailPage() {
       next.delete("tab");
     }
 
-    // source_id 只在 pages/jobs Tab 有意义；切走时自动清理，避免误导
-    if (newTab !== "pages" && newTab !== "jobs") {
+    // source_id 在 pages/jobs/sources Tab 都有意义：
+    // - pages/jobs：用于过滤列表
+    // - sources：用于从任务/页面详情深链回到具体数据源配置（减少“找不到入口”的割裂感）
+    // 其它 Tab 切走时自动清理，避免误导
+    if (newTab !== "pages" && newTab !== "jobs" && newTab !== "sources") {
       next.delete("source_id");
     }
 
@@ -435,6 +438,15 @@ export function KbDetailPage() {
       if (urlSourceId && urlSourceId !== jobsSourceId) {
         setJobsSourceId(urlSourceId);
         setJobsPage(1);
+      }
+    }
+
+    // sources Tab：允许通过 ?source_id= 深链直接打开对应数据源配置。
+    // 典型路径：JobDetail/PageDetail → “查看数据源” → 立即看到配置，而不是再手动在表格里找。
+    if (tab === "sources") {
+      if (urlSourceId && urlSourceId !== editingSourceId) {
+        setEditingSourceId(urlSourceId);
+        setShowSourceForm(true);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
