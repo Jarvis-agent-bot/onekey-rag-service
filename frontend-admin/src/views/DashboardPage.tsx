@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, Database, Info, ListChecks, MessageSquareText, ShieldAlert, Timer } from "lucide-react";
+import { Database, ListChecks, MessageSquareText, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -147,9 +147,6 @@ export function DashboardPage() {
               <Link to="/kbs?create=1">新建知识库</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/apps?create=1">新建应用</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
               <Link to="/observability">查看观测</Link>
             </Button>
           </div>
@@ -270,48 +267,7 @@ export function DashboardPage() {
         </UiCard>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <MetricCard
-          icon={<Activity className="h-4 w-4" />}
-          title="24h 请求"
-          value={overall ? formatInt(overall.requests) : "-"}
-          sub={overall ? `命中率 ${pct(overall.hit_ratio)} · 错误率 ${pct(overall.error_ratio)}` : "来自质量聚合"}
-          help="口径：过去 24h 的 RAG 请求数（来自观测聚合）。命中率=hits/requests；错误率=errors/requests。"
-          to="/observability"
-        />
-        <MetricCard
-          icon={<Timer className="h-4 w-4" />}
-          title="p95 准备延迟"
-          value={overall?.p95_prepare_ms != null ? `${Math.round(overall.p95_prepare_ms)}ms` : "-"}
-          sub="prepare_rag（包含 embedding/检索/重排等）"
-          help="口径：prepare_rag 阶段 p95 耗时，包含 embedding/检索/重排等。单位 ms，过去 24h。"
-          to="/observability"
-        />
-        <MetricCard
-          icon={<MessageSquareText className="h-4 w-4" />}
-          title="24h Token"
-          value={overall ? formatInt(overall.total_tokens) : "-"}
-          sub={obs24h.data?.pricing_configured ? "已配置成本估算" : "未配置成本估算"}
-          help="口径：过去 24h 的 tokens 用量（来自上游模型）。成本估算依赖 pricing 配置。"
-          to="/observability"
-        />
-        <MetricCard
-          icon={<Database className="h-4 w-4" />}
-          title="Embedding 覆盖率"
-          value={`${Math.round((data.chunks.embedding_coverage || 0) * 100)}%`}
-          sub={`${formatInt(data.chunks.with_embedding)}/${formatInt(data.chunks.total)} chunks`}
-          help="口径：chunks 中 embedding 非空的比例。覆盖率=with_embedding/total（按 workspace）。"
-          to="/kbs"
-        />
-        <MetricCard
-          icon={<ListChecks className="h-4 w-4" />}
-          title="失败运行"
-          value={formatInt(jobsFailed)}
-          sub="打开运行中心查看失败原因"
-          help="口径：jobs 表中 status=failed 的运行数量（全类型）。建议先在运行中心按 failed 过滤，再回到 KB 详情定位数据源与内容。"
-          to={jobsFailed > 0 ? "/jobs?status=failed" : "/jobs"}
-        />
-      </div>
+      {/* 精简：首页的指标在上方卡片已覆盖；这里不再重复堆叠口径解释。 */}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card title="索引与健康" description="索引结构自检 + 依赖检查">
@@ -463,34 +419,7 @@ function KeyVal(props: { k: string; v: ReactNode }) {
   );
 }
 
-function MetricCard(props: { icon: ReactNode; title: string; value: ReactNode; sub: ReactNode; help?: string; to?: string }) {
-  const card = (
-    <UiCard className={props.to ? "cursor-pointer transition-colors hover:bg-muted/40" : undefined}>
-      <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {props.icon}
-          <span>{props.title}</span>
-          {props.help ? (
-            <span className="cursor-help" title={props.help} aria-label={props.help}>
-              <Info className="h-3.5 w-3.5" />
-            </span>
-          ) : null}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-semibold tracking-tight">{props.value}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{props.sub}</div>
-      </CardContent>
-    </UiCard>
-  );
-  return props.to ? (
-    <Link to={props.to} className="block">
-      {card}
-    </Link>
-  ) : (
-    card
-  );
-}
+// MetricCard 已移除：首页避免重复堆叠指标口径。
 
 function sumJobStatus(byType: Record<string, Record<string, number>>, status: string): number {
   let total = 0;
