@@ -160,7 +160,8 @@ export function AdminLayout() {
                 onChange={(e) => {
                   ws.setWorkspaceId(e.target.value);
                   qc.invalidateQueries();
-                  navigate("/kbs", { replace: true });
+                  // 切换工作区后回到首页：减少“切换后落在某个割裂子页面”的困惑
+                  navigate("/", { replace: true });
                 }}
               >
                 {(ws.workspaces || []).length ? (
