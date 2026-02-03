@@ -1399,7 +1399,17 @@ export function KbDetailPage() {
                           <TableCell className="w-[40px] px-2">
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </TableCell>
-                          <TableCell className="font-mono text-xs">{j.id}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            <Link
+                              className="hover:underline"
+                              to={`/jobs/${j.id}`}
+                              state={{ from: { kb_id: kbId, source_id: j.source_id || undefined } }}
+                              title="打开任务详情（保留返回路径：KB 任务）"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {j.id}
+                            </Link>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">{j.type === "crawl" ? "抓取" : j.type === "index" ? "索引" : j.type}</Badge>
                           </TableCell>
