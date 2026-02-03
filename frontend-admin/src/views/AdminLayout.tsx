@@ -58,11 +58,11 @@ const navGroups: NavGroup[] = [
     items: [{ to: "/", label: "首页", icon: Home }],
   },
   {
-    title: "知识构建",
+    title: "知识库",
     items: [
       // 侧边栏的 label 尽量简短，避免括号/英文打断阅读；英文信息用 title 提示。
       { to: "/kbs", label: "知识库", title: "知识库（Collections）", icon: Database },
-      { to: "/jobs", label: "运行", title: "索引/运行（Jobs）", icon: ScrollText },
+      { to: "/jobs", label: "运行中心", title: "索引/运行（Jobs）", icon: ScrollText },
     ],
   },
   {
