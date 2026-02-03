@@ -105,9 +105,9 @@ export function PagesPage() {
       <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-background p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.14em] text-primary">Pages</div>
+            <div className="text-xs tracking-wider text-primary">内容</div>
             <div className="text-2xl font-semibold text-foreground">内容列表</div>
-            <div className="text-sm text-muted-foreground">跨知识库统一查看内容（排障用），支持按 KB/来源/索引状态过滤。日常更推荐在「知识库详情 → 内容」查看，入口更集中。</div>
+            <div className="text-sm text-muted-foreground">跨知识库统一查看内容（排障用）。常见路径：观测/任务 → 定位页面 → 重抓取 → 回看任务/内容 → 回修复数据源配置。</div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" size="sm">

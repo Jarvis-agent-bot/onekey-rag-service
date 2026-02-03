@@ -49,7 +49,7 @@ export function PageDetailPage() {
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ["pages", workspaceId] });
       await qc.invalidateQueries({ queryKey: ["page", workspaceId, pageId] });
-      toast.success("已触发 recrawl，正在跳转任务详情");
+      toast.success("已触发重抓取，正在跳转任务详情");
       navigate(`/jobs/${data.job_id}`, {
         state: { from: { kb_id: q.data?.kb_id, source_id: q.data?.source_id } },
       });
@@ -156,7 +156,7 @@ export function PageDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" disabled={!q.data || recrawl.isPending} onClick={() => recrawl.mutate()}>
-            {recrawl.isPending ? "触发中..." : "recrawl"}
+            {recrawl.isPending ? "触发中..." : "重抓取"}
           </Button>
           <ConfirmDangerDialog
             trigger={
