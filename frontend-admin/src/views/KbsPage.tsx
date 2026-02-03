@@ -199,29 +199,24 @@ export function KbsPage() {
               <DialogContent className="max-w-3xl space-y-4">
                 <DialogHeader className="space-y-2">
                   <DialogTitle>新建知识库向导（3 步）</DialogTitle>
-                  <DialogDescription>文件导入 / 网站爬虫 / 空知识库，分段配置与调度同步完成。</DialogDescription>
+                  <DialogDescription>网站爬虫 / 空知识库（文件导入功能开发中）。</DialogDescription>
                   {stepper}
                 </DialogHeader>
                 {create.error ? <ApiErrorBanner error={create.error} /> : null}
                 {wizardStep === 1 ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       {[
-                        { key: "file", title: "文件导入（开发中）", desc: "暂未开放，先用爬虫或空知识库", disabled: true },
                         { key: "crawler", title: "网站爬虫", desc: "从站点抓取页面，按规则过滤" },
                         { key: "empty", title: "空知识库", desc: "先创建，稍后再配置数据源" },
                       ].map((opt) => (
                         <button
                           key={opt.key}
                           type="button"
-                          onClick={() => {
-                            if (opt.disabled) return;
-                            setSourceType(opt.key as typeof sourceType);
-                          }}
+                          onClick={() => setSourceType(opt.key as typeof sourceType)}
                           className={cn(
                             "group rounded-xl border border-border/70 bg-card/60 p-4 text-left transition hover:border-primary/60 hover:bg-card/90",
-                            sourceType === opt.key ? "border-primary/80 shadow-[0_0_0_1px_rgba(181,255,102,0.6)]" : "",
-                            opt.disabled ? "cursor-not-allowed opacity-50 hover:border-border/70 hover:bg-card/60" : ""
+                            sourceType === opt.key ? "border-primary/80 shadow-[0_0_0_1px_rgba(181,255,102,0.6)]" : ""
                           )}
                         >
                           <div className="text-sm font-semibold text-foreground">{opt.title}</div>
@@ -230,7 +225,7 @@ export function KbsPage() {
                       ))}
                     </div>
                     <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground">
-                      文件导入功能尚未开放：推荐选择「网站爬虫」作为主流程；若只是先占位，也可选「空知识库」后续再配置。
+                      文件导入功能开发中：先使用「网站爬虫」或「空知识库」完成创建，后续再补充导入入口。
                     </div>
                     <Separator />
                     <div className="grid grid-cols-2 gap-3">
