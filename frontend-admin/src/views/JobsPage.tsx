@@ -504,116 +504,146 @@ export function JobsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {group.jobs.map((job) => (
-                      <tr key={job.id} className="border-t border-border/30">
-                        <td className="px-4 py-2 font-mono text-xs">
-                          <div className="flex flex-col gap-1">
-                            <Link
-                              className="hover:underline"
-                              to={`/jobs/${job.id}`}
-                              state={{
-                                from: {
-                                  // 让详情页的“返回”尽量回到用户当前的筛选视角，而不是“某个 job 的默认归属”。
-                                  kb_id: kbIdFilter || job.kb_id,
-                                  source_id: sourceIdFilter || job.source_id,
-                                },
-                              }}
-                            >
-                              {job.id}
-                            </Link>
-                            {job.kb_id ? (
-                              <div className="font-sans text-[11px] text-muted-foreground">
-                                <Link
+                    {group.jobs.map((job) => {
+                      const isJobExpanded = expandedJobs.has(job.id);
+
+                      return (
+                        <>
+                          <tr key={job.id} className="border-t border-border/30">
+                            <td className="px-4 py-2 font-mono text-xs">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
                                   className="hover:underline"
-                                  to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
-                                  title="跳到该 KB 的任务 Tab，并尽量保留 source_id 筛选"
+                                  onClick={() => toggleJob(job.id)}
+                                  title={isJobExpanded ? "收起" : "展开"}
                                 >
-                                  回到该知识库（运行）
-                                </Link>
+                                  {job.id}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-[11px] text-muted-foreground underline underline-offset-2"
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(job.id);
+                                      toast.success("已复制运行 ID");
+                                    } catch {
+                                      toast.error("复制失败");
+                                    }
+                                  }}
+                                >
+                                  复制
+                                </button>
                               </div>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2">
-                          <Badge variant="outline">
-                            {job.type === "crawl" ? "采集" : job.type === "index" ? "构建索引" : job.type}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-2">
-                          <Badge variant={statusBadgeVariant(job.status)}>
-                            {statusLabel(job.status)}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                            {job.app_id ? (
-                              <Link
-                                className="font-mono underline underline-offset-2"
-                                to={`/apps/${encodeURIComponent(job.app_id)}`}
-                                title="打开 App 详情"
-                              >
-                                app:{job.app_id}
-                              </Link>
-                            ) : (
-                              <span className="text-muted-foreground">app:-</span>
-                            )}
+                            </td>
+                            <td className="px-4 py-2">
+                              <Badge variant="outline">{job.type === "crawl" ? "采集" : job.type === "index" ? "构建索引" : job.type}</Badge>
+                            </td>
+                            <td className="px-4 py-2">
+                              <Badge variant={statusBadgeVariant(job.status)}>{statusLabel(job.status)}</Badge>
+                            </td>
+                            <td className="px-4 py-2">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                {job.app_id ? (
+                                  <Link
+                                    className="font-mono underline underline-offset-2"
+                                    to={`/apps/${encodeURIComponent(job.app_id)}`}
+                                    title="打开 App 详情"
+                                  >
+                                    app:{job.app_id}
+                                  </Link>
+                                ) : (
+                                  <span className="text-muted-foreground">app:-</span>
+                                )}
 
-                            {job.kb_id ? (
-                              <Link
-                                className="font-mono underline underline-offset-2"
-                                to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=sources${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
-                                title="打开 KB 详情 → 数据源（并尽量保留 source_id）"
-                              >
-                                source:{job.source_id || "-"}
-                              </Link>
-                            ) : (
-                              <span className="text-muted-foreground">source:-</span>
-                            )}
+                                {job.kb_id && job.source_id ? (
+                                  <Link
+                                    className="font-mono underline underline-offset-2"
+                                    to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=sources&source_id=${encodeURIComponent(job.source_id)}`}
+                                    title="打开 KB 详情 → 数据源"
+                                  >
+                                    source:{job.source_id}
+                                  </Link>
+                                ) : (
+                                  <span className="text-muted-foreground">source:-</span>
+                                )}
 
-                            {job.kb_id || job.app_id ? (
-                              <Link
-                                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                                to={`/observability?${new URLSearchParams({
-                                  ...(job.kb_id ? { kb_id: job.kb_id } : {}),
-                                  ...(job.app_id ? { app_id: job.app_id } : {}),
-                                }).toString()}`}
-                                title="按 KB / App 过滤观测"
-                              >
-                                观测
-                              </Link>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground">
-                          {job.started_at?.slice(0, 19).replace("T", " ") || "-"}
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                navigate(`/jobs/${job.id}`, {
-                                  state: { from: { kb_id: job.kb_id, source_id: job.source_id } },
-                                })
-                              }
-                            >
-                              详情
-                            </Button>
-                            {job.status === "failed" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={requeue.isPending}
-                                onClick={() => requeue.mutate(job.id)}
-                              >
-                                重试
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                                {job.kb_id || job.app_id ? (
+                                  <Link
+                                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                    to={`/observability?${new URLSearchParams({
+                                      ...(job.kb_id ? { kb_id: job.kb_id } : {}),
+                                      ...(job.app_id ? { app_id: job.app_id } : {}),
+                                    }).toString()}`}
+                                    title="按 KB / App 过滤观测"
+                                  >
+                                    观测
+                                  </Link>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground">{job.started_at?.slice(0, 19).replace("T", " ") || "-"}</td>
+                            <td className="px-4 py-2">
+                              <div className="flex items-center gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => toggleJob(job.id)}>
+                                  {isJobExpanded ? "收起" : "展开"}
+                                </Button>
+                                {job.status === "failed" && (
+                                  <Button variant="ghost" size="sm" disabled={requeue.isPending} onClick={() => requeue.mutate(job.id)}>
+                                    重试
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+
+                          {isJobExpanded ? (
+                            <tr className="border-t border-border/30 bg-muted/10">
+                              <td colSpan={6} className="px-4 py-3">
+                                <div className="flex flex-col gap-3">
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <ProgressPill type={job.type} status={job.status} progress={job.progress} />
+                                    <div className="text-xs text-muted-foreground">
+                                      开始 {job.started_at?.slice(0, 19).replace("T", " ") || "-"}
+                                      <span className="mx-2 text-border">·</span>
+                                      结束 {job.finished_at?.slice(0, 19).replace("T", " ") || "-"}
+                                    </div>
+                                    <Button
+                                      asChild
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      <Link to={`/jobs/${job.id}`} state={{ from: { kb_id: kbIdFilter || job.kb_id, source_id: sourceIdFilter || job.source_id } }}>
+                                        打开详情页
+                                      </Link>
+                                    </Button>
+                                    {job.kb_id ? (
+                                      <Button asChild variant="outline" size="sm">
+                                        <Link to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}>
+                                          回到知识库
+                                        </Link>
+                                      </Button>
+                                    ) : null}
+                                  </div>
+
+                                  {job.error ? (
+                                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                                      <div className="text-xs font-medium text-destructive">错误信息</div>
+                                      <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-destructive/90">{job.error}</pre>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-muted-foreground">无错误信息（成功运行通常只需要看采集/索引产出）。</div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
