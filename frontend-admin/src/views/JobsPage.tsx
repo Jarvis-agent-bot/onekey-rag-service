@@ -435,7 +435,7 @@ export function JobsPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/kbs/${kbId}?tab=jobs`);
+                      navigate(`/kbs/${encodeURIComponent(kbId)}?tab=jobs`);
                     }}
                   >
                     查看知识库
@@ -453,8 +453,9 @@ export function JobsPage() {
                       <th className="px-4 py-2">任务 ID</th>
                       <th className="px-4 py-2 w-[80px]">类型</th>
                       <th className="px-4 py-2 w-[80px]">状态</th>
+                      <th className="px-4 py-2">关联</th>
                       <th className="px-4 py-2">开始时间</th>
-                      <th className="px-4 py-2 w-[120px]">操作</th>
+                      <th className="px-4 py-2 w-[140px]">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -491,6 +492,46 @@ export function JobsPage() {
                           <Badge variant={statusBadgeVariant(job.status)}>
                             {statusLabel(job.status)}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                            {job.app_id ? (
+                              <Link
+                                className="font-mono underline underline-offset-2"
+                                to={`/apps/${encodeURIComponent(job.app_id)}`}
+                                title="打开 App 详情"
+                              >
+                                app:{job.app_id}
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground">app:-</span>
+                            )}
+
+                            {job.kb_id ? (
+                              <Link
+                                className="font-mono underline underline-offset-2"
+                                to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=sources${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}
+                                title="打开 KB 详情 → 数据源（并尽量保留 source_id）"
+                              >
+                                source:{job.source_id || "-"}
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground">source:-</span>
+                            )}
+
+                            {job.kb_id || job.app_id ? (
+                              <Link
+                                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                to={`/observability?${new URLSearchParams({
+                                  ...(job.kb_id ? { kb_id: job.kb_id } : {}),
+                                  ...(job.app_id ? { app_id: job.app_id } : {}),
+                                }).toString()}`}
+                                title="按 KB / App 过滤观测"
+                              >
+                                观测
+                              </Link>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-2 text-xs text-muted-foreground">
                           {job.started_at?.slice(0, 19).replace("T", " ") || "-"}
