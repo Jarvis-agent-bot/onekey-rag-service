@@ -224,6 +224,11 @@ export function KbDetailPage() {
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
 
+    // 切离「运行」时收起展开项，避免回到列表后看到“旧的详情仍展开”产生误解
+    if (newTab !== "jobs") {
+      setExpandedJobId("");
+    }
+
     const next = new URLSearchParams(searchParams);
     if (newTab !== "overview") {
       next.set("tab", newTab);
@@ -246,7 +251,7 @@ export function KbDetailPage() {
    * 从任意位置跳转到 KB 详情内的指定 Tab，并可选携带 source_id。
    * 目的：减少「数据源列表 → 内容/运行」的割裂感；同时把筛选写入 URL，便于刷新/分享。
    */
-  const jumpToTab = (targetTab: "pages" | "jobs", sourceId?: string) => {
+  const jumpToTab = (targetTab: "pages" | "jobs", sourceId?: string, opts?: { expandJobId?: string }) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", targetTab);
 
@@ -259,11 +264,13 @@ export function KbDetailPage() {
     if (targetTab === "pages") {
       setPagesSourceId(sourceId || "");
       setPagesPage(1);
+      setExpandedJobId("");
     }
 
     if (targetTab === "jobs") {
       setJobsSourceId(sourceId || "");
       setJobsPage(1);
+      setExpandedJobId(opts?.expandJobId || "");
     }
   };
 
@@ -673,12 +680,6 @@ export function KbDetailPage() {
             </Button>
 
             <Button variant="outline" asChild>
-              <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=pages`}>内容</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs`}>运行</Link>
-            </Button>
-            <Button variant="outline" asChild>
               <Link to={`/observability?kb_id=${encodeURIComponent(kbId)}`}>
                 <Eye className="mr-2 h-4 w-4" />
                 观测
@@ -1053,10 +1054,11 @@ export function KbDetailPage() {
                         </TableCell>
                         <TableCell>
                           {latestJob ? (
-                            <Link
-                              to={`/jobs/${latestJob.id}`}
-                              state={{ from: { kb_id: kbId, source_id: s.id } }}
-                              className="block hover:underline"
+                            <button
+                              type="button"
+                              className="block text-left hover:underline"
+                              title="在 KB 内查看该运行（不跳转详情页）"
+                              onClick={() => jumpToTab("jobs", s.id, { expandJobId: latestJob.id })}
                             >
                               {latestJob.status === "running" ? (
                                 <div className="flex items-center gap-1.5">
@@ -1081,7 +1083,7 @@ export function KbDetailPage() {
                               ) : (
                                 <span className="text-xs text-muted-foreground">{latestJob.status}</span>
                               )}
-                            </Link>
+                            </button>
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
