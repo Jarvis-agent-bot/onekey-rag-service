@@ -493,7 +493,7 @@ export function KbsPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{it.updated_at || "-"}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -501,6 +501,31 @@ export function KbsPage() {
                           title="以知识库为中心：在详情页内完成数据源/内容/运行/观测等操作"
                         >
                           打开
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=sources`)}
+                          title="直接进入：数据源（配置/采集入口）"
+                        >
+                          数据源
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=pages`)}
+                          title="直接进入：内容（抓取到的页面/文档）"
+                        >
+                          内容
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/kbs/${encodeURIComponent(it.id)}?tab=jobs`)}
+                          title="直接进入：运行（采集/构建索引的记录与排障）"
+                        >
+                          运行
                         </Button>
                       </div>
                     </td>
