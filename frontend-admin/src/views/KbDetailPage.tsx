@@ -1417,7 +1417,7 @@ export function KbDetailPage() {
               <DialogHeader>
                 <DialogTitle>内容详情</DialogTitle>
                 <DialogDescription>
-                  page_id=<span className="font-mono">{pageIdParam || "-"}</span>（已下沉到 KB：不再有独立“验证台”页面）
+                  page_id=<span className="font-mono">{pageIdParam || "-"}</span>
                 </DialogDescription>
               </DialogHeader>
 
@@ -1432,7 +1432,7 @@ export function KbDetailPage() {
                       <CopyableText text={pageDetailQuery.data.url} href={pageDetailQuery.data.url} />
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">HTTP</div>
+                      <div className="text-xs text-muted-foreground">HTTP 状态</div>
                       <div className={pageDetailQuery.data.http_status >= 400 ? "font-mono text-red-400" : "font-mono"}>{pageDetailQuery.data.http_status || "-"}</div>
                     </div>
                     <div>
@@ -1451,7 +1451,7 @@ export function KbDetailPage() {
                       </Button>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Chunks</div>
+                      <div className="text-xs text-muted-foreground">分段数</div>
                       <div className="font-mono">{pageDetailQuery.data.chunk_stats?.total ?? "-"}</div>
                     </div>
                   </div>
