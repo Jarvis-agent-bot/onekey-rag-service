@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { Card } from "../components/Card";
 import { ApiErrorBanner } from "../components/ApiErrorBanner";
@@ -29,6 +29,26 @@ type AuditLogsResp = {
     created_at: string | null;
   }>;
 };
+
+function resolveObjectLink(objectType: string, objectId: string, meta?: Record<string, unknown>): string | null {
+  const t = (objectType || "").trim();
+  const id = (objectId || "").trim();
+  if (!t || !id) return null;
+
+  // 常见对象：直接跳到详情页
+  if (t === "kb") return `/kbs/${encodeURIComponent(id)}`;
+  if (t === "app") return `/apps/${encodeURIComponent(id)}`;
+  if (t === "job") return `/jobs/${encodeURIComponent(id)}`;
+  if (t === "page") return `/pages/${encodeURIComponent(id)}`;
+
+  // source 没有独立详情页：尽量跳回 KB 详情的 sources tab，并带上 source_id
+  if (t === "source") {
+    const kbId = typeof meta?.kb_id === "string" ? meta.kb_id : "";
+    if (kbId) return `/kbs/${encodeURIComponent(kbId)}?tab=sources&source_id=${encodeURIComponent(id)}`;
+  }
+
+  return null;
+}
 
 export function AuditPage() {
   const { workspaceId } = useWorkspace();
@@ -171,17 +191,25 @@ export function AuditPage() {
             {(q.data?.items || []).length ? (
               (q.data?.items || []).map((it) => {
                 const metaText = it.meta && Object.keys(it.meta).length ? JSON.stringify(it.meta) : "";
+                const objectLink = resolveObjectLink(it.object_type, it.object_id, it.meta);
                 return (
                   <TableRow key={it.id}>
                     <TableCell className="font-mono text-xs text-muted-foreground">{it.created_at || "-"}</TableCell>
                     <TableCell className="font-mono text-xs">{it.actor || "-"}</TableCell>
                     <TableCell className="font-mono text-xs">{it.action || "-"}</TableCell>
                     <TableCell>
-                      <CopyableText
-                        text={it.object_id || "-"}
-                        prefix={<span className="font-mono text-xs text-muted-foreground">{it.object_type || "-"}</span>}
-                        toastText="已复制对象 ID"
-                      />
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <CopyableText
+                          text={it.object_id || "-"}
+                          prefix={<span className="font-mono text-xs text-muted-foreground">{it.object_type || "-"}</span>}
+                          toastText="已复制对象 ID"
+                        />
+                        {objectLink ? (
+                          <Link className="shrink-0 text-xs underline underline-offset-2 text-muted-foreground hover:text-foreground" to={objectLink}>
+                            打开
+                          </Link>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="max-w-[520px]">
                       {metaText ? (
