@@ -185,6 +185,9 @@ export function AppsPage() {
                   <Link to={`/kbs?app_id=${encodeURIComponent(row.id)}`}>查看关联 KB</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link to={`/jobs?app_id=${encodeURIComponent(row.id)}`}>任务中心（按 App）</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to={`/observability?app_id=${encodeURIComponent(row.id)}`}>观测（按 App）</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
