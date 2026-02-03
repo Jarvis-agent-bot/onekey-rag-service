@@ -1652,7 +1652,7 @@ export function KbDetailPage() {
                                   <div className="text-sm font-medium">任务详情</div>
                                   <div className="grid grid-cols-2 gap-2 text-xs">
                                     <div className="text-muted-foreground">运行 ID</div>
-                                    <div className="font-mono">{j.id}</div>
+                                    <CopyableText text={j.id} toastText="已复制运行 ID" textClassName="font-mono" />
                                     <div className="text-muted-foreground">类型</div>
                                     <div>{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</div>
                                     <div className="text-muted-foreground">数据源</div>
@@ -1692,16 +1692,14 @@ export function KbDetailPage() {
                                 </div>
                               </div>
                               <div className="mt-4 flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    navigate(`/jobs/${j.id}`, {
-                                      state: { from: { kb_id: kbId, source_id: j.source_id || undefined } },
-                                    })
-                                  }
-                                >
-                                  查看完整详情
+                                <Button asChild variant="ghost" size="sm">
+                                  <Link
+                                    to={`/jobs/${j.id}`}
+                                    state={{ from: { kb_id: kbId, source_id: j.source_id || undefined } }}
+                                    title="详情页仅作兜底（优先在 KB 内完成排障/重试）"
+                                  >
+                                    详情页（兜底）
+                                  </Link>
                                 </Button>
                                 {j.source_id && sources.data?.items.find((s) => s.id === j.source_id) && (
                                   <Button

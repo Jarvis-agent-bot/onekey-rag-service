@@ -10,6 +10,7 @@ import { Loading } from "../components/Loading";
 import { EmptyState } from "../components/EmptyState";
 import { DebouncedInput } from "../components/DebouncedInput";
 import { EntityLinksBar } from "../components/EntityLinksBar";
+import { CopyableText } from "../components/CopyableText";
 import { ProgressPill } from "../components/ProgressPill";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
@@ -640,18 +641,22 @@ export function JobsPage() {
                                       <span className="mx-2 text-border">·</span>
                                       结束 {job.finished_at?.slice(0, 19).replace("T", " ") || "-"}
                                     </div>
-                                    <Button
-                                      asChild
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                      }}
+                                    <CopyableText
+                                      text={job.id}
+                                      toastText="已复制运行 ID"
+                                      className="max-w-[320px]"
+                                      textClassName="font-mono text-xs text-muted-foreground"
+                                    />
+
+                                    <Link
+                                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                      to={`/jobs/${job.id}`}
+                                      state={{ from: { kb_id: kbIdFilter || job.kb_id, source_id: sourceIdFilter || job.source_id } }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      title="详情页仅作兜底（优先在列表/KB 内完成排障）"
                                     >
-                                      <Link to={`/jobs/${job.id}`} state={{ from: { kb_id: kbIdFilter || job.kb_id, source_id: sourceIdFilter || job.source_id } }}>
-                                        打开详情页（备用）
-                                      </Link>
-                                    </Button>
+                                      详情页（兜底）
+                                    </Link>
                                     {job.kb_id ? (
                                       <>
                                         <Button asChild variant="outline" size="sm">
