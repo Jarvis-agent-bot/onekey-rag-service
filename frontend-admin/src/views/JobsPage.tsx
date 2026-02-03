@@ -245,10 +245,19 @@ export function JobsPage() {
             <div className="text-xs tracking-wider text-primary">运行</div>
             <div className="text-2xl font-semibold text-foreground">运行中心</div>
             <div className="text-sm text-muted-foreground">
-              按知识库分组查看运行状态，失败记录可批量重试
+              全局查看各知识库的运行状态（排障/批量重试用）。日常建议从「知识库详情页 → 运行」进入。
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {kbIdFilter ? (
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/kbs/${encodeURIComponent(kbIdFilter)}?tab=jobs${sourceIdFilter ? `&source_id=${encodeURIComponent(sourceIdFilter)}` : ""}`}>回到该知识库</Link>
+              </Button>
+            ) : (
+              <Button asChild size="sm" variant="outline">
+                <Link to="/kbs">知识库（推荐）</Link>
+              </Button>
+            )}
             {totalStats.failed > 0 && (
               <ConfirmDangerDialog
                 trigger={
