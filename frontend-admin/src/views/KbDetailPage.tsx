@@ -1255,17 +1255,24 @@ export function KbDetailPage() {
             )}
           </Card>
 
-          {/* 创建/编辑数据源表单 */}
-          {showSourceForm && (
-            <Card
-              title={editingSourceId ? "编辑数据源" : "新建数据源"}
-              description={editingSourceId ? `正在编辑 ${editingSourceId}` : "配置网站爬虫参数"}
-              actions={
-                <Button variant="ghost" size="sm" onClick={() => { setShowSourceForm(false); setEditingSourceId(""); }}>
-                  取消
-                </Button>
+          {/* 创建/编辑数据源：用弹窗承载，避免在页面内插入一整块表单导致滚动跳动 */}
+          <Dialog
+            open={showSourceForm}
+            onOpenChange={(open) => {
+              setShowSourceForm(open);
+              if (!open) {
+                setEditingSourceId("");
               }
-            >
+            }}
+          >
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{editingSourceId ? "编辑数据源" : "新建数据源"}</DialogTitle>
+                <DialogDescription>
+                  {editingSourceId ? `正在编辑 ${editingSourceId}` : "配置网站爬虫参数"}
+                </DialogDescription>
+              </DialogHeader>
+
               <SourceConfigForm
                 name={sourceName}
                 onNameChange={setSourceName}
@@ -1274,22 +1281,34 @@ export function KbDetailPage() {
                 config={sourceConfig}
                 onConfigChange={setSourceConfig}
               />
-              <div className="mt-4 flex items-center gap-2">
-                {editingSourceId ? (
-                  <Button onClick={() => updateSource.mutate()} disabled={updateSource.isPending}>
-                    {updateSource.isPending ? "保存中..." : "保存修改"}
+
+              <DialogFooter className="mt-2 flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  提示：保存后可在「运行」Tab 里同步/排障；无需跳到运行中心。
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingSourceId ? (
+                    <Button onClick={() => updateSource.mutate()} disabled={updateSource.isPending}>
+                      {updateSource.isPending ? "保存中..." : "保存修改"}
+                    </Button>
+                  ) : (
+                    <Button onClick={() => createSource.mutate()} disabled={createSource.isPending || !sourceName.trim()}>
+                      {createSource.isPending ? "创建中..." : "创建数据源"}
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowSourceForm(false);
+                      setEditingSourceId("");
+                    }}
+                  >
+                    取消
                   </Button>
-                ) : (
-                  <Button onClick={() => createSource.mutate()} disabled={createSource.isPending || !sourceName.trim()}>
-                    {createSource.isPending ? "创建中..." : "创建数据源"}
-                  </Button>
-                )}
-                <Button variant="outline" onClick={() => { setShowSourceForm(false); setEditingSourceId(""); }}>
-                  取消
-                </Button>
-              </div>
-            </Card>
-          )}
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* 文件批次（合并到数据源 Tab） */}
           <Card
