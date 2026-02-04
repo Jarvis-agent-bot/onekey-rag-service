@@ -635,6 +635,25 @@ export function JobsPage() {
                                 <Button variant="ghost" size="sm" onClick={() => toggleJob(job.id)}>
                                   {isJobExpanded ? "收起" : "展开"}
                                 </Button>
+
+                                {job.kb_id ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const qs = new URLSearchParams();
+                                      qs.set("tab", "jobs");
+                                      qs.set("job_id", job.id);
+                                      if (job.source_id) qs.set("source_id", job.source_id);
+                                      if (job.app_id) qs.set("app_id", job.app_id);
+                                      navigate(`/kbs/${encodeURIComponent(job.kb_id)}?${qs.toString()}`);
+                                    }}
+                                    title="在 KB 详情内展开本次运行（减少页面跳转）"
+                                  >
+                                    在 KB 查看
+                                  </Button>
+                                ) : null}
+
                                 {job.status === "failed" && (
                                   <Button variant="ghost" size="sm" disabled={requeue.isPending} onClick={() => requeue.mutate(job.id)}>
                                     重试
