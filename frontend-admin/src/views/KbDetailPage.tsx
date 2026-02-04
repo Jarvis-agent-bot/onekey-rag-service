@@ -1618,6 +1618,76 @@ export function KbDetailPage() {
               </div>
             </div>
 
+            {/* 当前筛选提示：减少“为什么没数据/为什么只看到一部分”的困惑 */}
+            {(jobsType || jobsStatus || jobsSourceId) && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>已筛选：</span>
+                {jobsType ? (
+                  <Badge variant="secondary" className="gap-1">
+                    类型: {jobsType === "crawl" ? "采集" : jobsType === "index" ? "构建索引" : jobsType}
+                    <button
+                      type="button"
+                      className="ml-1 rounded px-1 hover:bg-muted"
+                      onClick={() => { setJobsType(""); setJobsPage(1); }}
+                      title="清除类型筛选"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ) : null}
+                {jobsStatus ? (
+                  <Badge variant="secondary" className="gap-1">
+                    状态: {jobsStatus}
+                    <button
+                      type="button"
+                      className="ml-1 rounded px-1 hover:bg-muted"
+                      onClick={() => { setJobsStatus(""); setJobsPage(1); }}
+                      title="清除状态筛选"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ) : null}
+                {jobsSourceId ? (
+                  <Badge variant="secondary" className="gap-1">
+                    数据源: {sources.data?.items.find((s) => s.id === jobsSourceId)?.name || jobsSourceId}
+                    <button
+                      type="button"
+                      className="ml-1 rounded px-1 hover:bg-muted"
+                      onClick={() => {
+                        setJobsSourceId("");
+                        setJobsPage(1);
+                        const next = new URLSearchParams(searchParams);
+                        next.set("tab", "jobs");
+                        next.delete("source_id");
+                        setSearchParams(next, { replace: true });
+                      }}
+                      title="清除数据源筛选"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2"
+                  onClick={() => {
+                    setJobsType("");
+                    setJobsStatus("");
+                    setJobsSourceId("");
+                    setJobsPage(1);
+                    const next = new URLSearchParams(searchParams);
+                    next.set("tab", "jobs");
+                    next.delete("source_id");
+                    setSearchParams(next, { replace: true });
+                  }}
+                >
+                  清除全部
+                </Button>
+              </div>
+            )}
+
             {jobsQuery.isLoading ? <Loading size="sm" /> : null}
             {jobsQuery.error ? <ApiErrorBanner error={jobsQuery.error} /> : null}
 
