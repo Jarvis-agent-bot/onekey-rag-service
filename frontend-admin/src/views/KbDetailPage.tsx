@@ -733,7 +733,14 @@ export function KbDetailPage() {
             </Button>
 
             <Button variant="outline" asChild>
-              <Link to={`/observability?kb_id=${encodeURIComponent(kbId)}`}>
+              <Link
+                to={
+                  appId
+                    ? `/observability?app_id=${encodeURIComponent(appId)}&kb_id=${encodeURIComponent(kbId)}`
+                    : `/observability?kb_id=${encodeURIComponent(kbId)}`
+                }
+                title={appId ? "按 App+KB 过滤观测事件" : "按 KB 过滤观测事件"}
+              >
                 <Eye className="mr-2 h-4 w-4" />
                 观测
               </Link>
