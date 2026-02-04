@@ -244,6 +244,11 @@ export function KbDetailPage() {
     if (newTab !== "jobs") {
       next.delete("job_id");
     }
+
+    // 同理：离开「内容」时清理 page_id，避免返回/刷新时莫名再次打开旧的内容详情。
+    if (newTab !== "pages") {
+      next.delete("page_id");
+    }
     if (newTab !== "overview") {
       next.set("tab", newTab);
     } else {
