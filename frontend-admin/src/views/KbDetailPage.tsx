@@ -1673,9 +1673,30 @@ export function KbDetailPage() {
             </div>
 
             {/* 当前筛选提示：减少“为什么没数据/为什么只看到一部分”的困惑 */}
-            {(jobsType || jobsStatus || jobsSourceId) && (
+            {(jobsType || jobsStatus || jobsSourceId || appId) && (
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>已筛选：</span>
+
+                {appId ? (
+                  <Badge variant="secondary" className="gap-1">
+                    应用: {appId}
+                    <button
+                      type="button"
+                      className="ml-1 rounded px-1 hover:bg-muted"
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.set("tab", "jobs");
+                        next.delete("app_id");
+                        setSearchParams(next, { replace: true });
+                        setJobsPage(1);
+                      }}
+                      title="清除应用筛选"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ) : null}
+
                 {jobsType ? (
                   <Badge variant="secondary" className="gap-1">
                     类型: {jobsType === "crawl" ? "采集" : jobsType === "index" ? "构建索引" : jobsType}
@@ -1734,6 +1755,7 @@ export function KbDetailPage() {
                     const next = new URLSearchParams(searchParams);
                     next.set("tab", "jobs");
                     next.delete("source_id");
+                    next.delete("app_id");
                     setSearchParams(next, { replace: true });
                   }}
                 >
