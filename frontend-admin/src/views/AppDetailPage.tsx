@@ -348,7 +348,11 @@ export function AppDetailPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {b.kb_id ? (
-                        <Link className="hover:underline" to={`/kbs/${encodeURIComponent(b.kb_id)}`}>
+                        <Link
+                          className="hover:underline"
+                          to={`/kbs/${encodeURIComponent(b.kb_id)}?app_id=${encodeURIComponent(appId)}`}
+                          title="打开 KB（保留 app_id 上下文）"
+                        >
                           {b.kb_id}
                         </Link>
                       ) : (
@@ -383,7 +387,7 @@ export function AppDetailPage() {
                       <div className="flex items-center gap-2">
                         {b.kb_id ? (
                           <Button asChild variant="ghost" size="sm">
-                            <Link to={`/kbs/${encodeURIComponent(b.kb_id)}`}>查看 KB</Link>
+                            <Link to={`/kbs/${encodeURIComponent(b.kb_id)}?app_id=${encodeURIComponent(appId)}`}>查看 KB</Link>
                           </Button>
                         ) : null}
                         <Button
