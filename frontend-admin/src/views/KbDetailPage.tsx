@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Database, Eye, Play, Plus, RefreshCw, RotateCcw, Settings2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Database, ExternalLink, Eye, Play, Plus, RefreshCw, RotateCcw, Settings2, Upload } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -1896,10 +1896,15 @@ export function KbDetailPage() {
                                 <Button asChild variant="ghost" size="sm">
                                   <Link
                                     to={`/jobs/${j.id}`}
+                                    target="_blank"
+                                    rel="noreferrer"
                                     state={{ from: { kb_id: kbId, source_id: j.source_id || undefined } }}
-                                    title="详情页仅作兜底（优先在 KB 内完成排障/重试）"
+                                    title="在新标签打开（详情页仅作兜底；优先在 KB 内完成排障/重试）"
                                   >
-                                    详情页（兜底）
+                                    <span className="inline-flex items-center gap-1">
+                                      详情页（兜底）
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </span>
                                   </Link>
                                 </Button>
                                 {j.source_id && sources.data?.items.find((s) => s.id === j.source_id) && (
