@@ -758,7 +758,12 @@ export function KbDetailPage() {
             ) : null}
 
             <Button variant="outline" asChild>
-              <Link to="/kbs">返回列表</Link>
+              <Link
+                to={appId ? `/kbs?app_id=${encodeURIComponent(appId)}` : "/kbs"}
+                title={appId ? "返回知识库列表（保留 app_id 筛选）" : "返回知识库列表"}
+              >
+                返回列表
+              </Link>
             </Button>
           </div>
         </div>
