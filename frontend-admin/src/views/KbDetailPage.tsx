@@ -433,18 +433,22 @@ export function KbDetailPage() {
     },
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
-      toast.success("已触发 构建索引");
-      // 优先回到「运行中心」并展开本次运行：减少跳到稀疏详情页的割裂感。
-      navigate(
-        `/jobs?${new URLSearchParams({
-          kb_id: kbId,
-          ...(pagesSourceId ? { source_id: pagesSourceId } : {}),
-          open_job_id: data.job_id,
-        }).toString()}`,
-        {
-          state: { from: { kb_id: kbId, source_id: pagesSourceId || undefined } },
-        }
-      );
+      toast.success("已触发 构建索引", {
+        description: "已切到『运行』并展开本次运行，方便跟踪进度",
+      });
+
+      // KB-first：触发动作后不跳出 KB 详情页；直接切到 KB 内『运行』Tab 并展开 job。
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", "jobs");
+      next.delete("page_id");
+      if (pagesSourceId) next.set("source_id", pagesSourceId);
+      else next.delete("source_id");
+
+      setSearchParams(next, { replace: true });
+      setTab("jobs");
+      setJobsSourceId(pagesSourceId || "");
+      setJobsPage(1);
+      setExpandedJobId(data.job_id);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
@@ -499,18 +503,22 @@ export function KbDetailPage() {
     },
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ["kb-pages", workspaceId, kbId] });
-      toast.success("已触发 重新采集");
-      // 优先回到「运行中心」并展开本次运行：减少跳到稀疏详情页的割裂感。
-      navigate(
-        `/jobs?${new URLSearchParams({
-          kb_id: kbId,
-          ...(pagesSourceId ? { source_id: pagesSourceId } : {}),
-          open_job_id: data.job_id,
-        }).toString()}`,
-        {
-          state: { from: { kb_id: kbId, source_id: pagesSourceId || undefined } },
-        }
-      );
+      toast.success("已触发 重新采集", {
+        description: "已切到『运行』并展开本次运行，方便跟踪进度",
+      });
+
+      // KB-first：触发动作后不跳出 KB 详情页；直接切到 KB 内『运行』Tab 并展开 job。
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", "jobs");
+      next.delete("page_id");
+      if (pagesSourceId) next.set("source_id", pagesSourceId);
+      else next.delete("source_id");
+
+      setSearchParams(next, { replace: true });
+      setTab("jobs");
+      setJobsSourceId(pagesSourceId || "");
+      setJobsPage(1);
+      setExpandedJobId(data.job_id);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "触发失败"),
   });
