@@ -1838,9 +1838,23 @@ export function KbDetailPage() {
                             <div className="space-y-1">
                               <Badge variant="outline">{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</Badge>
                               {j.source_id ? (
-                                <div className="max-w-[220px] truncate text-[11px] text-muted-foreground" title={j.source_id}>
+                                <button
+                                  type="button"
+                                  className="max-w-[220px] truncate text-left text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+                                  title={`查看数据源配置：${j.source_id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const next = new URLSearchParams(searchParams);
+                                    next.set("tab", "sources");
+                                    next.set("source_id", j.source_id);
+                                    setSearchParams(next, { replace: true });
+                                    setTab("sources");
+                                    setEditingSourceId(j.source_id);
+                                    setShowSourceForm(true);
+                                  }}
+                                >
                                   来源：{sourceName || j.source_id}
-                                </div>
+                                </button>
                               ) : null}
                             </div>
                           </TableCell>
