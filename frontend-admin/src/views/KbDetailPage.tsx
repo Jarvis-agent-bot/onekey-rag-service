@@ -239,6 +239,11 @@ export function KbDetailPage() {
     }
 
     const next = new URLSearchParams(searchParams);
+
+    // KB-first：离开「运行」时清理 job_id，避免分享/刷新时出现“莫名展开一条旧运行”。
+    if (newTab !== "jobs") {
+      next.delete("job_id");
+    }
     if (newTab !== "overview") {
       next.set("tab", newTab);
     } else {
@@ -266,6 +271,14 @@ export function KbDetailPage() {
 
     if (sourceId) next.set("source_id", sourceId);
     else next.delete("source_id");
+
+    // KB-first：跳到「运行」时可选带上 job_id，刷新/分享仍能回到同一条运行。
+    if (targetTab === "jobs") {
+      if (opts?.expandJobId) next.set("job_id", opts.expandJobId);
+      else next.delete("job_id");
+    } else {
+      next.delete("job_id");
+    }
 
     setSearchParams(next, { replace: true });
     setTab(targetTab);
@@ -443,6 +456,7 @@ export function KbDetailPage() {
       next.delete("page_id");
       if (pagesSourceId) next.set("source_id", pagesSourceId);
       else next.delete("source_id");
+      next.set("job_id", data.job_id);
 
       setSearchParams(next, { replace: true });
       setTab("jobs");
@@ -513,6 +527,7 @@ export function KbDetailPage() {
       next.delete("page_id");
       if (pagesSourceId) next.set("source_id", pagesSourceId);
       else next.delete("source_id");
+      next.set("job_id", data.job_id);
 
       setSearchParams(next, { replace: true });
       setTab("jobs");
@@ -529,6 +544,8 @@ export function KbDetailPage() {
   const [jobsStatus, setJobsStatus] = useState("");
   const [jobsSourceId, setJobsSourceId] = useState("");
 
+  // job_id：用于把“展开的运行详情”写入 URL，刷新/分享仍能回到同一条运行。
+  const jobIdParam = (searchParams.get("job_id") || "").trim();
 
   // URL -> 过滤器：支持从 Job/Pages 详情页深链回到指定 KB Tab（并自动筛选 source_id）
   useEffect(() => {
@@ -560,6 +577,20 @@ export function KbDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, searchParams]);
   const [expandedJobId, setExpandedJobId] = useState<string>("");
+
+  // URL -> 展开项：保持 KB-first 的“在同页排障”体验，避免刷新后丢上下文。
+  useEffect(() => {
+    if (tab !== "jobs") return;
+    if (!jobIdParam) {
+      // URL 没有 job_id 时，不强制收起（尊重用户当前展开）；但若当前展开项来自 URL 切换，这里会被清掉。
+      return;
+    }
+    if (jobIdParam !== expandedJobId) {
+      setExpandedJobId(jobIdParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, jobIdParam]);
+
   const jobsPageSize = 10;
 
   const jobsQuery = useQuery({
@@ -1732,7 +1763,17 @@ export function KbDetailPage() {
                       <Fragment key={j.id}>
                         <TableRow
                           className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => setExpandedJobId(isExpanded ? "" : j.id)}
+                          onClick={() => {
+                            const nextId = isExpanded ? "" : j.id;
+                            setExpandedJobId(nextId);
+
+                            // 把展开项同步到 URL，避免刷新后丢失上下文。
+                            const next = new URLSearchParams(searchParams);
+                            next.set("tab", "jobs");
+                            if (nextId) next.set("job_id", nextId);
+                            else next.delete("job_id");
+                            setSearchParams(next, { replace: true });
+                          }}
                         >
                           <TableCell className="w-[40px] px-2">
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
