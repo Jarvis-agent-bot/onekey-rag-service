@@ -1093,10 +1093,20 @@ export function KbDetailPage() {
                             {s.status === "active" ? "启用" : "禁用"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-[180px]">
-                          <div className="truncate text-xs text-muted-foreground">
-                            {(s.config as { base_url?: string }).base_url || "-"}
-                          </div>
+                        <TableCell className="max-w-[220px]">
+                          {(() => {
+                            const baseUrl = (s.config as { base_url?: string }).base_url || "";
+                            return baseUrl ? (
+                              <CopyableText
+                                text={baseUrl}
+                                href={baseUrl}
+                                toastText="已复制网站地址"
+                                textClassName="text-xs text-muted-foreground"
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           {latestJob ? (
