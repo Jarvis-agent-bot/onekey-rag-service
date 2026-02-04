@@ -594,12 +594,17 @@ export function KbDetailPage() {
   const jobsPageSize = 10;
 
   const jobsQuery = useQuery({
-    queryKey: ["kb-jobs", workspaceId, kbId, jobsPage, jobsPageSize, jobsType, jobsStatus, jobsSourceId],
+    queryKey: ["kb-jobs", workspaceId, kbId, jobsPage, jobsPageSize, jobsType, jobsStatus, jobsSourceId, appId],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set("page", String(jobsPage));
       params.set("page_size", String(jobsPageSize));
       params.set("kb_id", kbId);
+
+      // KB-first：当从「应用详情 → KB」进入时，默认把运行列表按 app_id 收敛。
+      // 目的：减少“跑了哪个应用的 job”再跳去运行中心找的割裂。
+      if (appId) params.set("app_id", appId);
+
       if (jobsType) params.set("type", jobsType);
       if (jobsStatus) params.set("status", jobsStatus);
       if (jobsSourceId) params.set("source_id", jobsSourceId);
@@ -889,8 +894,8 @@ export function KbDetailPage() {
                           <div className="flex flex-col items-end gap-1">
                             <Link
                               className="underline underline-offset-2 hover:text-foreground"
-                              to={`/jobs?app_id=${encodeURIComponent(it.app_id)}&kb_id=${encodeURIComponent(kbId)}`}
-                              title="按 App+KB 过滤运行中心"
+                              to={`/kbs/${encodeURIComponent(kbId)}?tab=jobs&app_id=${encodeURIComponent(it.app_id)}`}
+                              title="在 KB 详情内查看运行（自动按 app_id 收敛）"
                             >
                               运行
                             </Link>
