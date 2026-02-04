@@ -290,11 +290,7 @@ export function JobsPage() {
               <Button asChild size="sm" variant="outline">
                 <Link to={`/kbs/${encodeURIComponent(kbIdFilter)}?tab=jobs${sourceIdFilter ? `&source_id=${encodeURIComponent(sourceIdFilter)}` : ""}`}>回到该知识库</Link>
               </Button>
-            ) : (
-              <Button asChild size="sm" variant="outline">
-                <Link to="/kbs">知识库（推荐）</Link>
-              </Button>
-            )}
+            ) : null}
             {totalStats.failed > 0 && (
               <ConfirmDangerDialog
                 trigger={
@@ -355,7 +351,7 @@ export function JobsPage() {
         }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          <div className="space-y-1">
+          <div className="space-y-1 md:col-span-2">
             <div className="text-xs text-muted-foreground">状态</div>
             <Select
               value={statusFilter}
@@ -389,54 +385,51 @@ export function JobsPage() {
               <option value="crawl">采集</option>
               <option value="index">构建索引</option>
             </Select>
-            <div className="text-[11px] leading-4 text-muted-foreground">
-              采集=从数据源拉取内容；构建索引=让内容可检索
-            </div>
+            <div className="text-[11px] leading-4 text-muted-foreground">采集=从数据源拉取内容；构建索引=让内容可检索</div>
           </div>
 
-          <div className="space-y-2 md:col-span-4">
-            <div>
-              <div className="text-xs text-muted-foreground">知识库</div>
-              <Select
-                value={kbIdFilter}
-                onChange={(e) => {
-                  const next = new URLSearchParams(sp);
-                  const vv = (e.target.value || "").trim();
-                  if (vv) next.set("kb_id", vv);
-                  else next.delete("kb_id");
-                  setSp(next, { replace: true });
-                }}
-              >
-                <option value="">全部</option>
-                {(kbs.data?.items || [])
-                  .slice()
-                  .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
-                  .map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.name || k.id}
-                    </option>
-                  ))}
-              </Select>
-            </div>
+          <div className="space-y-1 md:col-span-4">
+            <div className="text-xs text-muted-foreground">知识库</div>
+            <Select
+              value={kbIdFilter}
+              onChange={(e) => {
+                const next = new URLSearchParams(sp);
+                const vv = (e.target.value || "").trim();
+                if (vv) next.set("kb_id", vv);
+                else next.delete("kb_id");
+                setSp(next, { replace: true });
+              }}
+            >
+              <option value="">全部</option>
+              {(kbs.data?.items || [])
+                .slice()
+                .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+                .map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name || k.id}
+                  </option>
+                ))}
+            </Select>
+            <div className="text-[11px] text-muted-foreground">也可直接输入 KB ID（用于粘贴 kb_xxx）</div>
+          </div>
 
-            <div>
-              <div className="text-[11px] text-muted-foreground">或直接输入 KB ID</div>
-              <DebouncedInput
-                value={kbIdFilter}
-                onChange={(v) => {
-                  const next = new URLSearchParams(sp);
-                  const vv = v.trim();
-                  if (vv) next.set("kb_id", vv);
-                  else next.delete("kb_id");
-                  setSp(next, { replace: true });
-                }}
-                placeholder="kb_xxx"
-              />
-            </div>
+          <div className="space-y-1 md:col-span-3">
+            <div className="text-xs text-muted-foreground">KB ID</div>
+            <DebouncedInput
+              value={kbIdFilter}
+              onChange={(v) => {
+                const next = new URLSearchParams(sp);
+                const vv = v.trim();
+                if (vv) next.set("kb_id", vv);
+                else next.delete("kb_id");
+                setSp(next, { replace: true });
+              }}
+              placeholder="kb_xxx"
+            />
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <div className="text-xs text-muted-foreground">应用 ID</div>
+            <div className="text-xs text-muted-foreground">应用 ID（可选）</div>
             <DebouncedInput
               value={appIdFilter}
               onChange={(v) => {
@@ -451,7 +444,7 @@ export function JobsPage() {
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <div className="text-xs text-muted-foreground">数据源 ID</div>
+            <div className="text-xs text-muted-foreground">数据源 ID（可选）</div>
             <DebouncedInput
               value={sourceIdFilter}
               onChange={(v) => {
@@ -465,7 +458,8 @@ export function JobsPage() {
             />
           </div>
 
-          <div className="flex items-end justify-end md:col-span-1">
+          <div className="flex flex-wrap items-center justify-end gap-2 md:col-span-12">
+            <div className="text-xs text-muted-foreground">提示：日常建议从「知识库详情 → 运行」进入，会自动带 KB 过滤。</div>
             <Button variant="outline" size="sm" onClick={() => setSp(new URLSearchParams(), { replace: true })}>
               清空筛选
             </Button>
@@ -492,7 +486,7 @@ export function JobsPage() {
             {/* 知识库头部 */}
             <button
               type="button"
-              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
               onClick={() => toggleKb(kbId)}
             >
               <div className="flex min-w-0 items-center gap-3">
@@ -502,39 +496,48 @@ export function JobsPage() {
                   <div className="truncate text-xs font-mono text-muted-foreground">{kbId !== "__no_kb__" ? kbId : ""}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {group.stats.running > 0 && (
-                  <Badge variant="secondary" className="bg-blue-500/20 text-blue-500">
-                    {group.stats.running} 运行中
+
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="hidden items-center gap-2 md:flex">
+                  {group.stats.failed > 0 ? (
+                    <Badge variant="destructive">{group.stats.failed} 失败</Badge>
+                  ) : (
+                    <Badge variant="outline">0 失败</Badge>
+                  )}
+                  {group.stats.running > 0 ? (
+                    <Badge variant="secondary" className="bg-blue-500/20 text-blue-500">
+                      {group.stats.running} 运行中
+                    </Badge>
+                  ) : null}
+                  {group.stats.queued > 0 ? (
+                    <Badge variant="secondary" className="bg-amber-500/20 text-amber-500">
+                      {group.stats.queued} 排队
+                    </Badge>
+                  ) : null}
+                  <Badge variant="outline">{group.jobs.length} 次运行</Badge>
+                </div>
+
+                <div className="md:hidden">
+                  <Badge variant={group.stats.failed > 0 ? "destructive" : "outline"}>
+                    {group.jobs.length} 次 · {group.stats.failed} 失败
                   </Badge>
-                )}
-                {group.stats.queued > 0 && (
-                  <Badge variant="secondary" className="bg-amber-500/20 text-amber-500">
-                    {group.stats.queued} 排队
-                  </Badge>
-                )}
-                {group.stats.failed > 0 && (
-                  <Badge variant="destructive">
-                    {group.stats.failed} 失败
-                  </Badge>
-                )}
-                <Badge variant="outline">{group.jobs.length} 次运行</Badge>
-                {kbId !== "__no_kb__" && (
+                </div>
+
+                {kbId !== "__no_kb__" ? (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       const qs = new URLSearchParams();
                       qs.set("tab", "jobs");
-                      // 若当前 Jobs 列表已按 source_id 过滤，则“查看知识库”也尽量带上 source 视角，减少跳转割裂
                       if (sourceIdFilter) qs.set("source_id", sourceIdFilter);
                       navigate(`/kbs/${encodeURIComponent(kbId)}?${qs.toString()}`);
                     }}
                   >
-                    查看知识库
+                    打开
                   </Button>
-                )}
+                ) : null}
               </div>
             </button>
 
