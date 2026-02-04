@@ -672,7 +672,10 @@ export function JobsPage() {
                                           </Link>
                                         </Button>
                                         <Button asChild variant="outline" size="sm">
-                                          <Link to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}`}>
+                                          <Link
+                                            to={`/kbs/${encodeURIComponent(job.kb_id)}?tab=jobs${job.source_id ? `&source_id=${encodeURIComponent(job.source_id)}` : ""}&job_id=${encodeURIComponent(job.id)}`}
+                                            title="回到 KB 详情 → 运行，并自动展开本次运行（可刷新/分享）"
+                                          >
                                             回到知识库
                                           </Link>
                                         </Button>
