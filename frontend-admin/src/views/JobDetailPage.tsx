@@ -110,20 +110,20 @@ export function JobDetailPage() {
               返回
             </Button>
             <span className="text-lg font-semibold">运行详情</span>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              title="回到运行中心，并自动展开这次运行（更适合排障/重试）"
-            >
+            <Button asChild variant="outline" size="sm" title="回到知识库详情页的『运行』Tab，并自动展开这次运行（KB-first）">
               <Link
-                to={`/jobs?${new URLSearchParams({
-                  ...(from?.kb_id ? { kb_id: from.kb_id } : q.data?.kb_id ? { kb_id: q.data.kb_id } : {}),
-                  ...(from?.source_id ? { source_id: from.source_id } : q.data?.source_id ? { source_id: q.data.source_id } : {}),
-                  open_job_id: jobId,
-                }).toString()}`}
+                to={(() => {
+                  const kb_id = from?.kb_id || q.data?.kb_id;
+                  const source_id = from?.source_id || q.data?.source_id;
+                  if (!kb_id) return "/kbs";
+                  const qs = new URLSearchParams();
+                  qs.set("tab", "jobs");
+                  qs.set("job_id", jobId);
+                  if (source_id) qs.set("source_id", source_id);
+                  return `/kbs/${encodeURIComponent(kb_id)}?${qs.toString()}`;
+                })()}
               >
-                回到运行中心（展开）
+                回到知识库（展开）
               </Link>
             </Button>
           </div>
