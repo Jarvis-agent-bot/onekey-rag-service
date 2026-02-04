@@ -1738,7 +1738,14 @@ export function KbDetailPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</Badge>
+                            <div className="space-y-1">
+                              <Badge variant="outline">{j.type === "crawl" ? "采集" : j.type === "index" ? "构建索引" : j.type}</Badge>
+                              {j.source_id ? (
+                                <div className="max-w-[220px] truncate text-[11px] text-muted-foreground" title={j.source_id}>
+                                  来源：{sourceName || j.source_id}
+                                </div>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge variant={j.status === "failed" ? "destructive" : j.status === "succeeded" ? "default" : "secondary"}>
