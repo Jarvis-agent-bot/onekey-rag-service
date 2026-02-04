@@ -354,7 +354,7 @@ export function JobsPage() {
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
           <div className="space-y-1">
             <div className="text-xs text-muted-foreground">状态</div>
             <Select
@@ -374,7 +374,7 @@ export function JobsPage() {
             </Select>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 md:col-span-3">
             <div className="text-xs text-muted-foreground">类型</div>
             <Select
               value={typeFilter}
@@ -389,10 +389,12 @@ export function JobsPage() {
               <option value="crawl">采集</option>
               <option value="index">构建索引</option>
             </Select>
-            <div className="text-[11px] text-muted-foreground">采集=从数据源拉取内容；构建索引=让内容可检索</div>
+            <div className="text-[11px] leading-4 text-muted-foreground">
+              采集=从数据源拉取内容；构建索引=让内容可检索
+            </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-4">
             <div>
               <div className="text-xs text-muted-foreground">知识库</div>
               <Select
@@ -433,8 +435,8 @@ export function JobsPage() {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">应用ID</div>
+          <div className="space-y-1 md:col-span-2">
+            <div className="text-xs text-muted-foreground">应用 ID</div>
             <DebouncedInput
               value={appIdFilter}
               onChange={(v) => {
@@ -448,8 +450,8 @@ export function JobsPage() {
             />
           </div>
 
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground">Source ID</div>
+          <div className="space-y-1 md:col-span-2">
+            <div className="text-xs text-muted-foreground">数据源 ID</div>
             <DebouncedInput
               value={sourceIdFilter}
               onChange={(v) => {
@@ -463,7 +465,7 @@ export function JobsPage() {
             />
           </div>
 
-          <div className="flex items-end justify-end">
+          <div className="flex items-end justify-end md:col-span-1">
             <Button variant="outline" size="sm" onClick={() => setSp(new URLSearchParams(), { replace: true })}>
               清空筛选
             </Button>
@@ -490,14 +492,14 @@ export function JobsPage() {
             {/* 知识库头部 */}
             <button
               type="button"
-              className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors"
+              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
               onClick={() => toggleKb(kbId)}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <div>
-                  <div className="font-medium">{kbName}</div>
-                  <div className="text-xs text-muted-foreground font-mono">{kbId !== "__no_kb__" ? kbId : ""}</div>
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{kbName}</div>
+                  <div className="truncate text-xs font-mono text-muted-foreground">{kbId !== "__no_kb__" ? kbId : ""}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
